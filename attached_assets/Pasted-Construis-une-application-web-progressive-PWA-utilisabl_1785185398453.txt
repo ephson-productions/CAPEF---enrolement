@@ -1,0 +1,106 @@
+Construis une application web progressive (PWA), utilisable hors connexion,
+pour l'enrôlement numérique des membres d'une chambre consulaire agricole
+(CAPEF - Cameroun). L'app doit fonctionner sur mobile (agents terrain) et
+desktop (gestionnaires).
+
+## RÔLES UTILISATEURS
+- Admin : accès total, gestion des comptes, export des données
+- Superviseur régional : voit uniquement les enrôlements de sa région
+- Agent de recensement (terrain) : peut créer de nouveaux enrôlements, ne
+  voit que ses propres saisies
+
+## MODÈLE DE DONNÉES
+
+Un "Membre" est soit une Personne Physique, soit une Personne Morale.
+
+### Personne Physique - champs communs
+Civilité, Nom, Prénom, Sexe, Situation matrimoniale, Date de naissance,
+Lieu de naissance, Numéro CNI, Photo CNI recto, Photo CNI verso, Téléphone 1,
+Téléphone 2, Email, Boîte postale, Photo du membre, Lieu de résidence,
+Région, Département, Arrondissement, Village/Quartier, Coordonnées GPS
+(latitude/longitude), Niveau d'études (Autodidacte/Primaire/Complémentaire/
+Secondaire/Universitaire/Doctorat/Autres), Photo de la signature du membre
+
+### Personne Morale - champs communs
+Type d'organisation (GIC/UGIC/FUGIC/COOP92/COOP OHADA/Autre), Nom,
+Numéro d'immatriculation, Date d'immatriculation, Photo du certificat
+d'inscription, Téléphone 1, Téléphone 2, Email, Boîte postale, Website,
+Nombre de membres (dont femmes), Adresse du siège (Région/Département/
+Arrondissement/Village), Coordonnées GPS
+Jusqu'à 3 Représentants (le 1er obligatoire, les 2 autres optionnels) :
+chacun avec Civilité, Nom, Prénom, Fonction, Téléphone 1, Téléphone 2, Email
+
+### Catégorie du membre (choix unique, obligatoire)
+Une des 5 : Agriculteurs, Pêcheurs, Éleveurs, Exploitants Forestiers, Artisans
+Chaque catégorie a un Type : Individuel ou Organisation Professionnelle
+
+### Champs conditionnels selon la catégorie choisie
+
+**Si Agriculteurs :**
+Catégorie de culture principale (Céréales/Oléagineux/Racines-tubercules/
+Légumes/Fruits et noix/Plantes stimulantes/Légumineuses/Cultures sucrières/
+Autres), Culture principale précise (dépend de la catégorie), Type de
+culture (Pure/Associée), Superficie de la parcelle (ha), Production
+annuelle (quantité + unité + valeur FCFA), possibilité d'ajouter des
+cultures associées sur la même parcelle, possibilité d'ajouter une
+nouvelle parcelle/culture principale (répétable)
+
+**Si Pêcheurs :**
+Maillon dans la filière (choix multiple : Pêcheur artisanal/Pêcheur
+industriel/Aquaculteur d'étang/Aquaculteur hors-sol/Aquaculteur sur cage
+flottante/Fournisseur d'intrants/Équipementier/Producteur d'alevins/
+Provendier/Autre), Espèce principale (Poissons de mer/Crustacés/Poissons
+d'eau douce Silure/Tilapia/Carpe/Autres), Production annuelle (quantité +
+unité + FCFA), possibilité d'ajouter une nouvelle espèce (répétable)
+
+**Si Éleveurs :**
+Maillon dans la filière (choix multiple), Type d'élevage (Volaille/
+Apiculture/Bovins/Canins/Asins/Ovins/Caprins/Non-conventionnel), Espèce
+élevée (liste longue : Bœufs, Ânes, Chevaux, Moutons, Chèvres, Porcs,
+Chiens, Poulets chair, Poulets race locale, Poulets pondeurs, Pintades,
+Dindons, Canards, Oies, Caille, Pigeons, Lapins, Aulacodes, Cobayes,
+Escargots, Abeilles, etc.), Taille du cheptel (nombre de têtes), Type de
+nourriture (Pâturage naturel/Céréales/Tourteaux/Autres), Production
+annuelle par produit (Lait/Viande/Œufs/Cire/Miel/Autres - quantité +
+unité + FCFA), possibilité d'ajouter un nouveau cheptel (répétable)
+
+**Si Exploitants Forestiers :**
+Maillon (Exploitant forestier/Sylviculteur/Exploitant de produits de la
+faune/Exploitant de PFNL - choix multiple), Essences forestières
+exploitées ou cultivées (Ayous, Azobé, Bubinga, Okok, Djansan, Mango,
+Kolatier, Bitter kola, Noisette, Moringa, Neem, Karité, Autres), Type de
+plantation (Monospécifique/Plurispécifique), Superficie cultivée (ha),
+Produits obtenus (Grumes/Planches - quantité + unité + FCFA), possibilité
+d'ajouter une nouvelle essence (répétable)
+
+**Si Artisans :**
+Produits d'artisanat (Boissons/Farines/Confiserie/Biscuiterie/Chips/
+Huiles alimentaires/Tissus/Cosmétiques/Bijoux/Autres), Matières premières
+utilisées (Tronc de plantain/Tissus/Bamboo/Autres), Production annuelle
+(quantité + FCFA)
+
+## FONCTIONNALITÉS TECHNIQUES REQUISES
+1. Le formulaire doit afficher dynamiquement les champs selon Personne
+   Physique/Morale puis selon la catégorie choisie (logique conditionnelle)
+2. Fonctionnement hors ligne complet : saisie possible sans connexion,
+   stockage local, synchronisation automatique dès que la connexion revient
+3. Capture photo via l'appareil (CNI recto/verso, photo du membre/
+   certificat, signature)
+4. Capture GPS automatique des coordonnées au moment de la saisie
+5. Génération d'un badge PDF par membre avec QR code encodant son
+   identifiant unique (remplace pour l'instant une carte physique NFC)
+6. CMS web : liste des membres avec filtres (catégorie, région, type),
+   recherche, export CSV/Excel, tableau de bord avec compteurs simples
+   (nombre de membres par catégorie/région)
+
+## CONTRAINTES
+- Construis d'abord la structure de base de données complète et le
+  système d'authentification par rôles
+- Ensuite le formulaire d'enrôlement avec la logique conditionnelle
+- Ensuite le CMS de consultation
+- Enfin la génération du badge PDF/QR code
+- Travaille en une seule session continue, en me montrant les étapes
+  clés (checkpoints) plutôt que de t'arrêter à chaque petit détail
+- Si un point du modèle de données ci-dessus n'est pas clair, fais
+  l'hypothèse la plus raisonnable et note-le clairement pour que je
+  puisse corriger après, plutôt que de t'arrêter pour demander

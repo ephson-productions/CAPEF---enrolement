@@ -3,20 +3,30 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CAPEF Digital Enrollment API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication and user management
+  - name: members
+    description: Member enrollment
+  - name: reference
+    description: Reference data (regions, departments, arrondissements)
+  - name: dashboard
+    description: Dashboard statistics
+  - name: uploads
+    description: File/photo uploads
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +34,998 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Auth / Current User ────────────────────────────────────────────────────
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get the authenticated user's profile and role
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/provision:
+    post:
+      operationId: provisionUser
+      tags: [auth]
+      summary: JIT-provision the Clerk user into the app DB on first login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionUserInput"
+      responses:
+        "200":
+          description: User provisioned or already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── User Management (Admin) ─────────────────────────────────────────────────
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [auth]
+      summary: List all app users (admin only)
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [admin, supervisor, agent]
+        - in: query
+          name: regionId
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createUser
+      tags: [auth]
+      summary: Create/invite a new user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppUserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [auth]
+      summary: Get a single user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateUser
+      tags: [auth]
+      summary: Update a user's role or region (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppUserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteUser
+      tags: [auth]
+      summary: Delete a user (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Reference Data ───────────────────────────────────────────────────────────
+
+  /regions:
+    get:
+      operationId: listRegions
+      tags: [reference]
+      summary: List all regions of Cameroon
+      responses:
+        "200":
+          description: Regions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Region"
+
+  /departments:
+    get:
+      operationId: listDepartments
+      tags: [reference]
+      summary: List departments, optionally filtered by region
+      parameters:
+        - in: query
+          name: regionId
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Departments list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+
+  /arrondissements:
+    get:
+      operationId: listArrondissements
+      tags: [reference]
+      summary: List arrondissements, optionally filtered by department
+      parameters:
+        - in: query
+          name: departmentId
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Arrondissements list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Arrondissement"
+
+  # ─── Members ──────────────────────────────────────────────────────────────────
+
+  /members:
+    get:
+      operationId: listMembers
+      tags: [members]
+      summary: List members with filters, search, and pagination
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        - in: query
+          name: memberType
+          schema:
+            type: string
+            enum: [physique, morale]
+        - in: query
+          name: regionId
+          schema:
+            type: integer
+        - in: query
+          name: departmentId
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: createdById
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paginated members list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberListResponse"
+    post:
+      operationId: createMember
+      tags: [members]
+      summary: Enroll a new member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberInput"
+      responses:
+        "201":
+          description: Created member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/export:
+    get:
+      operationId: exportMembers
+      tags: [members]
+      summary: Export members as CSV
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        - in: query
+          name: memberType
+          schema:
+            type: string
+            enum: [physique, morale]
+        - in: query
+          name: regionId
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CSV export URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportResult"
+
+  /members/{id}:
+    get:
+      operationId: getMember
+      tags: [members]
+      summary: Get a single member with all details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateMember
+      tags: [members]
+      summary: Update a member enrollment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMember
+      tags: [members]
+      summary: Delete a member enrollment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/{id}/badge:
+    post:
+      operationId: generateBadge
+      tags: [members]
+      summary: Generate a PDF badge with QR code for a member
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Badge PDF URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BadgeResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/sync:
+    post:
+      operationId: syncMembers
+      tags: [members]
+      summary: Bulk-sync offline-created members
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncInput"
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+
+  # ─── Dashboard ────────────────────────────────────────────────────────────────
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Aggregated statistics for the dashboard
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/recent:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent enrollment activity feed
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemberSummary"
+
+  # ─── Uploads ──────────────────────────────────────────────────────────────────
+
+  /uploads:
+    post:
+      operationId: uploadFile
+      tags: [uploads]
+      summary: Upload a photo or document (returns a stored URL)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadInput"
+      responses:
+        "200":
+          description: Upload result with URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResult"
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ─── Auth / Users ────────────────────────────────────────────────────────
+
+    AppUser:
+      type: object
+      required: [id, clerkUserId, email, name, role, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, supervisor, agent]
+        regionId:
+          type: ["integer", "null"]
+        regionName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ProvisionUserInput:
+      type: object
+      required: [email, name]
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+
+    AppUserInput:
+      type: object
+      required: [email, name, role]
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, supervisor, agent]
+        regionId:
+          type: ["integer", "null"]
+
+    AppUserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, supervisor, agent]
+        regionId:
+          type: ["integer", "null"]
+
+    # ─── Reference Data ──────────────────────────────────────────────────────
+
+    Region:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    Department:
+      type: object
+      required: [id, regionId, name]
+      properties:
+        id:
+          type: integer
+        regionId:
+          type: integer
+        name:
+          type: string
+
+    Arrondissement:
+      type: object
+      required: [id, departmentId, name]
+      properties:
+        id:
+          type: integer
+        departmentId:
+          type: integer
+        name:
+          type: string
+
+    # ─── Members ─────────────────────────────────────────────────────────────
+
+    PhysiqueData:
+      type: object
+      required: [nom, prenom]
+      properties:
+        civilite:
+          type: ["string", "null"]
+          enum: ["M.", "Mme.", "Mlle.", null]
+        nom:
+          type: string
+        prenom:
+          type: string
+        sexe:
+          type: ["string", "null"]
+          enum: ["M", "F", null]
+        situationMatrimoniale:
+          type: ["string", "null"]
+          enum: ["Célibataire", "Marié(e)", "Divorcé(e)", "Veuf/Veuve", null]
+        dateNaissance:
+          type: ["string", "null"]
+        lieuNaissance:
+          type: ["string", "null"]
+        numeroCni:
+          type: ["string", "null"]
+        telephone1:
+          type: ["string", "null"]
+        telephone2:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        boitePostale:
+          type: ["string", "null"]
+        lieuResidence:
+          type: ["string", "null"]
+        niveauEtudes:
+          type: ["string", "null"]
+          enum: ["Autodidacte", "Primaire", "Complémentaire", "Secondaire", "Universitaire", "Doctorat", "Autres", null]
+        photoUrl:
+          type: ["string", "null"]
+        cniRectoUrl:
+          type: ["string", "null"]
+        cniVersoUrl:
+          type: ["string", "null"]
+        signatureUrl:
+          type: ["string", "null"]
+
+    Representative:
+      type: object
+      required: [nom, prenom, ordre]
+      properties:
+        ordre:
+          type: integer
+        civilite:
+          type: ["string", "null"]
+        nom:
+          type: string
+        prenom:
+          type: string
+        fonction:
+          type: ["string", "null"]
+        telephone1:
+          type: ["string", "null"]
+        telephone2:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+
+    MoraleData:
+      type: object
+      required: [nom]
+      properties:
+        typeOrganisation:
+          type: ["string", "null"]
+          enum: ["GIC", "UGIC", "FUGIC", "COOP92", "COOP OHADA", "Autre", null]
+        nom:
+          type: string
+        numeroImmatriculation:
+          type: ["string", "null"]
+        dateImmatriculation:
+          type: ["string", "null"]
+        certificatUrl:
+          type: ["string", "null"]
+        telephone1:
+          type: ["string", "null"]
+        telephone2:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        boitePostale:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        nombreMembres:
+          type: ["integer", "null"]
+        nombreFemmes:
+          type: ["integer", "null"]
+        representants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Representative"
+
+    Member:
+      type: object
+      required: [id, memberNumber, memberType, category, createdAt, createdById]
+      properties:
+        id:
+          type: integer
+        memberNumber:
+          type: string
+        memberType:
+          type: string
+          enum: [physique, morale]
+        category:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        individualOrOrg:
+          type: string
+          enum: [individuel, organisation]
+        regionId:
+          type: ["integer", "null"]
+        regionName:
+          type: ["string", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        departmentName:
+          type: ["string", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+        arrondissementName:
+          type: ["string", "null"]
+        village:
+          type: ["string", "null"]
+        gpsLat:
+          type: ["number", "null"]
+        gpsLng:
+          type: ["number", "null"]
+        createdById:
+          type: integer
+        createdByName:
+          type: ["string", "null"]
+        physiqueData:
+          oneOf:
+            - $ref: "#/components/schemas/PhysiqueData"
+            - type: "null"
+        moraleData:
+          oneOf:
+            - $ref: "#/components/schemas/MoraleData"
+            - type: "null"
+        categoryData:
+          type: ["object", "null"]
+          additionalProperties: true
+        badgeUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    MemberSummary:
+      type: object
+      required: [id, memberNumber, memberType, category, createdAt]
+      properties:
+        id:
+          type: integer
+        memberNumber:
+          type: string
+        memberType:
+          type: string
+          enum: [physique, morale]
+        category:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        displayName:
+          type: ["string", "null"]
+        regionName:
+          type: ["string", "null"]
+        createdByName:
+          type: ["string", "null"]
+        badgeUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    MemberListResponse:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberSummary"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    MemberInput:
+      type: object
+      required: [memberType, category]
+      properties:
+        memberType:
+          type: string
+          enum: [physique, morale]
+        category:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        individualOrOrg:
+          type: string
+          enum: [individuel, organisation]
+        regionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+        village:
+          type: ["string", "null"]
+        gpsLat:
+          type: ["number", "null"]
+        gpsLng:
+          type: ["number", "null"]
+        physiqueData:
+          oneOf:
+            - $ref: "#/components/schemas/PhysiqueData"
+            - type: "null"
+        moraleData:
+          oneOf:
+            - $ref: "#/components/schemas/MoraleData"
+            - type: "null"
+        categoryData:
+          type: ["object", "null"]
+          additionalProperties: true
+
+    MemberUpdate:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        individualOrOrg:
+          type: string
+          enum: [individuel, organisation]
+        regionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+        village:
+          type: ["string", "null"]
+        gpsLat:
+          type: ["number", "null"]
+        gpsLng:
+          type: ["number", "null"]
+        physiqueData:
+          oneOf:
+            - $ref: "#/components/schemas/PhysiqueData"
+            - type: "null"
+        moraleData:
+          oneOf:
+            - $ref: "#/components/schemas/MoraleData"
+            - type: "null"
+        categoryData:
+          type: ["object", "null"]
+          additionalProperties: true
+        badgeUrl:
+          type: ["string", "null"]
+
+    SyncInput:
+      type: object
+      required: [members]
+      properties:
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberInput"
+
+    SyncResult:
+      type: object
+      required: [created, failed]
+      properties:
+        created:
+          type: integer
+        failed:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+
+    BadgeResult:
+      type: object
+      required: [badgeUrl, memberNumber]
+      properties:
+        badgeUrl:
+          type: string
+        memberNumber:
+          type: string
+
+    ExportResult:
+      type: object
+      required: [downloadUrl]
+      properties:
+        downloadUrl:
+          type: string
+
+    # ─── Dashboard ───────────────────────────────────────────────────────────
+
+    CategoryCount:
+      type: object
+      required: [category, count]
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+
+    RegionCount:
+      type: object
+      required: [regionName, count]
+      properties:
+        regionName:
+          type: string
+        count:
+          type: integer
+
+    DashboardStats:
+      type: object
+      required: [totalMembers, totalPhysique, totalMorale, byCategory, byRegion, recentWeekCount]
+      properties:
+        totalMembers:
+          type: integer
+        totalPhysique:
+          type: integer
+        totalMorale:
+          type: integer
+        byCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryCount"
+        byRegion:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegionCount"
+        recentWeekCount:
+          type: integer
+
+    # ─── Uploads ─────────────────────────────────────────────────────────────
+
+    UploadInput:
+      type: object
+      required: [base64Data, mimeType, fileName]
+      properties:
+        base64Data:
+          type: string
+          description: Base64-encoded file content
+        mimeType:
+          type: string
+        fileName:
+          type: string
+
+    UploadResult:
+      type: object
+      required: [url, fileName]
+      properties:
+        url:
+          type: string
+        fileName:
+          type: string
