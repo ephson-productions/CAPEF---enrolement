@@ -1,0 +1,84 @@
+Corrige les points suivants dans l'application d'enrôlement CAPEF existante,
+sans reconstruire ce qui fonctionne déjà :
+
+## 1. ÉTAPE IDENTITÉ (Personne Physique) — champs manquants
+Ajoute les champs manquants suivants à l'étape "Identité" pour une Personne
+Physique : Situation matrimoniale (liste : Célibataire/Marié(e)/Divorcé(e)/
+Veuf(ve)), Date de naissance, Lieu de naissance, Photo CNI recto (upload
+image), Photo CNI verso (upload image), Téléphone 2 (optionnel), Email
+(optionnel), Boîte postale (optionnel), Photo du membre (upload image),
+Niveau d'études (Autodidacte/Primaire/Complémentaire/Secondaire/
+Universitaire/Doctorat/Autres), Photo de la signature du membre (upload
+image ou capture signature tactile si possible)
+
+## 2. RENOMMAGE DE CHAMP
+Renomme le champ "Village / Quartier" en "Commune" partout dans
+l'application (formulaire et affichage dans le Registre des membres)
+
+## 3. ÉTAPE "DÉTAILS PRO." — reconstruire la logique conditionnelle complète
+
+Remplace l'étape générique actuelle par les sections suivantes, affichées
+selon la catégorie choisie à l'étape 1 :
+
+**Si Agriculteur :**
+- Catégorie de culture principale (choix unique : Céréales/Oléagineux/
+  Racines-tubercules/Légumes/Fruits et noix/Plantes stimulantes/
+  Légumineuses/Cultures sucrières/Autres)
+- Culture principale précise (liste dépendante de la catégorie choisie
+  ci-dessus)
+- Catégorie de culture secondaire (même liste, mais DOIT être différente
+  de la catégorie principale choisie)
+- Culture secondaire précise (dépendante, optionnelle)
+- Type de culture (Pure/Associée)
+- Superficie de la parcelle (ha)
+- Production annuelle (quantité + unité + valeur FCFA)
+- Bouton "Ajouter une culture associée sur la même parcelle" (répétable)
+- Bouton "Ajouter une nouvelle parcelle/culture principale" (répétable)
+
+**Si Pêcheur/Aquaculteur :**
+- Maillon dans la filière (choix multiple : Pêcheur artisanal/Pêcheur
+  industriel/Aquaculteur d'étang/Aquaculteur hors-sol/Aquaculteur sur
+  cage flottante/Fournisseur d'intrants/Équipementier/Producteur
+  d'alevins/Provendier/Autre)
+- Espèce principale (Poissons de mer/Crustacés/Poissons d'eau douce
+  Silure/Tilapia/Carpe/Autres)
+- Production annuelle (quantité + unité + FCFA)
+- Bouton "Ajouter une nouvelle espèce" (répétable)
+
+**Si Éleveur :**
+- Maillon dans la filière (choix multiple)
+- Type d'élevage (Volaille/Apiculture/Bovins/Canins/Asins/Ovins/Caprins/
+  Non-conventionnel)
+- Espèce élevée (Bœufs, Ânes, Chevaux, Moutons, Chèvres, Porcs, Chiens,
+  Poulets chair, Poulets race locale, Poulets pondeurs, Pintades, Dindons,
+  Canards, Oies, Caille, Pigeons, Lapins, Aulacodes, Cobayes, Escargots,
+  Abeilles, Autres)
+- Taille du cheptel (nombre de têtes)
+- Type de nourriture (Pâturage naturel/Céréales/Tourteaux/Autres)
+- Production annuelle par produit (Lait/Viande/Œufs/Cire/Miel/Autres —
+  quantité + unité + FCFA)
+- Bouton "Ajouter un nouveau cheptel" (répétable)
+
+**Si Exploitant Forestier :**
+- Maillon (choix multiple : Exploitant forestier/Sylviculteur/Exploitant
+  de produits de la faune/Exploitant de PFNL)
+- Essences forestières exploitées ou cultivées (Ayous, Azobé, Bubinga,
+  Okok, Djansan, Mango, Kolatier, Bitter kola, Noisette, Moringa, Neem,
+  Karité, Autres)
+- Type de plantation (Monospécifique/Plurispécifique)
+- Superficie cultivée (ha)
+- Produits obtenus (Grumes/Planches — quantité + unité + FCFA)
+- Bouton "Ajouter une nouvelle essence" (répétable)
+
+**Si Artisan :**
+- Produits d'artisanat (Boissons/Farines/Confiserie/Biscuiterie/Chips/
+  Huiles alimentaires/Tissus/Cosmétiques/Bijoux/Autres)
+- Matières premières utilisées (Tronc de plantin/Tissus/Bamboo/Autres)
+- Production annuelle (quantité + FCFA)
+
+## 4. ARRONDISSEMENTS
+Ne modifie PAS encore la liste des arrondissements — je vais fournir une
+liste officielle complète séparément dans une prochaine étape, pour éviter
+d'inventer des noms incorrects.
+
+Applique ces corrections sans casser les enrôlements déjà enregistrés.
