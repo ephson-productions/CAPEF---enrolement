@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "CAPEF — Enrôlement Numérique"
+version = "1.0.0"
+id = "artifacts/capef"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19100
+
+[services.development]
+run = "pnpm --filter @workspace/capef run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/capef", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/capef/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19100"
+BASE_PATH = "/"
