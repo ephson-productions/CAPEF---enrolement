@@ -50,7 +50,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="h-16 flex items-center px-6 border-b border-sidebar-border bg-sidebar shrink-0">
-          <img src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.svg`} alt="CAPEF" className="h-8 w-8 mr-3" />
+          <img src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.png`} alt="CAPEF" className="h-8 w-8 mr-3 object-contain" />
           <span className="text-sidebar-foreground font-bold text-lg tracking-tight">CAPEF</span>
         </div>
 

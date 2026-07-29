@@ -32,7 +32,7 @@ export default defineConfig({
     runtimeErrorOverlay(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['logo.svg'],
+      includeAssets: ['logo.png', 'favicon.png'],
       manifest: {
         name: "CAPEF Enrôlement",
         short_name: "CAPEF",
@@ -40,14 +40,14 @@ export default defineConfig({
         background_color: "#fcfdfc",
         icons: [
           {
-            src: 'logo.svg',
+            src: 'logo.png',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/png'
           },
           {
-            src: 'logo.svg',
+            src: 'logo.png',
             sizes: '512x512',
-            type: 'image/svg+xml'
+            type: 'image/png'
           }
         ]
       }
