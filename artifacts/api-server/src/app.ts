@@ -79,6 +79,14 @@ app.use(
   })),
 );
 
+app.get("/", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "API Server is active and healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.use("/api", router);
 
 export default app;
