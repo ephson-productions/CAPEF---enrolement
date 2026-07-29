@@ -21,7 +21,7 @@ export const formSchema = z.object({
 
   physiqueData: z.object({
     civilite: z.string().optional().nullable(),
-    nom: z.string().min(1, 'Le nom est requis'),
+    nom: z.string().optional().nullable(),
     prenom: z.string().optional().nullable(),
     sexe: z.string().optional().nullable(),
     situationMatrimoniale: z.string().optional().nullable(),
@@ -40,13 +40,31 @@ export const formSchema = z.object({
   }).optional(),
 
   moraleData: z.object({
-    typeOrganisation: z.string().optional(),
-    nom: z.string().min(1, "Le nom de l'organisation est requis"),
-    numeroImmatriculation: z.string().optional(),
-    telephone1: z.string().optional(),
+    typeOrganisation: z.string().optional().nullable(),
+    nom: z.string().optional().nullable(),
+    numeroImmatriculation: z.string().optional().nullable(),
+    telephone1: z.string().optional().nullable(),
   }).optional(),
 
   categoryData: z.any().optional(),
+}).superRefine((data, ctx) => {
+  if (data.memberType === 'physique') {
+    if (!data.physiqueData?.nom || data.physiqueData.nom.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['physiqueData', 'nom'],
+        message: 'Le nom est requis',
+      });
+    }
+  } else if (data.memberType === 'morale') {
+    if (!data.moraleData?.nom || data.moraleData.nom.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['moraleData', 'nom'],
+        message: "Le nom de l'organisation est requis",
+      });
+    }
+  }
 });
 
 export type MemberFormValues = z.infer<typeof formSchema>;
@@ -336,6 +354,40 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
 
   const { watch, setValue, handleSubmit, formState: { errors }, reset } = methods;
 
+  const onInvalid = (formErrors: any) => {
+    console.error("Form validation failed:", formErrors);
+
+    // Find the first error message to display
+    let firstErrorMessage = "Veuillez vérifier tous les champs requis.";
+
+    if (formErrors.physiqueData?.nom?.message) {
+      firstErrorMessage = formErrors.physiqueData.nom.message;
+    } else if (formErrors.moraleData?.nom?.message) {
+      firstErrorMessage = formErrors.moraleData.nom.message;
+    } else {
+      // Find any error message
+      const findFirstError = (obj: any): string | null => {
+        for (const key in obj) {
+          if (obj[key]?.message) {
+            return obj[key].message;
+          } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+            const nested = findFirstError(obj[key]);
+            if (nested) return nested;
+          }
+        }
+        return null;
+      };
+      const errorMsg = findFirstError(formErrors);
+      if (errorMsg) firstErrorMessage = errorMsg;
+    }
+
+    toast({
+      title: "Formulaire invalide ou incomplet",
+      description: firstErrorMessage,
+      variant: "destructive",
+    });
+  };
+
   useEffect(() => {
     if (member) {
       reset(toDefaultValues(member));
@@ -393,7 +445,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
       </div>
 
       <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="p-6 md:p-8">
 
             {/* STEP 1: TYPE & CATEGORY */}
