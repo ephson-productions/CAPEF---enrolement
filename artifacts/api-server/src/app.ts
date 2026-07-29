@@ -36,11 +36,10 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 const allowedOrigins = [
+  "https://capef-enrolement-capef.vercel.app",
   "https://capef-enrolement-capef-95fjqmhhx-ephson-productions-projects.vercel.app",
   "https://platforme-denrolement-digital-capef.onrender.com",
 ];
-
-const allowedOriginRegex = /\.vercel\.app$/;
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -53,13 +52,10 @@ const corsOptions: cors.CorsOptions = {
       allowedOrigins.includes(origin) ||
       origin.startsWith("http://localhost:") ||
       origin.startsWith("http://127.0.0.1:") ||
-      allowedOriginRegex.test(origin);
+      origin.endsWith(".vercel.app") ||
+      origin.endsWith("-ephson-productions-projects.vercel.app");
 
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
+    callback(null, isAllowed);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
