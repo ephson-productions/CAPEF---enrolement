@@ -6,12 +6,16 @@ import { Link } from 'wouter';
 export default function Dashboard() {
   const { data: stats, isLoading } = useGetDashboardStats();
 
-  if (isLoading) {
+  if (isLoading || !stats) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-48 bg-muted rounded animate-pulse"></div>
+      <div className="space-y-6 animate-pulse p-4 lg:p-8">
+        <div className="h-8 w-48 bg-muted rounded"></div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse"></div>)}
+          {[1, 2, 3].map(i => <div key={i} className="h-32 bg-muted rounded-xl"></div>)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-64 bg-muted rounded-xl"></div>
+          <div className="h-64 bg-muted rounded-xl"></div>
         </div>
       </div>
     );
@@ -27,6 +31,9 @@ export default function Dashboard() {
       default: return <Users className="h-5 w-5 text-primary" />;
     }
   };
+
+  const byCategory = stats?.byCategory || [];
+  const byRegion = stats?.byRegion || [];
 
   return (
     <div className="space-y-8 pb-10">
@@ -92,7 +99,7 @@ export default function Dashboard() {
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {stats?.byCategory.map((cat) => (
+              {byCategory.map((cat) => (
                 <div key={cat.category} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">
@@ -105,13 +112,13 @@ export default function Dashboard() {
                     <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full"
-                        style={{ width: `${Math.min(100, ((cat.count) / (stats.totalMembers || 1)) * 100)}%` }}
+                        style={{ width: `${Math.min(100, ((cat.count) / (stats?.totalMembers || 1)) * 100)}%` }}
                       ></div>
                     </div>
                   </div>
                 </div>
               ))}
-              {(!stats?.byCategory || stats.byCategory.length === 0) && (
+              {byCategory.length === 0 && (
                 <p className="text-muted-foreground text-center py-4">Aucune donnée disponible.</p>
               )}
             </div>
@@ -125,7 +132,7 @@ export default function Dashboard() {
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {stats?.byRegion.map((reg) => (
+              {byRegion.map((reg) => (
                 <div key={reg.regionName} className="flex items-center justify-between">
                   <span className="font-medium text-foreground">{reg.regionName}</span>
                   <div className="flex items-center gap-4">
@@ -133,7 +140,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
-              {(!stats?.byRegion || stats.byRegion.length === 0) && (
+              {byRegion.length === 0 && (
                 <p className="text-muted-foreground text-center py-4">Aucune donnée disponible.</p>
               )}
             </div>
