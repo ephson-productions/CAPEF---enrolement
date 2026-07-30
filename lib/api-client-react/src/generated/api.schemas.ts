@@ -13,6 +13,14 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface ZoneAssignment {
+  regionId: number;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  arrondissementId?: number | null;
+}
+
 export type AppUserRole = typeof AppUserRole[keyof typeof AppUserRole];
 
 
@@ -32,6 +40,11 @@ export interface AppUser {
   regionId?: number | null;
   /** @nullable */
   regionName?: string | null;
+  /** @nullable */
+  cniNumber?: string | null;
+  /** @nullable */
+  cniPhotoUrl?: string | null;
+  assignedZones?: ZoneAssignment[];
   createdAt: string;
 }
 
@@ -55,6 +68,11 @@ export interface AppUserInput {
   role: AppUserInputRole;
   /** @nullable */
   regionId?: number | null;
+  /** @nullable */
+  cniNumber?: string | null;
+  /** @nullable */
+  cniPhotoUrl?: string | null;
+  assignedZones?: ZoneAssignment[];
 }
 
 export type AppUserUpdateRole = typeof AppUserUpdateRole[keyof typeof AppUserUpdateRole];
@@ -71,6 +89,11 @@ export interface AppUserUpdate {
   role?: AppUserUpdateRole;
   /** @nullable */
   regionId?: number | null;
+  /** @nullable */
+  cniNumber?: string | null;
+  /** @nullable */
+  cniPhotoUrl?: string | null;
+  assignedZones?: ZoneAssignment[];
 }
 
 export interface Region {
@@ -210,6 +233,18 @@ export const MoraleDataTypeOrganisation = {
   Autre: 'Autre',
 } as const;
 
+/**
+ * @nullable
+ */
+export type MoraleDataNombreMembres = typeof MoraleDataNombreMembres[keyof typeof MoraleDataNombreMembres] | null;
+
+
+export const MoraleDataNombreMembres = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_3: 3,
+} as const;
+
 export interface MoraleData {
   /** @nullable */
   typeOrganisation?: MoraleDataTypeOrganisation;
@@ -231,10 +266,167 @@ export interface MoraleData {
   /** @nullable */
   website?: string | null;
   /** @nullable */
-  nombreMembres?: number | null;
+  nombreMembres?: MoraleDataNombreMembres;
   /** @nullable */
   nombreFemmes?: number | null;
   representants?: Representative[];
+}
+
+export type MemberActivityActivityType = typeof MemberActivityActivityType[keyof typeof MemberActivityActivityType];
+
+
+export const MemberActivityActivityType = {
+  agriculteur: 'agriculteur',
+  pecheur: 'pecheur',
+  eleveur: 'eleveur',
+  forestier: 'forestier',
+  artisan: 'artisan',
+} as const;
+
+export type ActivityLineItemProductsItem = {
+  name?: string;
+  quantity?: number;
+  unit?: string;
+  fcfa?: number;
+};
+
+export interface ActivityLineItem {
+  id: number;
+  activityId: number;
+  /** @nullable */
+  parcelleGroupId?: string | null;
+  /** @nullable */
+  cropCategory?: string | null;
+  /** @nullable */
+  cropName?: string | null;
+  /** @nullable */
+  cultureType?: string | null;
+  /** @nullable */
+  superficieHa?: number | null;
+  /** @nullable */
+  productionQuantity?: number | null;
+  /** @nullable */
+  productionUnit?: string | null;
+  /** @nullable */
+  productionFcfa?: number | null;
+  /** @nullable */
+  isPrincipalCrop?: boolean | null;
+  /** @nullable */
+  parentLineItemId?: number | null;
+  /** @nullable */
+  species?: string | null;
+  /** @nullable */
+  cheptelSize?: number | null;
+  /** @nullable */
+  foodType?: string | null;
+  /** @nullable */
+  products?: ActivityLineItemProductsItem[] | null;
+  /** @nullable */
+  speciesPêche?: string | null;
+  /** @nullable */
+  subCategory?: string | null;
+  /** @nullable */
+  essence?: string | null;
+  /** @nullable */
+  plantationType?: string | null;
+  /** @nullable */
+  artisanatProducts?: string | null;
+  /** @nullable */
+  rawMaterials?: string | null;
+  createdAt?: string;
+}
+
+export interface MemberActivity {
+  id: number;
+  memberId: number;
+  activityType: MemberActivityActivityType;
+  isPrimary: boolean;
+  /** @nullable */
+  regionId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  arrondissementId?: number | null;
+  /** @nullable */
+  village?: string | null;
+  maillons?: string[];
+  createdAt?: string;
+  lineItems?: ActivityLineItem[];
+}
+
+export type MemberActivityInputActivityType = typeof MemberActivityInputActivityType[keyof typeof MemberActivityInputActivityType];
+
+
+export const MemberActivityInputActivityType = {
+  agriculteur: 'agriculteur',
+  pecheur: 'pecheur',
+  eleveur: 'eleveur',
+  forestier: 'forestier',
+  artisan: 'artisan',
+} as const;
+
+export interface MemberActivityInput {
+  activityType: MemberActivityInputActivityType;
+  isPrimary?: boolean;
+  /** @nullable */
+  regionId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  arrondissementId?: number | null;
+  /** @nullable */
+  village?: string | null;
+  maillons?: string[];
+}
+
+export type ActivityLineItemInputProductsItem = {
+  name?: string;
+  quantity?: number;
+  unit?: string;
+  fcfa?: number;
+};
+
+export interface ActivityLineItemInput {
+  /** @nullable */
+  parcelleGroupId?: string | null;
+  /** @nullable */
+  cropCategory?: string | null;
+  /** @nullable */
+  cropName?: string | null;
+  /** @nullable */
+  cultureType?: string | null;
+  /** @nullable */
+  superficieHa?: number | null;
+  /** @nullable */
+  productionQuantity?: number | null;
+  /** @nullable */
+  productionUnit?: string | null;
+  /** @nullable */
+  productionFcfa?: number | null;
+  /** @nullable */
+  isPrincipalCrop?: boolean | null;
+  /** @nullable */
+  parentLineItemId?: number | null;
+  /** @nullable */
+  species?: string | null;
+  /** @nullable */
+  cheptelSize?: number | null;
+  /** @nullable */
+  foodType?: string | null;
+  /** @nullable */
+  products?: ActivityLineItemInputProductsItem[] | null;
+  /** @nullable */
+  speciesPêche?: string | null;
+  /** @nullable */
+  subCategory?: string | null;
+  /** @nullable */
+  essence?: string | null;
+  /** @nullable */
+  plantationType?: string | null;
+  /** @nullable */
+  artisanatProducts?: string | null;
+  /** @nullable */
+  rawMaterials?: string | null;
 }
 
 export type MemberMemberType = typeof MemberMemberType[keyof typeof MemberMemberType];
@@ -269,6 +461,17 @@ export const MemberIndividualOrOrg = {
  */
 export type MemberCategoryData = { [key: string]: unknown } | null;
 
+export type MemberStatus = typeof MemberStatus[keyof typeof MemberStatus];
+
+
+export const MemberStatus = {
+  incomplet: 'incomplet',
+  en_attente: 'en_attente',
+  valide: 'valide',
+  desactive: 'desactive',
+  bloque: 'bloque',
+} as const;
+
 export interface Member {
   id: number;
   memberNumber: string;
@@ -302,8 +505,10 @@ export interface Member {
   categoryData?: MemberCategoryData;
   /** @nullable */
   badgeUrl?: string | null;
+  status: MemberStatus;
   createdAt: string;
   updatedAt?: string;
+  activities?: MemberActivity[];
 }
 
 export type MemberSummaryMemberType = typeof MemberSummaryMemberType[keyof typeof MemberSummaryMemberType];
@@ -325,6 +530,17 @@ export const MemberSummaryCategory = {
   artisan: 'artisan',
 } as const;
 
+export type MemberSummaryStatus = typeof MemberSummaryStatus[keyof typeof MemberSummaryStatus];
+
+
+export const MemberSummaryStatus = {
+  incomplet: 'incomplet',
+  en_attente: 'en_attente',
+  valide: 'valide',
+  desactive: 'desactive',
+  bloque: 'bloque',
+} as const;
+
 export interface MemberSummary {
   id: number;
   memberNumber: string;
@@ -338,6 +554,7 @@ export interface MemberSummary {
   createdByName?: string | null;
   /** @nullable */
   badgeUrl?: string | null;
+  status: MemberSummaryStatus;
   createdAt: string;
 }
 
@@ -478,12 +695,18 @@ export interface RegionCount {
   count: number;
 }
 
+export interface StatusCount {
+  status: string;
+  count: number;
+}
+
 export interface DashboardStats {
   totalMembers: number;
   totalPhysique: number;
   totalMorale: number;
   byCategory: CategoryCount[];
   byRegion: RegionCount[];
+  byStatus?: StatusCount[];
   recentWeekCount: number;
 }
 
@@ -530,6 +753,7 @@ search?: string;
 page?: number;
 limit?: number;
 createdById?: number;
+status?: ListMembersStatus;
 };
 
 export type ListMembersCategory = typeof ListMembersCategory[keyof typeof ListMembersCategory];
@@ -549,6 +773,17 @@ export type ListMembersMemberType = typeof ListMembersMemberType[keyof typeof Li
 export const ListMembersMemberType = {
   physique: 'physique',
   morale: 'morale',
+} as const;
+
+export type ListMembersStatus = typeof ListMembersStatus[keyof typeof ListMembersStatus];
+
+
+export const ListMembersStatus = {
+  incomplet: 'incomplet',
+  en_attente: 'en_attente',
+  valide: 'valide',
+  desactive: 'desactive',
+  bloque: 'bloque',
 } as const;
 
 export type ExportMembersParams = {
@@ -575,6 +810,12 @@ export const ExportMembersMemberType = {
   physique: 'physique',
   morale: 'morale',
 } as const;
+
+export type GetDashboardStatsParams = {
+status?: string;
+activity?: string;
+regionId?: number;
+};
 
 export type GetRecentActivityParams = {
 limit?: number;

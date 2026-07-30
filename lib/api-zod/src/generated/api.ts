@@ -27,6 +27,13 @@ export const GetMeResponse = zod.object({
   "role": zod.enum(['admin', 'supervisor', 'agent']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
   "createdAt": zod.string()
 })
 
@@ -47,6 +54,13 @@ export const ProvisionUserResponse = zod.object({
   "role": zod.enum(['admin', 'supervisor', 'agent']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
   "createdAt": zod.string()
 })
 
@@ -67,6 +81,13 @@ export const ListUsersResponseItem = zod.object({
   "role": zod.enum(['admin', 'supervisor', 'agent']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
   "createdAt": zod.string()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
@@ -79,7 +100,14 @@ export const CreateUserBody = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
-  "regionId": zod.number().nullish()
+  "regionId": zod.number().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional()
 })
 
 export const CreateUserResponse = zod.object({
@@ -90,6 +118,13 @@ export const CreateUserResponse = zod.object({
   "role": zod.enum(['admin', 'supervisor', 'agent']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
   "createdAt": zod.string()
 })
 
@@ -109,6 +144,13 @@ export const GetUserResponse = zod.object({
   "role": zod.enum(['admin', 'supervisor', 'agent']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
   "createdAt": zod.string()
 })
 
@@ -123,7 +165,14 @@ export const UpdateUserParams = zod.object({
 export const UpdateUserBody = zod.object({
   "name": zod.string().optional(),
   "role": zod.enum(['admin', 'supervisor', 'agent']).optional(),
-  "regionId": zod.number().nullish()
+  "regionId": zod.number().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional()
 })
 
 export const UpdateUserResponse = zod.object({
@@ -134,6 +183,13 @@ export const UpdateUserResponse = zod.object({
   "role": zod.enum(['admin', 'supervisor', 'agent']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
   "createdAt": zod.string()
 })
 
@@ -202,7 +258,8 @@ export const ListMembersQueryParams = zod.object({
   "search": zod.coerce.string().optional(),
   "page": zod.coerce.number().default(listMembersQueryPageDefault),
   "limit": zod.coerce.number().default(listMembersQueryLimitDefault),
-  "createdById": zod.coerce.number().optional()
+  "createdById": zod.coerce.number().optional(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']).optional()
 })
 
 export const ListMembersResponse = zod.object({
@@ -215,6 +272,7 @@ export const ListMembersResponse = zod.object({
   "regionName": zod.string().nullish(),
   "createdByName": zod.string().nullish(),
   "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
   "createdAt": zod.string()
 })),
   "total": zod.number(),
@@ -267,7 +325,7 @@ export const CreateMemberBody = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.number().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
   "nombreFemmes": zod.number().nullish(),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
@@ -331,7 +389,7 @@ export const CreateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.number().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
   "nombreFemmes": zod.number().nullish(),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
@@ -346,8 +404,51 @@ export const CreateMemberResponse = zod.object({
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
   "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
   "createdAt": zod.string(),
-  "updatedAt": zod.string().optional()
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
 })
 
 
@@ -420,7 +521,7 @@ export const GetMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.number().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
   "nombreFemmes": zod.number().nullish(),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
@@ -435,8 +536,51 @@ export const GetMemberResponse = zod.object({
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
   "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
   "createdAt": zod.string(),
-  "updatedAt": zod.string().optional()
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
 })
 
 
@@ -487,7 +631,7 @@ export const UpdateMemberBody = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.number().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
   "nombreFemmes": zod.number().nullish(),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
@@ -552,7 +696,7 @@ export const UpdateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.number().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
   "nombreFemmes": zod.number().nullish(),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
@@ -567,8 +711,51 @@ export const UpdateMemberResponse = zod.object({
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
   "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
   "createdAt": zod.string(),
-  "updatedAt": zod.string().optional()
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
 })
 
 
@@ -640,7 +827,7 @@ export const SyncMembersBody = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.number().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
   "nombreFemmes": zod.number().nullish(),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
@@ -665,8 +852,821 @@ export const SyncMembersResponse = zod.object({
 
 
 /**
+ * @summary List activities of a member
+ */
+export const ListMemberActivitiesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListMemberActivitiesResponseItem = zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})
+export const ListMemberActivitiesResponse = zod.array(ListMemberActivitiesResponseItem)
+
+
+/**
+ * @summary Add an activity to a member
+ */
+export const CreateMemberActivityParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateMemberActivityBody = zod.object({
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean().optional(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional()
+})
+
+export const CreateMemberActivityResponse = zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Update a member activity
+ */
+export const UpdateMemberActivityParams = zod.object({
+  "id": zod.coerce.number(),
+  "activityId": zod.coerce.number()
+})
+
+export const UpdateMemberActivityBody = zod.object({
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean().optional(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional()
+})
+
+export const UpdateMemberActivityResponse = zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a member activity
+ */
+export const DeleteMemberActivityParams = zod.object({
+  "id": zod.coerce.number(),
+  "activityId": zod.coerce.number()
+})
+
+export const DeleteMemberActivityResponse = zod.void()
+
+
+/**
+ * @summary Add repeatable row / line item to an activity
+ */
+export const CreateActivityLineItemParams = zod.object({
+  "id": zod.coerce.number(),
+  "activityId": zod.coerce.number()
+})
+
+export const CreateActivityLineItemBody = zod.object({
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish()
+})
+
+export const CreateActivityLineItemResponse = zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a repeatable row / line item
+ */
+export const UpdateActivityLineItemParams = zod.object({
+  "id": zod.coerce.number(),
+  "activityId": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const UpdateActivityLineItemBody = zod.object({
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish()
+})
+
+export const UpdateActivityLineItemResponse = zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a repeatable row / line item
+ */
+export const DeleteActivityLineItemParams = zod.object({
+  "id": zod.coerce.number(),
+  "activityId": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const DeleteActivityLineItemResponse = zod.void()
+
+
+/**
+ * @summary Validate a member (admin only)
+ */
+export const ValidateMemberParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ValidateMemberResponse = zod.object({
+  "id": zod.number(),
+  "memberNumber": zod.string(),
+  "memberType": zod.enum(['physique', 'morale']),
+  "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
+  "regionId": zod.number().nullish(),
+  "regionName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish(),
+  "village": zod.string().nullish(),
+  "gpsLat": zod.number().nullish(),
+  "gpsLng": zod.number().nullish(),
+  "createdById": zod.number(),
+  "createdByName": zod.string().nullish(),
+  "physiqueData": zod.union([zod.object({
+  "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
+  "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
+  "dateNaissance": zod.string().nullish(),
+  "lieuNaissance": zod.string().nullish(),
+  "numeroCni": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "lieuResidence": zod.string().nullish(),
+  "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
+  "photoUrl": zod.string().nullish(),
+  "cniRectoUrl": zod.string().nullish(),
+  "cniVersoUrl": zod.string().nullish(),
+  "signatureUrl": zod.string().nullish()
+}),zod.null()]).optional(),
+  "moraleData": zod.union([zod.object({
+  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "numeroImmatriculation": zod.string().nullish(),
+  "dateImmatriculation": zod.string().nullish(),
+  "certificatUrl": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
+  "nombreFemmes": zod.number().nullish(),
+  "representants": zod.array(zod.object({
+  "ordre": zod.number(),
+  "civilite": zod.string().nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "fonction": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish()
+})).optional()
+}),zod.null()]).optional(),
+  "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
+  "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Deactivate a member (admin only)
+ */
+export const DeactivateMemberParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeactivateMemberResponse = zod.object({
+  "id": zod.number(),
+  "memberNumber": zod.string(),
+  "memberType": zod.enum(['physique', 'morale']),
+  "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
+  "regionId": zod.number().nullish(),
+  "regionName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish(),
+  "village": zod.string().nullish(),
+  "gpsLat": zod.number().nullish(),
+  "gpsLng": zod.number().nullish(),
+  "createdById": zod.number(),
+  "createdByName": zod.string().nullish(),
+  "physiqueData": zod.union([zod.object({
+  "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
+  "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
+  "dateNaissance": zod.string().nullish(),
+  "lieuNaissance": zod.string().nullish(),
+  "numeroCni": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "lieuResidence": zod.string().nullish(),
+  "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
+  "photoUrl": zod.string().nullish(),
+  "cniRectoUrl": zod.string().nullish(),
+  "cniVersoUrl": zod.string().nullish(),
+  "signatureUrl": zod.string().nullish()
+}),zod.null()]).optional(),
+  "moraleData": zod.union([zod.object({
+  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "numeroImmatriculation": zod.string().nullish(),
+  "dateImmatriculation": zod.string().nullish(),
+  "certificatUrl": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
+  "nombreFemmes": zod.number().nullish(),
+  "representants": zod.array(zod.object({
+  "ordre": zod.number(),
+  "civilite": zod.string().nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "fonction": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish()
+})).optional()
+}),zod.null()]).optional(),
+  "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
+  "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Reactivate a member (admin only)
+ */
+export const ReactivateMemberParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReactivateMemberResponse = zod.object({
+  "id": zod.number(),
+  "memberNumber": zod.string(),
+  "memberType": zod.enum(['physique', 'morale']),
+  "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
+  "regionId": zod.number().nullish(),
+  "regionName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish(),
+  "village": zod.string().nullish(),
+  "gpsLat": zod.number().nullish(),
+  "gpsLng": zod.number().nullish(),
+  "createdById": zod.number(),
+  "createdByName": zod.string().nullish(),
+  "physiqueData": zod.union([zod.object({
+  "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
+  "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
+  "dateNaissance": zod.string().nullish(),
+  "lieuNaissance": zod.string().nullish(),
+  "numeroCni": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "lieuResidence": zod.string().nullish(),
+  "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
+  "photoUrl": zod.string().nullish(),
+  "cniRectoUrl": zod.string().nullish(),
+  "cniVersoUrl": zod.string().nullish(),
+  "signatureUrl": zod.string().nullish()
+}),zod.null()]).optional(),
+  "moraleData": zod.union([zod.object({
+  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "numeroImmatriculation": zod.string().nullish(),
+  "dateImmatriculation": zod.string().nullish(),
+  "certificatUrl": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
+  "nombreFemmes": zod.number().nullish(),
+  "representants": zod.array(zod.object({
+  "ordre": zod.number(),
+  "civilite": zod.string().nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "fonction": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish()
+})).optional()
+}),zod.null()]).optional(),
+  "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
+  "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Block a member (admin only, terminal)
+ */
+export const BlockMemberParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const BlockMemberResponse = zod.object({
+  "id": zod.number(),
+  "memberNumber": zod.string(),
+  "memberType": zod.enum(['physique', 'morale']),
+  "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
+  "regionId": zod.number().nullish(),
+  "regionName": zod.string().nullish(),
+  "departmentId": zod.number().nullish(),
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish(),
+  "village": zod.string().nullish(),
+  "gpsLat": zod.number().nullish(),
+  "gpsLng": zod.number().nullish(),
+  "createdById": zod.number(),
+  "createdByName": zod.string().nullish(),
+  "physiqueData": zod.union([zod.object({
+  "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
+  "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
+  "dateNaissance": zod.string().nullish(),
+  "lieuNaissance": zod.string().nullish(),
+  "numeroCni": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "lieuResidence": zod.string().nullish(),
+  "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
+  "photoUrl": zod.string().nullish(),
+  "cniRectoUrl": zod.string().nullish(),
+  "cniVersoUrl": zod.string().nullish(),
+  "signatureUrl": zod.string().nullish()
+}),zod.null()]).optional(),
+  "moraleData": zod.union([zod.object({
+  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "nom": zod.string(),
+  "numeroImmatriculation": zod.string().nullish(),
+  "dateImmatriculation": zod.string().nullish(),
+  "certificatUrl": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
+  "nombreFemmes": zod.number().nullish(),
+  "representants": zod.array(zod.object({
+  "ordre": zod.number(),
+  "civilite": zod.string().nullish(),
+  "nom": zod.string(),
+  "prenom": zod.string(),
+  "fonction": zod.string().nullish(),
+  "telephone1": zod.string().nullish(),
+  "telephone2": zod.string().nullish(),
+  "email": zod.string().nullish()
+})).optional()
+}),zod.null()]).optional(),
+  "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
+  "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional(),
+  "activities": zod.array(zod.object({
+  "id": zod.number(),
+  "memberId": zod.number(),
+  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "isPrimary": zod.boolean(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "maillons": zod.array(zod.string()).optional(),
+  "createdAt": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "id": zod.number(),
+  "activityId": zod.number(),
+  "parcelleGroupId": zod.string().nullish(),
+  "cropCategory": zod.string().nullish(),
+  "cropName": zod.string().nullish(),
+  "cultureType": zod.string().nullish(),
+  "superficieHa": zod.number().nullish(),
+  "productionQuantity": zod.number().nullish(),
+  "productionUnit": zod.string().nullish(),
+  "productionFcfa": zod.number().nullish(),
+  "isPrincipalCrop": zod.boolean().nullish(),
+  "parentLineItemId": zod.number().nullish(),
+  "species": zod.string().nullish(),
+  "cheptelSize": zod.number().nullish(),
+  "foodType": zod.string().nullish(),
+  "products": zod.array(zod.object({
+  "name": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "fcfa": zod.number().optional()
+})).nullish(),
+  "speciesPêche": zod.string().nullish(),
+  "subCategory": zod.string().nullish(),
+  "essence": zod.string().nullish(),
+  "plantationType": zod.string().nullish(),
+  "artisanatProducts": zod.string().nullish(),
+  "rawMaterials": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})).optional()
+})).optional()
+})
+
+
+/**
  * @summary Aggregated statistics for the dashboard
  */
+export const GetDashboardStatsQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "activity": zod.coerce.string().optional(),
+  "regionId": zod.coerce.number().optional()
+})
+
 export const GetDashboardStatsResponse = zod.object({
   "totalMembers": zod.number(),
   "totalPhysique": zod.number(),
@@ -679,6 +1679,10 @@ export const GetDashboardStatsResponse = zod.object({
   "regionName": zod.string(),
   "count": zod.number()
 })),
+  "byStatus": zod.array(zod.object({
+  "status": zod.string(),
+  "count": zod.number()
+})).optional(),
   "recentWeekCount": zod.number()
 })
 
@@ -701,6 +1705,7 @@ export const GetRecentActivityResponseItem = zod.object({
   "regionName": zod.string().nullish(),
   "createdByName": zod.string().nullish(),
   "badgeUrl": zod.string().nullish(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
   "createdAt": zod.string()
 })
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)

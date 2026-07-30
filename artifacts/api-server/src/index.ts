@@ -1,11 +1,14 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabaseIfNeeded } from "./lib/seed";
+import { migrateExistingMembersToActivities } from "./lib/migration";
 
-// Trigger seeding asynchronously on startup
-seedDatabaseIfNeeded().catch((err) => {
-  logger.error({ err }, "Failed to run seeder on startup");
-});
+// Trigger seeding and migration asynchronously on startup
+seedDatabaseIfNeeded()
+  .then(() => migrateExistingMembersToActivities())
+  .catch((err) => {
+    logger.error({ err }, "Failed to run seeder/migration on startup");
+  });
 
 if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
   const rawPort = process.env["PORT"];

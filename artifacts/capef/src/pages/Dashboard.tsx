@@ -1,10 +1,25 @@
-import React from 'react';
-import { useGetDashboardStats } from '@workspace/api-client-react';
+import React, { useState } from 'react';
+import { useGetDashboardStats, useListRegions } from '@workspace/api-client-react';
 import { Users, Building2, Trees, Droplets, Tractor, Hammer, ArrowRight } from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function Dashboard() {
-  const { data: stats, isLoading } = useGetDashboardStats();
+  const [status, setStatus] = useState<string | undefined>('');
+  const [activity, setActivity] = useState<string | undefined>('');
+  const [regionId, setRegionId] = useState<number | undefined>(undefined);
+
+  const { data: stats, isLoading } = useGetDashboardStats({
+    status: status || undefined,
+    activity: activity || undefined,
+    regionId: regionId || undefined,
+  }, {
+    query: {
+      queryKey: ['dashboard-stats', { status, activity, regionId }],
+      placeholderData: (prev) => prev,
+    }
+  });
+
+  const { data: regions } = useListRegions();
 
   if (isLoading || !stats) {
     return (
@@ -32,8 +47,20 @@ export default function Dashboard() {
     }
   };
 
+  const getStatusLabel = (statVal: string) => {
+    switch (statVal) {
+      case 'incomplet': return 'Incomplet';
+      case 'en_attente': return 'En attente';
+      case 'valide': return 'Validé';
+      case 'desactive': return 'Désactivé';
+      case 'bloque': return 'Bloqué';
+      default: return statVal;
+    }
+  };
+
   const byCategory = stats?.byCategory || [];
   const byRegion = stats?.byRegion || [];
+  const byStatus = stats?.byStatus || [];
 
   return (
     <div className="space-y-8 pb-10">
@@ -50,6 +77,55 @@ export default function Dashboard() {
           Nouvel Enrôlement
           <ArrowRight className="h-4 w-4" />
         </Link>
+      </div>
+
+      {/* Dashboard Filter Controls */}
+      <div className="bg-card rounded-xl p-4 border border-border shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Filtrer par Statut</label>
+          <select
+            value={status || ''}
+            onChange={(e) => setStatus(e.target.value || undefined)}
+            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          >
+            <option value="">Tous les statuts</option>
+            <option value="incomplet">Incomplet</option>
+            <option value="en_attente">En attente</option>
+            <option value="valide">Validé</option>
+            <option value="desactive">Désactivé</option>
+            <option value="bloque">Bloqué</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Filtrer par Activité</label>
+          <select
+            value={activity || ''}
+            onChange={(e) => setActivity(e.target.value || undefined)}
+            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          >
+            <option value="">Toutes les activités</option>
+            <option value="agriculteur">Agriculteur</option>
+            <option value="pecheur">Pêcheur</option>
+            <option value="eleveur">Éleveur</option>
+            <option value="forestier">Exploitant Forestier</option>
+            <option value="artisan">Artisan</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Filtrer par Région</label>
+          <select
+            value={regionId || ''}
+            onChange={(e) => setRegionId(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          >
+            <option value="">Toutes les régions</option>
+            {regions?.map(r => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -91,7 +167,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Par Catégorie */}
         <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-border bg-muted/20">
@@ -141,6 +217,28 @@ export default function Dashboard() {
                 </div>
               ))}
               {byRegion.length === 0 && (
+                <p className="text-muted-foreground text-center py-4">Aucune donnée disponible.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Par Statut */}
+        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-border bg-muted/20">
+            <h3 className="font-bold text-foreground">Répartition par Statut</h3>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {byStatus.map((st) => (
+                <div key={st.status} className="flex items-center justify-between">
+                  <span className="font-medium text-foreground">{getStatusLabel(st.status)}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="font-semibold text-muted-foreground">{st.count}</span>
+                  </div>
+                </div>
+              ))}
+              {byStatus.length === 0 && (
                 <p className="text-muted-foreground text-center py-4">Aucune donnée disponible.</p>
               )}
             </div>

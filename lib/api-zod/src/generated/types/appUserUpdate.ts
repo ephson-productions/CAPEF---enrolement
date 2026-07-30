@@ -6,10 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AppUserUpdateRole } from './appUserUpdateRole';
+import type { ZoneAssignment } from './zoneAssignment';
 
 export interface AppUserUpdate {
   name?: string;
   role?: AppUserUpdateRole;
   /** @nullable */
   regionId?: number | null;
+  /** @nullable */
+  cniNumber?: string | null;
+  /** @nullable */
+  cniPhotoUrl?: string | null;
+  assignedZones?: ZoneAssignment[];
 }

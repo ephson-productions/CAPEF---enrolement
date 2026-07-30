@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AppUserRole } from './appUserRole';
+import type { ZoneAssignment } from './zoneAssignment';
 
 export interface AppUser {
   id: number;
@@ -17,5 +18,10 @@ export interface AppUser {
   regionId?: number | null;
   /** @nullable */
   regionName?: string | null;
+  /** @nullable */
+  cniNumber?: string | null;
+  /** @nullable */
+  cniPhotoUrl?: string | null;
+  assignedZones?: ZoneAssignment[];
   createdAt: string;
 }

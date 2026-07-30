@@ -7,6 +7,7 @@
  */
 import type { CategoryCount } from './categoryCount';
 import type { RegionCount } from './regionCount';
+import type { StatusCount } from './statusCount';
 
 export interface DashboardStats {
   totalMembers: number;
@@ -14,5 +15,6 @@ export interface DashboardStats {
   totalMorale: number;
   byCategory: CategoryCount[];
   byRegion: RegionCount[];
+  byStatus?: StatusCount[];
   recentWeekCount: number;
 }

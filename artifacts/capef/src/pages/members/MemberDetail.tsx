@@ -1,23 +1,64 @@
-import React from 'react';
-import { useGetMember, useGenerateBadge } from '@workspace/api-client-react';
+import React, { useState } from 'react';
+import {
+  useGetMember,
+  useGenerateBadge,
+  useValidateMember,
+  useDeactivateMember,
+  useReactivateMember,
+  useBlockMember
+} from '@workspace/api-client-react';
 import { useRoute, Link } from 'wouter';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
-  ArrowLeft, Edit, FileBadge, MapPin, Phone, Mail, Building, User, Tag, FileText, CheckSquare
+  ArrowLeft, Edit, FileBadge, MapPin, Phone, Mail, Building, User, Tag, FileText, CheckSquare, Plus,
+  CheckCircle, XCircle, RotateCcw, AlertOctagon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthContext } from '@/lib/auth';
+import ActivityWizard from '@/components/members/ActivityWizard';
 
 export default function MemberDetail() {
   const [, params] = useRoute('/members/:id');
   const id = Number(params?.id);
   const { toast } = useToast();
+  const { isAdmin } = useAuthContext();
 
-  const { data: member, isLoading, error } = useGetMember(id, {
+  const { data: member, isLoading, error, refetch: refetchMember } = useGetMember(id, {
     query: { enabled: !!id, queryKey: ['member', id] }
   });
 
   const generateBadge = useGenerateBadge();
+  const [showWizard, setShowWizard] = useState(false);
+
+  // Status transitions
+  const validateMutation = useValidateMember();
+  const deactivateMutation = useDeactivateMember();
+  const reactivateMutation = useReactivateMember();
+  const blockMutation = useBlockMember();
+
+  const handleStatusAction = async (action: 'validate' | 'deactivate' | 'reactivate' | 'block') => {
+    try {
+      if (action === 'validate') {
+        await validateMutation.mutateAsync({ id });
+        toast({ title: 'Succès', description: 'Membre validé.' });
+      } else if (action === 'deactivate') {
+        await deactivateMutation.mutateAsync({ id });
+        toast({ title: 'Succès', description: 'Membre désactivé.' });
+      } else if (action === 'reactivate') {
+        await reactivateMutation.mutateAsync({ id });
+        toast({ title: 'Succès', description: 'Membre réactivé.' });
+      } else if (action === 'block') {
+        if (confirm('Êtes-vous sûr de vouloir bloquer ce membre définitivement ? Cette action est irréversible.')) {
+          await blockMutation.mutateAsync({ id });
+          toast({ title: 'Succès', description: 'Membre bloqué définitivement.' });
+        }
+      }
+      refetchMember();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err?.response?.data?.error || 'Une erreur est survenue.' });
+    }
+  };
 
   const handleGenerateBadge = async () => {
     try {
@@ -39,6 +80,26 @@ export default function MemberDetail() {
     return <div className="p-8 text-center text-destructive font-bold">Membre introuvable.</div>;
   }
 
+  if (showWizard) {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={() => {
+            setShowWizard(false);
+            refetchMember();
+          }}
+          className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" /> Retour au profil
+        </button>
+        <ActivityWizard memberId={id} onComplete={() => {
+          setShowWizard(false);
+          refetchMember();
+        }} />
+      </div>
+    );
+  }
+
   const isPhysique = member.memberType === 'physique';
   const info = isPhysique ? member.physiqueData : member.moraleData;
 
@@ -53,14 +114,69 @@ export default function MemberDetail() {
     }
   };
 
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'incomplet': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'en_attente': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'valide': return 'bg-green-100 text-green-800 border-green-200';
+      case 'desactive': return 'bg-red-100 text-red-800 border-red-200';
+      case 'bloque': return 'bg-red-200 text-red-900 border-red-300 font-bold';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       {/* Header Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <Link href="/members" className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium">
           <ArrowLeft className="h-4 w-4 mr-2" /> Retour à la liste
         </Link>
-        <div className="flex gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {isAdmin && (
+            <div className="flex gap-1.5 border-r border-border pr-3 mr-1 flex-wrap">
+              {member.status === 'en_attente' && (
+                <button
+                  onClick={() => handleStatusAction('validate')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-colors"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" /> Valider
+                </button>
+              )}
+              {member.status === 'valide' && (
+                <button
+                  onClick={() => handleStatusAction('deactivate')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-600 text-white text-xs font-semibold rounded hover:bg-yellow-700 transition-colors"
+                >
+                  <XCircle className="h-3.5 w-3.5" /> Désactiver
+                </button>
+              )}
+              {member.status === 'desactive' && (
+                <button
+                  onClick={() => handleStatusAction('reactivate')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-colors"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Réactiver
+                </button>
+              )}
+              {member.status !== 'bloque' && (
+                <button
+                  onClick={() => handleStatusAction('block')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors"
+                >
+                  <AlertOctagon className="h-3.5 w-3.5" /> Bloquer
+                </button>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowWizard(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Saisir Activité (Wizard)
+          </button>
           <button
             onClick={handleGenerateBadge}
             disabled={generateBadge.isPending}
@@ -90,12 +206,15 @@ export default function MemberDetail() {
           )}
         </div>
         <div className="flex-1 text-center md:text-left">
-          <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">
+          <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2 flex-wrap justify-center md:justify-start">
             <h1 className="text-3xl font-bold text-foreground">
               {isPhysique ? `${(info as any)?.nom} ${(info as any)?.prenom || ''}` : (info as any)?.nom}
             </h1>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getCategoryColor(member.category)} capitalize self-center md:self-auto`}>
               {member.category}
+            </span>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadgeColor(member.status)} capitalize self-center md:self-auto`}>
+              Statut: {member.status}
             </span>
           </div>
           <p className="text-muted-foreground font-mono text-lg mb-4">{member.memberNumber}</p>
@@ -109,6 +228,80 @@ export default function MemberDetail() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Multi-Activities Section */}
+        {member.activities && member.activities.length > 0 && (
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden md:col-span-2">
+            <div className="px-6 py-4 border-b border-border bg-muted/20">
+              <h3 className="font-bold flex items-center gap-2 text-foreground">
+                <CheckSquare className="h-5 w-5 text-primary" />
+                Activités & Productions ({member.activities.length})
+              </h3>
+            </div>
+            <div className="p-6 space-y-6 divide-y divide-border">
+              {member.activities.map((act) => (
+                <div key={act.id} className="pt-4 first:pt-0 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold capitalize text-primary text-base">
+                      {act.activityType} {act.isPrimary && <span className="text-xs bg-yellow-500/10 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full ml-1">Principale</span>}
+                    </span>
+                    <span className="text-xs text-muted-foreground">Saisie le {format(new Date(act.createdAt || ''), 'dd/MM/yyyy')}</span>
+                  </div>
+
+                  {act.maillons && act.maillons.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap">
+                      {act.maillons.map(m => (
+                        <span key={m} className="text-[11px] font-medium border bg-muted px-2 py-0.5 rounded-full">{m}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-muted text-muted-foreground font-semibold">
+                        <tr>
+                          <th className="p-2">Détails</th>
+                          <th className="p-2">Spécificités</th>
+                          <th className="p-2">Production (Qté / Unité)</th>
+                          <th className="p-2 text-right">Valeur (FCFA)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {act.lineItems?.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="p-4 text-center text-muted-foreground">Aucune ligne d'activité.</td>
+                          </tr>
+                        ) : (
+                          act.lineItems?.map(item => (
+                            <tr key={item.id} className="hover:bg-muted/10">
+                              <td className="p-2 font-medium">
+                                {act.activityType === 'agriculteur' && `${item.cropCategory || ''} - ${item.cropName || ''}`}
+                                {act.activityType === 'pecheur' && item.speciesPêche}
+                                {act.activityType === 'eleveur' && item.species}
+                                {act.activityType === 'forestier' && `${item.subCategory || ''} - ${item.essence || ''}`}
+                                {act.activityType === 'artisan' && item.artisanatProducts}
+                              </td>
+                              <td className="p-2 text-muted-foreground">
+                                {act.activityType === 'agriculteur' && `Type: ${item.cultureType || ''}, Superficie: ${item.superficieHa || 'N/A'} ha`}
+                                {act.activityType === 'eleveur' && `Cheptel: ${item.cheptelSize || 'N/A'}, Nourriture: ${item.foodType || 'N/A'}`}
+                                {act.activityType === 'forestier' && `Plantation: ${item.plantationType || 'N/A'}, Superficie: ${item.superficieHa || 'N/A'} ha`}
+                                {act.activityType === 'artisan' && `Matières: ${item.rawMaterials || ''}`}
+                              </td>
+                              <td className="p-2">
+                                {item.productionQuantity || 'N/A'} {item.productionUnit || ''}
+                              </td>
+                              <td className="p-2 text-right font-mono font-medium">{item.productionFcfa?.toLocaleString() || '0'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Info Box */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-border bg-muted/20">
@@ -214,7 +407,7 @@ export default function MemberDetail() {
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Enregistré le</dt><dd className="col-span-2 font-medium">{format(new Date(member.createdAt), 'dd MMMM yyyy HH:mm', { locale: fr })}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Enregistré le</dt><dd className="col-span-2 font-medium">{format(new Date(member.createdAt || ''), 'dd MMMM yyyy HH:mm', { locale: fr })}</dd></div>
               <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">Agent</dt><dd className="col-span-2 font-medium">{member.createdByName || '-'}</dd></div>
             </dl>
             <div className="bg-muted/30 p-4 rounded-lg border border-border/50">

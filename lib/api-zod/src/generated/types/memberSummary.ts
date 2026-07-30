@@ -7,6 +7,7 @@
  */
 import type { MemberSummaryCategory } from './memberSummaryCategory';
 import type { MemberSummaryMemberType } from './memberSummaryMemberType';
+import type { MemberSummaryStatus } from './memberSummaryStatus';
 
 export interface MemberSummary {
   id: number;
@@ -21,5 +22,6 @@ export interface MemberSummary {
   createdByName?: string | null;
   /** @nullable */
   badgeUrl?: string | null;
+  status: MemberSummaryStatus;
   createdAt: string;
 }

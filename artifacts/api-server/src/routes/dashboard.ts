@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, gte } from "drizzle-orm";
+import { eq, sql, gte, and } from "drizzle-orm";
 import { db, membersTable, regionsTable, usersTable } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -10,25 +10,36 @@ const router: IRouter = Router();
 router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> => {
   try {
     const appUser = (req as any).appUser;
+    const { status, activity, regionId } = req.query;
 
-    let baseWhere: any = undefined;
+    const conditions: any[] = [];
     if (appUser.role === "agent") {
-      baseWhere = eq(membersTable.createdById, appUser.id);
+      conditions.push(eq(membersTable.createdById, appUser.id));
     } else if (appUser.role === "supervisor" && appUser.regionId) {
-      baseWhere = eq(membersTable.regionId, appUser.regionId);
+      conditions.push(eq(membersTable.regionId, appUser.regionId));
     }
+
+    if (status) conditions.push(eq(membersTable.status, String(status)));
+    if (activity) conditions.push(eq(membersTable.category, String(activity)));
+    if (regionId) conditions.push(eq(membersTable.regionId, parseInt(String(regionId), 10)));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Total counts
     const [totalResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(membersTable)
-      .where(baseWhere);
+      .where(whereClause);
     const totalMembers = totalResult?.count ?? 0;
 
     const [physiqueResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(membersTable)
-      .where(baseWhere ? sql`${baseWhere} AND ${membersTable.memberType} = 'physique'` : eq(membersTable.memberType, "physique"));
+      .where(
+        whereClause
+          ? sql`${whereClause} AND ${membersTable.memberType} = 'physique'`
+          : eq(membersTable.memberType, "physique")
+      );
     const totalPhysique = physiqueResult?.count ?? 0;
 
     const totalMorale = totalMembers - totalPhysique;
@@ -40,7 +51,7 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
         count: sql<number>`count(*)::int`,
       })
       .from(membersTable)
-      .where(baseWhere)
+      .where(whereClause)
       .groupBy(membersTable.category);
 
     const byCategory = categoryRows.map((r) => ({ category: r.category, count: r.count }));
@@ -52,7 +63,7 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
         count: sql<number>`count(*)::int`,
       })
       .from(membersTable)
-      .where(baseWhere)
+      .where(whereClause)
       .groupBy(membersTable.regionId);
 
     const byRegion = await Promise.all(
@@ -64,14 +75,26 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
         })
     );
 
+    // By status (Phase 4 bucket counts)
+    const statusRows = await db
+      .select({
+        status: membersTable.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(membersTable)
+      .where(whereClause)
+      .groupBy(membersTable.status);
+
+    const byStatus = statusRows.map((r) => ({ status: r.status, count: r.count }));
+
     // Recent week count
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const [weekResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(membersTable)
       .where(
-        baseWhere
-          ? sql`${baseWhere} AND ${membersTable.createdAt} >= ${oneWeekAgo}`
+        whereClause
+          ? sql`${whereClause} AND ${membersTable.createdAt} >= ${oneWeekAgo}`
           : gte(membersTable.createdAt, oneWeekAgo)
       );
     const recentWeekCount = weekResult?.count ?? 0;
@@ -82,6 +105,7 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
       totalMorale,
       byCategory,
       byRegion,
+      byStatus,
       recentWeekCount,
     });
   } catch (error: any) {
@@ -129,6 +153,7 @@ router.get("/dashboard/recent", requireAppUser, async (req, res): Promise<void> 
         regionName: region?.name ?? null,
         createdByName: creator?.name ?? null,
         badgeUrl: m.badgeUrl ?? null,
+        status: m.status,
         createdAt: m.createdAt.toISOString(),
       };
     }));

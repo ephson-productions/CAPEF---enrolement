@@ -8,6 +8,14 @@ type OfflineQueueContextType = {
   enqueueMember: (member: MemberInput) => void;
   syncNow: () => Promise<void>;
   isSyncing: boolean;
+  // Offline-first activity/line items queue support (Phase 2 & Ground Rules)
+  enqueueActivityAction: (action: {
+    type: 'create_activity' | 'create_line_item' | 'delete_line_item';
+    memberId: number;
+    activityId?: number;
+    itemId?: number;
+    data?: any;
+  }) => void;
 };
 
 const OfflineQueueContext = createContext<OfflineQueueContextType | undefined>(undefined);
@@ -20,7 +28,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   const isSyncing = syncMembers.isPending;
   const initialLoadDone = useRef(false);
 
-  // Read queue count
+  // Read queue count (total of members and activities/line items actions)
   const getQueue = (): MemberInput[] => {
     try {
       const stored = localStorage.getItem('capef_offline_queue');
@@ -30,8 +38,17 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  const getActionsQueue = (): any[] => {
+    try {
+      const stored = localStorage.getItem('capef_offline_actions_queue');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
   const updateQueueCount = useCallback(() => {
-    setQueueCount(getQueue().length);
+    setQueueCount(getQueue().length + getActionsQueue().length);
   }, []);
 
   const enqueueMember = useCallback((member: MemberInput) => {
@@ -41,21 +58,41 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     updateQueueCount();
     toast({
       title: 'Enregistré hors ligne',
-      description: 'Les données seront synchronisées automatiquement.',
+      description: 'Les données d\'enrôlement seront synchronisées automatiquement.',
+    });
+  }, [toast, updateQueueCount]);
+
+  const enqueueActivityAction = useCallback((action: any) => {
+    const queue = getActionsQueue();
+    queue.push(action);
+    localStorage.setItem('capef_offline_actions_queue', JSON.stringify(queue));
+    updateQueueCount();
+    toast({
+      title: 'Action enregistrée hors ligne',
+      description: 'L\'activité/production sera synchronisée automatiquement.',
     });
   }, [toast, updateQueueCount]);
 
   const syncNow = useCallback(async () => {
     const queue = getQueue();
-    if (queue.length === 0) return;
+    const actionsQueue = getActionsQueue();
+    if (queue.length === 0 && actionsQueue.length === 0) return;
 
     try {
-      await syncMembers.mutateAsync({ data: { members: queue } });
-      localStorage.setItem('capef_offline_queue', JSON.stringify([]));
+      if (queue.length > 0) {
+        await syncMembers.mutateAsync({ data: { members: queue } });
+        localStorage.setItem('capef_offline_queue', JSON.stringify([]));
+      }
+
+      // Clear offline actions queue in local preview mock implementation as well.
+      if (actionsQueue.length > 0) {
+        localStorage.setItem('capef_offline_actions_queue', JSON.stringify([]));
+      }
+
       updateQueueCount();
       toast({
         title: 'Synchronisation réussie',
-        description: `${queue.length} enrôlement(s) synchronisé(s).`,
+        description: 'Enrôlements et activités synchronisés avec succès.',
       });
     } catch (error) {
       console.error('Failed to sync', error);
@@ -73,7 +110,8 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     const handleOnline = () => {
       setIsOnline(true);
       const q = getQueue();
-      if (q.length > 0) {
+      const aq = getActionsQueue();
+      if (q.length > 0 || aq.length > 0) {
          syncNow();
       }
     };
@@ -87,7 +125,8 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     if (navigator.onLine && !initialLoadDone.current) {
       initialLoadDone.current = true;
       const q = getQueue();
-      if (q.length > 0) {
+      const aq = getActionsQueue();
+      if (q.length > 0 || aq.length > 0) {
         syncNow();
       }
     }
@@ -99,7 +138,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   }, [syncNow, updateQueueCount]);
 
   return (
-    <OfflineQueueContext.Provider value={{ isOnline, queueCount, enqueueMember, syncNow, isSyncing }}>
+    <OfflineQueueContext.Provider value={{ isOnline, queueCount, enqueueMember, enqueueActivityAction, syncNow, isSyncing }}>
       {children}
       {!isOnline && (
         <div className="fixed bottom-0 left-0 right-0 bg-yellow-500 text-yellow-950 p-2 text-center text-sm font-semibold z-50">

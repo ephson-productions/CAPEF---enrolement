@@ -5,6 +5,7 @@
  * CAPEF Digital Enrollment API
  * OpenAPI spec version: 0.1.0
  */
+import type { MoraleDataNombreMembres } from './moraleDataNombreMembres';
 import type { MoraleDataTypeOrganisation } from './moraleDataTypeOrganisation';
 import type { Representative } from './representative';
 
@@ -29,7 +30,7 @@ export interface MoraleData {
   /** @nullable */
   website?: string | null;
   /** @nullable */
-  nombreMembres?: number | null;
+  nombreMembres?: MoraleDataNombreMembres;
   /** @nullable */
   nombreFemmes?: number | null;
   representants?: Representative[];

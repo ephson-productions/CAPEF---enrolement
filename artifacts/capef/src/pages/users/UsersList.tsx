@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useListUsers, useUpdateUser } from '@workspace/api-client-react';
 import type { AppUserUpdateRole } from '@workspace/api-client-react';
-import { Shield, ShieldAlert, User as UserIcon } from 'lucide-react';
+import { Shield, ShieldAlert, User as UserIcon, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
-import { Redirect } from 'wouter';
+import { Redirect, Link } from 'wouter';
 
 export default function UsersList() {
   const { isAdmin } = useAuthContext();
@@ -40,9 +40,18 @@ export default function UsersList() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Gestion des Utilisateurs</h1>
-        <p className="text-sm text-muted-foreground mt-1">Gérez les accès et les rôles du personnel CAPEF.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Gestion des Utilisateurs</h1>
+          <p className="text-sm text-muted-foreground mt-1">Gérez les accès et les rôles du personnel CAPEF.</p>
+        </div>
+        <Link
+          href="/users/new"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors text-sm"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Ajouter un Agent</span>
+        </Link>
       </div>
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">

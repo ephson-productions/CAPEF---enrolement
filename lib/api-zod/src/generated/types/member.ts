@@ -5,10 +5,12 @@
  * CAPEF Digital Enrollment API
  * OpenAPI spec version: 0.1.0
  */
+import type { MemberActivity } from './memberActivity';
 import type { MemberCategory } from './memberCategory';
 import type { MemberCategoryData } from './memberCategoryData';
 import type { MemberIndividualOrOrg } from './memberIndividualOrOrg';
 import type { MemberMemberType } from './memberMemberType';
+import type { MemberStatus } from './memberStatus';
 import type { MoraleData } from './moraleData';
 import type { PhysiqueData } from './physiqueData';
 
@@ -45,6 +47,8 @@ export interface Member {
   categoryData?: MemberCategoryData;
   /** @nullable */
   badgeUrl?: string | null;
+  status: MemberStatus;
   createdAt: string;
   updatedAt?: string;
+  activities?: MemberActivity[];
 }

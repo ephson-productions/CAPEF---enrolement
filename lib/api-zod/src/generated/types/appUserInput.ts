@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AppUserInputRole } from './appUserInputRole';
+import type { ZoneAssignment } from './zoneAssignment';
 
 export interface AppUserInput {
   email: string;
@@ -13,4 +14,9 @@ export interface AppUserInput {
   role: AppUserInputRole;
   /** @nullable */
   regionId?: number | null;
+  /** @nullable */
+  cniNumber?: string | null;
+  /** @nullable */
+  cniPhotoUrl?: string | null;
+  assignedZones?: ZoneAssignment[];
 }

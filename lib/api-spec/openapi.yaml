@@ -311,6 +311,11 @@ paths:
           name: createdById
           schema:
             type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [incomplet, en_attente, valide, desactive, bloque]
       responses:
         "200":
           description: Paginated members list
@@ -487,6 +492,266 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
 
+  # ─── New Activities & Line-items endpoints (Phase 1 & Phase 3 status updates) ───
+
+  /members/{id}/activities:
+    get:
+      operationId: listMemberActivities
+      tags: [members]
+      summary: List activities of a member
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Activities list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemberActivity"
+    post:
+      operationId: createMemberActivity
+      tags: [members]
+      summary: Add an activity to a member
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberActivityInput"
+      responses:
+        "201":
+          description: Activity created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberActivity"
+
+  /members/{id}/activities/{activityId}:
+    put:
+      operationId: updateMemberActivity
+      tags: [members]
+      summary: Update a member activity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberActivityInput"
+      responses:
+        "200":
+          description: Activity updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberActivity"
+    delete:
+      operationId: deleteMemberActivity
+      tags: [members]
+      summary: Delete a member activity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Activity deleted
+
+  /members/{id}/activities/{activityId}/line-items:
+    post:
+      operationId: createActivityLineItem
+      tags: [members]
+      summary: Add repeatable row / line item to an activity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityLineItemInput"
+      responses:
+        "201":
+          description: Line item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityLineItem"
+
+  /members/{id}/activities/{activityId}/line-items/{itemId}:
+    put:
+      operationId: updateActivityLineItem
+      tags: [members]
+      summary: Update a repeatable row / line item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityLineItemInput"
+      responses:
+        "200":
+          description: Line item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityLineItem"
+    delete:
+      operationId: deleteActivityLineItem
+      tags: [members]
+      summary: Delete a repeatable row / line item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: activityId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Line item deleted
+
+  # ─── Status Admin Actions (Phase 3) ───
+
+  /members/{id}/validate:
+    post:
+      operationId: validateMember
+      tags: [members]
+      summary: Validate a member (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member validated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /members/{id}/deactivate:
+    post:
+      operationId: deactivateMember
+      tags: [members]
+      summary: Deactivate a member (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /members/{id}/reactivate:
+    post:
+      operationId: reactivateMember
+      tags: [members]
+      summary: Reactivate a member (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /members/{id}/block:
+    post:
+      operationId: blockMember
+      tags: [members]
+      summary: Block a member (admin only, terminal)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Member blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
   # ─── Dashboard ────────────────────────────────────────────────────────────────
 
   /dashboard/stats:
@@ -494,6 +759,19 @@ paths:
       operationId: getDashboardStats
       tags: [dashboard]
       summary: Aggregated statistics for the dashboard
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: activity
+          schema:
+            type: string
+        - in: query
+          name: regionId
+          schema:
+            type: integer
       responses:
         "200":
           description: Dashboard statistics
@@ -568,6 +846,17 @@ components:
 
     # ─── Auth / Users ────────────────────────────────────────────────────────
 
+    ZoneAssignment:
+      type: object
+      required: [regionId]
+      properties:
+        regionId:
+          type: integer
+        departmentId:
+          type: ["integer", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+
     AppUser:
       type: object
       required: [id, clerkUserId, email, name, role, createdAt]
@@ -587,6 +876,14 @@ components:
           type: ["integer", "null"]
         regionName:
           type: ["string", "null"]
+        cniNumber:
+          type: ["string", "null"]
+        cniPhotoUrl:
+          type: ["string", "null"]
+        assignedZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneAssignment"
         createdAt:
           type: string
 
@@ -612,6 +909,14 @@ components:
           enum: [admin, supervisor, agent]
         regionId:
           type: ["integer", "null"]
+        cniNumber:
+          type: ["string", "null"]
+        cniPhotoUrl:
+          type: ["string", "null"]
+        assignedZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneAssignment"
 
     AppUserUpdate:
       type: object
@@ -623,6 +928,14 @@ components:
           enum: [admin, supervisor, agent]
         regionId:
           type: ["integer", "null"]
+        cniNumber:
+          type: ["string", "null"]
+        cniPhotoUrl:
+          type: ["string", "null"]
+        assignedZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneAssignment"
 
     # ─── Reference Data ──────────────────────────────────────────────────────
 
@@ -752,6 +1065,7 @@ components:
           type: ["string", "null"]
         nombreMembres:
           type: ["integer", "null"]
+          enum: [1, 2, 3, null]
         nombreFemmes:
           type: ["integer", "null"]
         representants:
@@ -759,9 +1073,180 @@ components:
           items:
             $ref: "#/components/schemas/Representative"
 
+    MemberActivity:
+      type: object
+      required: [id, memberId, activityType, isPrimary]
+      properties:
+        id:
+          type: integer
+        memberId:
+          type: integer
+        activityType:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        isPrimary:
+          type: boolean
+        regionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+        village:
+          type: ["string", "null"]
+        maillons:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityLineItem"
+
+    MemberActivityInput:
+      type: object
+      required: [activityType]
+      properties:
+        activityType:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        isPrimary:
+          type: boolean
+        regionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+        village:
+          type: ["string", "null"]
+        maillons:
+          type: array
+          items:
+            type: string
+
+    ActivityLineItem:
+      type: object
+      required: [id, activityId]
+      properties:
+        id:
+          type: integer
+        activityId:
+          type: integer
+        parcelleGroupId:
+          type: ["string", "null"]
+        cropCategory:
+          type: ["string", "null"]
+        cropName:
+          type: ["string", "null"]
+        cultureType:
+          type: ["string", "null"]
+        superficieHa:
+          type: ["number", "null"]
+        productionQuantity:
+          type: ["number", "null"]
+        productionUnit:
+          type: ["string", "null"]
+        productionFcfa:
+          type: ["number", "null"]
+        isPrincipalCrop:
+          type: ["boolean", "null"]
+        parentLineItemId:
+          type: ["integer", "null"]
+        species:
+          type: ["string", "null"]
+        cheptelSize:
+          type: ["integer", "null"]
+        foodType:
+          type: ["string", "null"]
+        products:
+          type: ["array", "null"]
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+              unit:
+                type: string
+              fcfa:
+                type: number
+        speciesPêche:
+          type: ["string", "null"]
+        subCategory:
+          type: ["string", "null"]
+        essence:
+          type: ["string", "null"]
+        plantationType:
+          type: ["string", "null"]
+        artisanatProducts:
+          type: ["string", "null"]
+        rawMaterials:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ActivityLineItemInput:
+      type: object
+      properties:
+        parcelleGroupId:
+          type: ["string", "null"]
+        cropCategory:
+          type: ["string", "null"]
+        cropName:
+          type: ["string", "null"]
+        cultureType:
+          type: ["string", "null"]
+        superficieHa:
+          type: ["number", "null"]
+        productionQuantity:
+          type: ["number", "null"]
+        productionUnit:
+          type: ["string", "null"]
+        productionFcfa:
+          type: ["number", "null"]
+        isPrincipalCrop:
+          type: ["boolean", "null"]
+        parentLineItemId:
+          type: ["integer", "null"]
+        species:
+          type: ["string", "null"]
+        cheptelSize:
+          type: ["integer", "null"]
+        foodType:
+          type: ["string", "null"]
+        products:
+          type: ["array", "null"]
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+              unit:
+                type: string
+              fcfa:
+                type: number
+        speciesPêche:
+          type: ["string", "null"]
+        subCategory:
+          type: ["string", "null"]
+        essence:
+          type: ["string", "null"]
+        plantationType:
+          type: ["string", "null"]
+        artisanatProducts:
+          type: ["string", "null"]
+        rawMaterials:
+          type: ["string", "null"]
+
     Member:
       type: object
-      required: [id, memberNumber, memberType, category, createdAt, createdById]
+      required: [id, memberNumber, memberType, category, createdAt, createdById, status]
       properties:
         id:
           type: integer
@@ -811,14 +1296,21 @@ components:
           additionalProperties: true
         badgeUrl:
           type: ["string", "null"]
+        status:
+          type: string
+          enum: [incomplet, en_attente, valide, desactive, bloque]
         createdAt:
           type: string
         updatedAt:
           type: string
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberActivity"
 
     MemberSummary:
       type: object
-      required: [id, memberNumber, memberType, category, createdAt]
+      required: [id, memberNumber, memberType, category, createdAt, status]
       properties:
         id:
           type: integer
@@ -838,6 +1330,9 @@ components:
           type: ["string", "null"]
         badgeUrl:
           type: ["string", "null"]
+        status:
+          type: string
+          enum: [incomplet, en_attente, valide, desactive, bloque]
         createdAt:
           type: string
 
@@ -986,6 +1481,15 @@ components:
         count:
           type: integer
 
+    StatusCount:
+      type: object
+      required: [status, count]
+      properties:
+        status:
+          type: string
+        count:
+          type: integer
+
     DashboardStats:
       type: object
       required: [totalMembers, totalPhysique, totalMorale, byCategory, byRegion, recentWeekCount]
@@ -1004,6 +1508,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RegionCount"
+        byStatus:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusCount"
         recentWeekCount:
           type: integer
 

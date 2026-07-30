@@ -21,6 +21,7 @@ import MemberNew from './pages/members/MemberNew';
 import MemberDetail from './pages/members/MemberDetail';
 import MemberEdit from './pages/members/MemberEdit';
 import UsersList from './pages/users/UsersList';
+import AddAgent from './pages/users/AddAgent';
 import Profile from './pages/Profile';
 import NotFound from './pages/not-found';
 
@@ -178,6 +179,7 @@ function ProtectedRoutes() {
         <Route path="/members/new" component={MemberNew} />
         <Route path="/members/:id/edit" component={MemberEdit} />
         <Route path="/members/:id" component={MemberDetail} />
+        <Route path="/users/new" component={AddAgent} />
         <Route path="/users" component={UsersList} />
         <Route path="/profile" component={Profile} />
         <Route component={NotFound} />

@@ -7,6 +7,7 @@
  */
 import type { ListMembersCategory } from './listMembersCategory';
 import type { ListMembersMemberType } from './listMembersMemberType';
+import type { ListMembersStatus } from './listMembersStatus';
 
 export type ListMembersParams = {
 category?: ListMembersCategory;
@@ -17,4 +18,5 @@ search?: string;
 page?: number;
 limit?: number;
 createdById?: number;
+status?: ListMembersStatus;
 };
