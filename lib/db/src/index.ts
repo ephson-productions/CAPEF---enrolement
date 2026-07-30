@@ -10,7 +10,7 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const isProduction = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
+const isProduction = process.env.NODE_ENV === "production" || !!process.env.VERCEL || !!process.env.RENDER;
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
