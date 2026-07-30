@@ -35,10 +35,25 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-const allowedOrigins = [
+// TODO: remove once fully migrated off Vercel
+const legacyAllowedOrigins = [
   "https://capef-enrolement-capef.vercel.app",
   "https://capef-enrolement-capef-95fjqmhhx-ephson-productions-projects.vercel.app",
   "https://platforme-denrolement-digital-capef.onrender.com",
+];
+
+const envFrontendUrls = process.env.FRONTEND_URLS
+  ? process.env.FRONTEND_URLS.split(",").map((url) => url.trim()).filter(Boolean)
+  : [];
+
+const envFrontendUrl = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL.trim()]
+  : [];
+
+const allowedOrigins = [
+  ...legacyAllowedOrigins,
+  ...envFrontendUrl,
+  ...envFrontendUrls,
 ];
 
 const corsOptions: cors.CorsOptions = {
@@ -54,6 +69,10 @@ const corsOptions: cors.CorsOptions = {
       origin.startsWith("http://127.0.0.1:") ||
       origin.endsWith(".vercel.app") ||
       origin.endsWith("-ephson-productions-projects.vercel.app");
+
+    if (!isAllowed) {
+      logger.warn({ origin }, "CORS request rejected for origin");
+    }
 
     callback(null, isAllowed);
   },
