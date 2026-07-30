@@ -2,6 +2,16 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabaseIfNeeded } from "./lib/seed";
 import { migrateExistingMembersToActivities } from "./lib/migration";
+import { execSync } from "child_process";
+
+// Run Drizzle schema push on startup to ensure all tables exist before any queries/seeding are run
+try {
+  logger.info("Running Drizzle schema push on startup...");
+  execSync("pnpm --filter @workspace/db run push", { stdio: "inherit" });
+  logger.info("Drizzle schema push completed successfully!");
+} catch (error) {
+  logger.error({ error }, "Failed to run Drizzle schema push on startup. Proceeding asynchronously...");
+}
 
 // Trigger seeding and migration asynchronously on startup
 seedDatabaseIfNeeded()
