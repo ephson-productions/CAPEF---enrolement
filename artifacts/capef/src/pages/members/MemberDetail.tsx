@@ -322,9 +322,10 @@ export default function MemberDetail() {
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">N° CNI</dt><dd className="col-span-2 font-medium">{(info as any)?.numeroCni || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Lieu de rés.</dt><dd className="col-span-2 font-medium">{(info as any)?.lieuResidence || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Niveau d'études</dt><dd className="col-span-2 font-medium">{(info as any)?.niveauEtudes || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Principal</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone1 || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Principal (WhatsApp)</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone1 || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Secondaire</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone2 || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Email</dt><dd className="col-span-2 font-medium">{(info as any)?.email || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Personne à contacter</dt><dd className="col-span-2 font-medium">{(info as any)?.telephonePersonneAContacter || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">BP</dt><dd className="col-span-2 font-medium">{(info as any)?.boitePostale || '-'}</dd></div>
                 </>
               ) : (

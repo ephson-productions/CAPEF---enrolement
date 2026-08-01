@@ -50,6 +50,7 @@ export const formSchema = z.object({
     telephone2: z.string().optional().nullable(),
     email: z.string().optional().nullable(),
     boitePostale: z.string().optional().nullable(),
+    telephonePersonneAContacter: z.string().optional().nullable(),
     niveauEtudes: z.string().optional().nullable(),
     photoUrl: z.string().optional().nullable(),
     cniRectoUrl: z.string().optional().nullable(),
@@ -150,6 +151,7 @@ function toDefaultValues(member?: Member): MemberFormValues {
         telephone2: '',
         email: '',
         boitePostale: '',
+        telephonePersonneAContacter: '',
         niveauEtudes: 'Autodidacte',
         photoUrl: null,
         cniRectoUrl: null,
@@ -236,6 +238,7 @@ function toDefaultValues(member?: Member): MemberFormValues {
       telephone2: phys.telephone2 ?? '',
       email: phys.email ?? '',
       boitePostale: phys.boitePostale ?? '',
+      telephonePersonneAContacter: phys.telephonePersonneAContacter ?? '',
       niveauEtudes: phys.niveauEtudes ?? 'Autodidacte',
       photoUrl: phys.photoUrl ?? null,
       cniRectoUrl: phys.cniRectoUrl ?? null,
@@ -1141,8 +1144,9 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Téléphone Principal</label>
+                    <label className="text-sm font-semibold">Téléphone Principal (WhatsApp)</label>
                     <input type="tel" {...methods.register('physiqueData.telephone1')} className="w-full px-3 py-2 border border-input rounded-md" />
+                    <p className="text-xs text-muted-foreground mt-1">Ce numéro doit être joignable sur WhatsApp — il sera utilisé pour le groupe des membres.</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Téléphone 2 (optionnel)</label>
@@ -1153,8 +1157,8 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     <input type="email" {...methods.register('physiqueData.email')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Boîte postale (optionnel)</label>
-                    <input type="text" {...methods.register('physiqueData.boitePostale')} className="w-full px-3 py-2 border border-input rounded-md" />
+                    <label className="text-sm font-semibold">Téléphone personne à contacter (optionnel)</label>
+                    <input type="tel" {...methods.register('physiqueData.telephonePersonneAContacter')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-sm font-semibold">N° CNI</label>

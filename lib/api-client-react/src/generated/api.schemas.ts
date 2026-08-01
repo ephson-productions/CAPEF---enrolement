@@ -188,6 +188,11 @@ export interface PhysiqueData {
   email?: string | null;
   /** @nullable */
   boitePostale?: string | null;
+  /**
+     * Numéro de téléphone d'une personne à contacter en cas de besoin/urgence, différente du membre lui-même.
+     * @nullable
+     */
+  telephonePersonneAContacter?: string | null;
   /** @nullable */
   lieuResidence?: string | null;
   /** @nullable */

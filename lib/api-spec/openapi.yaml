@@ -1003,6 +1003,9 @@ components:
           type: ["string", "null"]
         boitePostale:
           type: ["string", "null"]
+        telephonePersonneAContacter:
+          type: ["string", "null"]
+          description: "Numéro de téléphone d'une personne à contacter en cas de besoin/urgence, différente du membre lui-même."
         lieuResidence:
           type: ["string", "null"]
         niveauEtudes:
