@@ -12,8 +12,8 @@ import {
 const representativeSchema = z.object({
   ordre: z.number(),
   civilite: z.string().optional().nullable(),
-  nom: z.string().min(1, "Le nom du représentant est requis"),
-  prenom: z.string().min(1, "Le prénom du représentant est requis"),
+  nom: z.string().optional().nullable(),
+  prenom: z.string().optional().nullable(),
   profession: z.string().optional().nullable(),
   fonction: z.string().optional().nullable(),
   telephone1: z.string().optional().nullable(),
