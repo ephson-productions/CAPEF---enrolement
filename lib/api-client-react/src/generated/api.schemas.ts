@@ -208,7 +208,15 @@ export interface Representative {
   civilite?: string | null;
   nom: string;
   prenom: string;
-  /** @nullable */
+  /**
+     * Profession/métier personnel du représentant (ex: agronome, comptable, enseignant).
+     * @nullable
+     */
+  profession?: string | null;
+  /**
+     * Fonction occupée par le représentant au sein de l'organisation (ex: Président, Trésorier, Secrétaire Général).
+     * @nullable
+     */
   fonction?: string | null;
   /** @nullable */
   telephone1?: string | null;
@@ -216,6 +224,21 @@ export interface Representative {
   telephone2?: string | null;
   /** @nullable */
   email?: string | null;
+  /** @nullable */
+  regionId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  arrondissementId?: number | null;
+  /** @nullable */
+  village?: string | null;
+  /** @nullable */
+  boitePostale?: string | null;
+  /**
+     * Complément d'adresse libre (quartier, lieu-dit, etc.).
+     * @nullable
+     */
+  adresseDetaillee?: string | null;
 }
 
 /**
@@ -225,7 +248,12 @@ export type MoraleDataTypeOrganisation = typeof MoraleDataTypeOrganisation[keyof
 
 
 export const MoraleDataTypeOrganisation = {
+  OP: 'OP',
   GIC: 'GIC',
+  Association: 'Association',
+  'Coopérative_avec_conseil_d\'administration': 'Coopérative avec conseil d\'administration',
+  Coopérative_à_régime_simplifié: 'Coopérative à régime simplifié',
+  Exploitation: 'Exploitation',
   UGIC: 'UGIC',
   FUGIC: 'FUGIC',
   COOP92: 'COOP92',
@@ -234,15 +262,18 @@ export const MoraleDataTypeOrganisation = {
 } as const;
 
 /**
+ * Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'.
  * @nullable
  */
-export type MoraleDataNombreMembres = typeof MoraleDataNombreMembres[keyof typeof MoraleDataNombreMembres] | null;
+export type MoraleDataChiffreAffaires = typeof MoraleDataChiffreAffaires[keyof typeof MoraleDataChiffreAffaires] | null;
 
 
-export const MoraleDataNombreMembres = {
-  NUMBER_1: 1,
-  NUMBER_2: 2,
-  NUMBER_3: 3,
+export const MoraleDataChiffreAffaires = {
+  '<_5m': '< 5m',
+  '5-10m': '5-10m',
+  '10m-20m': '10m-20m',
+  '20m-50m': '20m-50m',
+  '>_50m': '> 50m',
 } as const;
 
 export interface MoraleData {
@@ -265,10 +296,21 @@ export interface MoraleData {
   boitePostale?: string | null;
   /** @nullable */
   website?: string | null;
-  /** @nullable */
-  nombreMembres?: MoraleDataNombreMembres;
-  /** @nullable */
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  nombreMembres?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
   nombreFemmes?: number | null;
+  /**
+     * Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'.
+     * @nullable
+     */
+  chiffreAffaires?: MoraleDataChiffreAffaires;
   representants?: Representative[];
 }
 

@@ -284,6 +284,12 @@ export const ListMembersResponse = zod.object({
 /**
  * @summary Enroll a new member
  */
+export const createMemberBodyMoraleDataOneNombreMembresMin = 0;
+
+export const createMemberBodyMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const CreateMemberBody = zod.object({
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -315,7 +321,7 @@ export const CreateMemberBody = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -325,21 +331,35 @@ export const CreateMemberBody = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(createMemberBodyMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(createMemberBodyMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish()
 })
+
+export const createMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const createMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
 
 export const CreateMemberResponse = zod.object({
   "id": zod.number(),
@@ -379,7 +399,7 @@ export const CreateMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -389,17 +409,25 @@ export const CreateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(createMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(createMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
@@ -473,6 +501,12 @@ export const GetMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const getMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const GetMemberResponse = zod.object({
   "id": zod.number(),
   "memberNumber": zod.string(),
@@ -511,7 +545,7 @@ export const GetMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -521,17 +555,25 @@ export const GetMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(getMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(getMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
@@ -591,6 +633,12 @@ export const UpdateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateMemberBodyMoraleDataOneNombreMembresMin = 0;
+
+export const updateMemberBodyMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const UpdateMemberBody = zod.object({
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),
   "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
@@ -621,7 +669,7 @@ export const UpdateMemberBody = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -631,22 +679,36 @@ export const UpdateMemberBody = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(updateMemberBodyMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(updateMemberBodyMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
   "badgeUrl": zod.string().nullish()
 })
+
+export const updateMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const updateMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
 
 export const UpdateMemberResponse = zod.object({
   "id": zod.number(),
@@ -686,7 +748,7 @@ export const UpdateMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -696,17 +758,25 @@ export const UpdateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(updateMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(updateMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
@@ -785,6 +855,12 @@ export const GenerateBadgeResponse = zod.object({
 /**
  * @summary Bulk-sync offline-created members
  */
+export const syncMembersBodyMembersItemMoraleDataOneNombreMembresMin = 0;
+
+export const syncMembersBodyMembersItemMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const SyncMembersBody = zod.object({
   "members": zod.array(zod.object({
   "memberType": zod.enum(['physique', 'morale']),
@@ -817,7 +893,7 @@ export const SyncMembersBody = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -827,17 +903,25 @@ export const SyncMembersBody = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(syncMembersBodyMembersItemMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(syncMembersBodyMembersItemMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish()
@@ -1193,6 +1277,12 @@ export const ValidateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const validateMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const validateMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const ValidateMemberResponse = zod.object({
   "id": zod.number(),
   "memberNumber": zod.string(),
@@ -1231,7 +1321,7 @@ export const ValidateMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -1241,17 +1331,25 @@ export const ValidateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(validateMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(validateMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
@@ -1311,6 +1409,12 @@ export const DeactivateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const deactivateMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const deactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const DeactivateMemberResponse = zod.object({
   "id": zod.number(),
   "memberNumber": zod.string(),
@@ -1349,7 +1453,7 @@ export const DeactivateMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -1359,17 +1463,25 @@ export const DeactivateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(deactivateMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(deactivateMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
@@ -1429,6 +1541,12 @@ export const ReactivateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const reactivateMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const reactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const ReactivateMemberResponse = zod.object({
   "id": zod.number(),
   "memberNumber": zod.string(),
@@ -1467,7 +1585,7 @@ export const ReactivateMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -1477,17 +1595,25 @@ export const ReactivateMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(reactivateMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(reactivateMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
@@ -1547,6 +1673,12 @@ export const BlockMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const blockMemberResponseMoraleDataOneNombreMembresMin = 0;
+
+export const blockMemberResponseMoraleDataOneNombreFemmesMin = 0;
+
+
+
 export const BlockMemberResponse = zod.object({
   "id": zod.number(),
   "memberNumber": zod.string(),
@@ -1585,7 +1717,7 @@ export const BlockMemberResponse = zod.object({
   "signatureUrl": zod.string().nullish()
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('GIC'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
+  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
   "nom": zod.string(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
@@ -1595,17 +1727,25 @@ export const BlockMemberResponse = zod.object({
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
   "website": zod.string().nullish(),
-  "nombreMembres": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(null)]).nullish(),
-  "nombreFemmes": zod.number().nullish(),
+  "nombreMembres": zod.number().min(blockMemberResponseMoraleDataOneNombreMembresMin).nullish(),
+  "nombreFemmes": zod.number().min(blockMemberResponseMoraleDataOneNombreFemmesMin).nullish(),
+  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
   "representants": zod.array(zod.object({
   "ordre": zod.number(),
   "civilite": zod.string().nullish(),
   "nom": zod.string(),
   "prenom": zod.string(),
-  "fonction": zod.string().nullish(),
+  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
+  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
   "telephone1": zod.string().nullish(),
   "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish()
+  "email": zod.string().nullish(),
+  "regionId": zod.number().nullish(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "village": zod.string().nullish(),
+  "boitePostale": zod.string().nullish(),
+  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
 })).optional()
 }),zod.null()]).optional(),
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),

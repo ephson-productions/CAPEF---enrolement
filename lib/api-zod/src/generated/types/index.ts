@@ -62,7 +62,7 @@ export * from './memberUpdateCategory';
 export * from './memberUpdateCategoryData';
 export * from './memberUpdateIndividualOrOrg';
 export * from './moraleData';
-export * from './moraleDataNombreMembres';
+export * from './moraleDataChiffreAffaires';
 export * from './moraleDataTypeOrganisation';
 export * from './physiqueData';
 export * from './physiqueDataCivilite';

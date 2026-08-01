@@ -5,7 +5,7 @@
  * CAPEF Digital Enrollment API
  * OpenAPI spec version: 0.1.0
  */
-import type { MoraleDataNombreMembres } from './moraleDataNombreMembres';
+import type { MoraleDataChiffreAffaires } from './moraleDataChiffreAffaires';
 import type { MoraleDataTypeOrganisation } from './moraleDataTypeOrganisation';
 import type { Representative } from './representative';
 
@@ -29,9 +29,20 @@ export interface MoraleData {
   boitePostale?: string | null;
   /** @nullable */
   website?: string | null;
-  /** @nullable */
-  nombreMembres?: MoraleDataNombreMembres;
-  /** @nullable */
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  nombreMembres?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
   nombreFemmes?: number | null;
+  /**
+     * Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'.
+     * @nullable
+     */
+  chiffreAffaires?: MoraleDataChiffreAffaires;
   representants?: Representative[];
 }

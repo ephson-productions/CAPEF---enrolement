@@ -13,7 +13,12 @@ export type MoraleDataTypeOrganisation = typeof MoraleDataTypeOrganisation[keyof
 
 
 export const MoraleDataTypeOrganisation = {
+  OP: 'OP',
   GIC: 'GIC',
+  Association: 'Association',
+  'Coopérative_avec_conseil_d\'administration': 'Coopérative avec conseil d\'administration',
+  Coopérative_à_régime_simplifié: 'Coopérative à régime simplifié',
+  Exploitation: 'Exploitation',
   UGIC: 'UGIC',
   FUGIC: 'FUGIC',
   COOP92: 'COOP92',

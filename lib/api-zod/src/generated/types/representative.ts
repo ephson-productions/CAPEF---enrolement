@@ -12,7 +12,15 @@ export interface Representative {
   civilite?: string | null;
   nom: string;
   prenom: string;
-  /** @nullable */
+  /**
+     * Profession/métier personnel du représentant (ex: agronome, comptable, enseignant).
+     * @nullable
+     */
+  profession?: string | null;
+  /**
+     * Fonction occupée par le représentant au sein de l'organisation (ex: Président, Trésorier, Secrétaire Général).
+     * @nullable
+     */
   fonction?: string | null;
   /** @nullable */
   telephone1?: string | null;
@@ -20,4 +28,19 @@ export interface Representative {
   telephone2?: string | null;
   /** @nullable */
   email?: string | null;
+  /** @nullable */
+  regionId?: number | null;
+  /** @nullable */
+  departmentId?: number | null;
+  /** @nullable */
+  arrondissementId?: number | null;
+  /** @nullable */
+  village?: string | null;
+  /** @nullable */
+  boitePostale?: string | null;
+  /**
+     * Complément d'adresse libre (quartier, lieu-dit, etc.).
+     * @nullable
+     */
+  adresseDetaillee?: string | null;
 }

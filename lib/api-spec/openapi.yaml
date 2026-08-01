@@ -1029,14 +1029,31 @@ components:
           type: string
         prenom:
           type: string
+        profession:
+          type: ["string", "null"]
+          description: "Profession/métier personnel du représentant (ex: agronome, comptable, enseignant)."
         fonction:
           type: ["string", "null"]
+          description: "Fonction occupée par le représentant au sein de l'organisation (ex: Président, Trésorier, Secrétaire Général)."
         telephone1:
           type: ["string", "null"]
         telephone2:
           type: ["string", "null"]
         email:
           type: ["string", "null"]
+        regionId:
+          type: ["integer", "null"]
+        departmentId:
+          type: ["integer", "null"]
+        arrondissementId:
+          type: ["integer", "null"]
+        village:
+          type: ["string", "null"]
+        boitePostale:
+          type: ["string", "null"]
+        adresseDetaillee:
+          type: ["string", "null"]
+          description: "Complément d'adresse libre (quartier, lieu-dit, etc.)."
 
     MoraleData:
       type: object
@@ -1044,7 +1061,19 @@ components:
       properties:
         typeOrganisation:
           type: ["string", "null"]
-          enum: ["GIC", "UGIC", "FUGIC", "COOP92", "COOP OHADA", "Autre", null]
+          enum:
+            - "OP"
+            - "GIC"
+            - "Association"
+            - "Coopérative avec conseil d'administration"
+            - "Coopérative à régime simplifié"
+            - "Exploitation"
+            - "UGIC"
+            - "FUGIC"
+            - "COOP92"
+            - "COOP OHADA"
+            - "Autre"
+            - null
         nom:
           type: string
         numeroImmatriculation:
@@ -1065,9 +1094,14 @@ components:
           type: ["string", "null"]
         nombreMembres:
           type: ["integer", "null"]
-          enum: [1, 2, 3, null]
+          minimum: 0
         nombreFemmes:
           type: ["integer", "null"]
+          minimum: 0
+        chiffreAffaires:
+          type: ["string", "null"]
+          enum: ["< 5m", "5-10m", "10m-20m", "20m-50m", "> 50m", null]
+          description: "Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'."
         representants:
           type: array
           items:
