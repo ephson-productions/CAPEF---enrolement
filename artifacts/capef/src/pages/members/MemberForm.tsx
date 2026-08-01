@@ -286,6 +286,228 @@ type RepresentativeRowProps = {
   isRemovable: boolean;
 };
 
+function MoraleStepFields() {
+  const { register, control, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
+  const typeOrg = watch('moraleData.typeOrganisation');
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'moraleData.representants' as any,
+  });
+
+  return (
+    <div className="space-y-6 animate-in fade-in text-card-foreground">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Type d'organisation */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Type d'organisation</label>
+          <select
+            {...register('moraleData.typeOrganisation')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          >
+            <option value="OP">OP</option>
+            <option value="GIC">GIC</option>
+            <option value="Association">Association</option>
+            <option value="Coopérative avec conseil d'administration">Coopérative avec conseil d'administration</option>
+            <option value="Coopérative à régime simplifié">Coopérative à régime simplifié</option>
+            <option value="Exploitation">Exploitation</option>
+            <option value="UGIC">UGIC</option>
+            <option value="FUGIC">FUGIC</option>
+            <option value="COOP92">COOP92</option>
+            <option value="COOP OHADA">COOP OHADA</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+
+        {/* Nom de l'organisation */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Nom de l'organisation *</label>
+          <input
+            type="text"
+            {...register('moraleData.nom')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+          {errors.moraleData?.nom && (
+            <p className="text-red-500 text-xs">{errors.moraleData.nom.message as string}</p>
+          )}
+        </div>
+
+        {/* N° Immatriculation & Date d'immatriculation */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">N° Immatriculation</label>
+          <input
+            type="text"
+            {...register('moraleData.numeroImmatriculation')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Date d'immatriculation</label>
+          <input
+            type="date"
+            {...register('moraleData.dateImmatriculation')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        {/* Certificat de conformité / URL de preuve */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Certificat de conformité (URL ou fichier)</label>
+          <Controller
+            control={control}
+            name="moraleData.certificatUrl"
+            render={({ field }) => (
+              <ImageUploadField
+                label="Uploader le Certificat"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </div>
+
+        {/* Chiffre d'affaires - CONDITIONAL for Exploitation */}
+        {typeOrg === 'Exploitation' && (
+          <div className="space-y-2">
+            <label className="text-sm font-semibold">Chiffre d'affaires annuel *</label>
+            <select
+              {...register('moraleData.chiffreAffaires')}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+            >
+              <option value="">Sélectionnez...</option>
+              <option value="< 5m">&lt; 5m FCFA</option>
+              <option value="5-10m">5m - 10m FCFA</option>
+              <option value="10m-20m">10m - 20m FCFA</option>
+              <option value="20m-50m">20m - 50m FCFA</option>
+              <option value="> 50m">&gt; 50m FCFA</option>
+            </select>
+            {errors.moraleData?.chiffreAffaires && (
+              <p className="text-red-500 text-xs">{errors.moraleData.chiffreAffaires.message as string}</p>
+            )}
+          </div>
+        )}
+
+        {/* Téléphone 1 & Téléphone 2 */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Téléphone principal</label>
+          <input
+            type="tel"
+            {...register('moraleData.telephone1')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Téléphone 2 (optionnel)</label>
+          <input
+            type="tel"
+            {...register('moraleData.telephone2')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        {/* Email & Boîte Postale */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Email de l'organisation</label>
+          <input
+            type="email"
+            {...register('moraleData.email')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Boîte postale (optionnelle)</label>
+          <input
+            type="text"
+            {...register('moraleData.boitePostale')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        {/* Website / Site web */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Site Web / Réseaux sociaux</label>
+          <input
+            type="text"
+            placeholder="Ex: https://gic-example.com"
+            {...register('moraleData.website')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        {/* Nombre de membres & Nombre de femmes */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Nombre total de membres</label>
+          <input
+            type="number"
+            {...register('moraleData.nombreMembres')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Nombre total de femmes</label>
+          <input
+            type="number"
+            {...register('moraleData.nombreFemmes')}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+          />
+        </div>
+      </div>
+
+      {/* REPRÉSENTANTS SECTION */}
+      <div className="space-y-4 pt-4 border-t border-border">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-md font-bold text-foreground">Représentants de l'organisation</h3>
+            <p className="text-xs text-muted-foreground">Au moins un représentant (Représentant 1) est obligatoire.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => append({
+              ordre: fields.length + 1,
+              civilite: 'M.',
+              nom: '',
+              prenom: '',
+              profession: '',
+              fonction: '',
+              telephone1: '',
+              telephone2: '',
+              email: '',
+              regionId: null,
+              departmentId: null,
+              arrondissementId: null,
+              village: '',
+              boitePostale: '',
+              adresseDetaillee: '',
+            })}
+            className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded hover:bg-primary/90 flex items-center gap-1"
+          >
+            Ajouter un représentant
+          </button>
+        </div>
+
+        {errors.moraleData?.representants && !Array.isArray(errors.moraleData.representants) && (
+          <p className="text-red-500 text-xs font-semibold">{(errors.moraleData.representants as any).message}</p>
+        )}
+
+        <div className="space-y-4">
+          {fields.map((field, idx) => (
+            <RepresentativeRow
+              key={field.id}
+              index={idx}
+              isRemovable={idx > 0}
+              onRemove={() => remove(idx)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowProps) {
   const { register, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
 
@@ -717,11 +939,6 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
 
   const { watch, setValue, handleSubmit, formState: { errors }, reset } = methods;
 
-  const { fields: repFields, append: appendRep, remove: removeRep } = useFieldArray({
-    control: methods.control,
-    name: 'moraleData.representants',
-  });
-
   const onInvalid = (formErrors: any) => {
     console.error("Form validation failed:", formErrors);
 
@@ -990,147 +1207,12 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       )}
                     />
                   </div>
-
-                  {/* Representatives Section (Phase 5) */}
-                  <div className="md:col-span-2 border-t pt-6 space-y-4">
-                    <div>
-                      <h4 className="font-bold text-base text-foreground">Représentants de l'organisation</h4>
-                      <p className="text-xs text-muted-foreground">Saisissez les informations pour 1 à 3 représentants officiels de l'organisation. Le Représentant 1 est obligatoire.</p>
-                    </div>
-
-                    <div className="space-y-6">
-                      {repFields.map((field, idx) => (
-                        <RepresentativeRow
-                          key={field.id}
-                          index={idx}
-                          isRemovable={idx > 0}
-                          onRemove={() => removeRep(idx)}
-                        />
-                      ))}
-                    </div>
-
-                    {repFields.length < 3 && (
-                      <button
-                        type="button"
-                        onClick={() => appendRep({
-                          ordre: repFields.length + 1,
-                          civilite: 'M.',
-                          nom: '',
-                          prenom: '',
-                          profession: '',
-                          fonction: '',
-                          telephone1: '',
-                          telephone2: '',
-                          email: '',
-                          regionId: null,
-                          departmentId: null,
-                          arrondissementId: null,
-                          village: '',
-                          boitePostale: '',
-                          adresseDetaillee: '',
-                        })}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
-                      >
-                        + Ajouter un représentant ({repFields.length}/3)
-                      </button>
-                    )}
-                    {errors.moraleData?.representants && !Array.isArray(errors.moraleData.representants) && (
-                      <p className="text-red-500 text-xs font-semibold">{(errors.moraleData.representants as any).message}</p>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
 
             {step === 2 && memberType === 'morale' && (
-              <div className="space-y-6 animate-in fade-in">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Type d'organisation</label>
-                    <select {...methods.register('moraleData.typeOrganisation')} className="w-full px-3 py-2 border border-input rounded-md">
-                      <option value="OP">OP</option>
-                      <option value="GIC">GIC</option>
-                      <option value="Association">Association</option>
-                      <option value="Coopérative avec conseil d'administration">Coopérative avec conseil d'administration</option>
-                      <option value="Coopérative à régime simplifié">Coopérative à régime simplifié</option>
-                      <option value="Exploitation">Exploitation</option>
-                      <option value="UGIC">UGIC (Legacy)</option>
-                      <option value="FUGIC">FUGIC (Legacy)</option>
-                      <option value="COOP92">COOP92 (Legacy)</option>
-                      <option value="COOP OHADA">COOP OHADA (Legacy)</option>
-                      <option value="Autre">Autre (Legacy)</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Nom de l'organisation *</label>
-                    <input type="text" {...methods.register('moraleData.nom')} className="w-full px-3 py-2 border border-input rounded-md" />
-                    {errors.moraleData?.nom && <p className="text-red-500 text-xs">{errors.moraleData.nom.message as string}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">N° Immatriculation</label>
-                    <input type="text" {...methods.register('moraleData.numeroImmatriculation')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Date d'Immatriculation</label>
-                    <input type="date" {...methods.register('moraleData.dateImmatriculation')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Téléphone Principal</label>
-                    <input type="tel" {...methods.register('moraleData.telephone1')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Téléphone 2 (optionnel)</label>
-                    <input type="tel" {...methods.register('moraleData.telephone2')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Email de l'organisation (optionnel)</label>
-                    <input type="email" {...methods.register('moraleData.email')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Boîte postale (optionnel)</label>
-                    <input type="text" {...methods.register('moraleData.boitePostale')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Site Web (optionnel)</label>
-                    <input type="url" placeholder="https://..." {...methods.register('moraleData.website')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Nombre de membres (total)</label>
-                    <input type="number" min="0" {...methods.register('moraleData.nombreMembres')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Nombre de femmes membres</label>
-                    <input type="number" min="0" {...methods.register('moraleData.nombreFemmes')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  {watch('moraleData.typeOrganisation') === 'Exploitation' && (
-                    <div className="space-y-2 animate-in fade-in">
-                      <label className="text-sm font-semibold">Chiffre d'affaires annuel (FCFA) *</label>
-                      <select {...methods.register('moraleData.chiffreAffaires')} className="w-full px-3 py-2 border border-input rounded-md">
-                        <option value="">Sélectionnez...</option>
-                        <option value="< 5m">&lt; 5m</option>
-                        <option value="5-10m">5-10m</option>
-                        <option value="10m-20m">10m-20m</option>
-                        <option value="20m-50m">20m-50m</option>
-                        <option value="> 50m">&gt; 50m</option>
-                      </select>
-                      {errors.moraleData?.chiffreAffaires && <p className="text-red-500 text-xs">{errors.moraleData.chiffreAffaires.message as string}</p>}
-                    </div>
-                  )}
-                  <div className="md:col-span-2">
-                    <Controller
-                      name="moraleData.certificatUrl"
-                      control={methods.control}
-                      render={({ field }) => (
-                        <ImageUploadField
-                          label="Certificat d'immatriculation de l'organisation"
-                          value={field.value}
-                          onChange={field.onChange}
-                        />
-                      )}
-                    />
-                  </div>
-                </div>
-              </div>
+              <MoraleStepFields />
             )}
 
             {/* STEP 3: LOCATION */}
