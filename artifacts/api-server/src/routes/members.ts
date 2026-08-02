@@ -521,23 +521,43 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
       .where(eq(memberActivitiesTable.memberId, memberId));
   }
 
-  const [activity] = await db
-    .insert(memberActivitiesTable)
-    .values({
-      memberId,
-      activityType,
-      isPrimary: isPrimary ?? false,
-      regionId: regionId ?? null,
-      departmentId: departmentId ?? null,
-      arrondissementId: arrondissementId ?? null,
-      village: village ?? null,
-      maillons: maillons ?? [],
-    })
-    .returning();
+  try {
+    const [activity] = await db
+      .insert(memberActivitiesTable)
+      .values({
+        memberId,
+        activityType,
+        isPrimary: isPrimary ?? false,
+        regionId: regionId ?? null,
+        departmentId: departmentId ?? null,
+        arrondissementId: arrondissementId ?? null,
+        village: village ?? null,
+        maillons: maillons ?? [],
+      })
+      .returning();
 
-  await updateMemberStatusIfNeeded(memberId);
+    await updateMemberStatusIfNeeded(memberId);
 
-  res.status(201).json(await formatMemberActivity(activity));
+    res.status(201).json(await formatMemberActivity(activity));
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (POST activity):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+      constraint: error.constraint,
+      schema: error.schema,
+      table: error.table,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Database operation failed",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+      detail: error.detail || null,
+      constraint: error.constraint || null,
+    });
+  }
 });
 
 // PUT /api/members/:id/activities/:activityId
@@ -556,28 +576,48 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
       .where(and(eq(memberActivitiesTable.memberId, memberId), ne(memberActivitiesTable.id, activityId)));
   }
 
-  const [updated] = await db
-    .update(memberActivitiesTable)
-    .set({
-      activityType,
-      isPrimary: isPrimary ?? false,
-      regionId: regionId !== undefined ? regionId : null,
-      departmentId: departmentId !== undefined ? departmentId : null,
-      arrondissementId: arrondissementId !== undefined ? arrondissementId : null,
-      village: village !== undefined ? village : null,
-      maillons: maillons !== undefined ? maillons : [],
-    })
-    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
-    .returning();
+  try {
+    const [updated] = await db
+      .update(memberActivitiesTable)
+      .set({
+        activityType,
+        isPrimary: isPrimary ?? false,
+        regionId: regionId !== undefined ? regionId : null,
+        departmentId: departmentId !== undefined ? departmentId : null,
+        arrondissementId: arrondissementId !== undefined ? arrondissementId : null,
+        village: village !== undefined ? village : null,
+        maillons: maillons !== undefined ? maillons : [],
+      })
+      .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
+      .returning();
 
-  if (!updated) {
-    res.status(404).json({ error: "Activité introuvable" });
-    return;
+    if (!updated) {
+      res.status(404).json({ error: "Activité introuvable" });
+      return;
+    }
+
+    await updateMemberStatusIfNeeded(memberId);
+
+    res.json(await formatMemberActivity(updated));
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (PUT activity):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+      constraint: error.constraint,
+      schema: error.schema,
+      table: error.table,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Database operation failed",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+      detail: error.detail || null,
+      constraint: error.constraint || null,
+    });
   }
-
-  await updateMemberStatusIfNeeded(memberId);
-
-  res.json(await formatMemberActivity(updated));
 });
 
 // DELETE /api/members/:id/activities/:activityId
@@ -623,20 +663,40 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
     return;
   }
 
-  const [item] = await db
-    .insert(activityLineItemsTable)
-    .values({
-      activityId,
-      ...req.body
-    })
-    .returning();
+  try {
+    const [item] = await db
+      .insert(activityLineItemsTable)
+      .values({
+        activityId,
+        ...req.body
+      })
+      .returning();
 
-  await updateMemberStatusIfNeeded(memberId);
+    await updateMemberStatusIfNeeded(memberId);
 
-  res.status(201).json({
-    ...item,
-    createdAt: item.createdAt.toISOString(),
-  });
+    res.status(201).json({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+    });
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (POST line-item):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+      constraint: error.constraint,
+      schema: error.schema,
+      table: error.table,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Database operation failed",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+      detail: error.detail || null,
+      constraint: error.constraint || null,
+    });
+  }
 });
 
 // PUT /api/members/:id/activities/:activityId/line-items/:itemId
@@ -648,23 +708,43 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
 
-  const [updated] = await db
-    .update(activityLineItemsTable)
-    .set(req.body)
-    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-    .returning();
+  try {
+    const [updated] = await db
+      .update(activityLineItemsTable)
+      .set(req.body)
+      .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
+      .returning();
 
-  if (!updated) {
-    res.status(404).json({ error: "Ligne d'activité introuvable" });
-    return;
+    if (!updated) {
+      res.status(404).json({ error: "Ligne d'activité introuvable" });
+      return;
+    }
+
+    await updateMemberStatusIfNeeded(memberId);
+
+    res.json({
+      ...updated,
+      createdAt: updated.createdAt.toISOString(),
+    });
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (PUT line-item):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+      constraint: error.constraint,
+      schema: error.schema,
+      table: error.table,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Database operation failed",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+      detail: error.detail || null,
+      constraint: error.constraint || null,
+    });
   }
-
-  await updateMemberStatusIfNeeded(memberId);
-
-  res.json({
-    ...updated,
-    createdAt: updated.createdAt.toISOString(),
-  });
 });
 
 // DELETE /api/members/:id/activities/:activityId/line-items/:itemId
