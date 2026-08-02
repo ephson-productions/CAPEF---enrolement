@@ -1,11 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-let connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("Neither DIRECT_URL nor DATABASE_URL was provided. Ensure the database is provisioned.");
-}
+let connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || "postgresql://localhost:5432/dummy";
 
 try {
   const url = new URL(connectionString);
@@ -17,6 +13,7 @@ try {
 
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
+  out: path.join(__dirname, "./drizzle"),
   dialect: "postgresql",
   dbCredentials: {
     url: connectionString,

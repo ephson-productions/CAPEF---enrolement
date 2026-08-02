@@ -9,7 +9,11 @@
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts --force",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "generate": "drizzle-kit generate --config ./drizzle.config.ts",
+    "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
+    "migrate": "tsx ./src/migrate.ts",
+    "db:migrate": "tsx ./src/migrate.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
@@ -20,6 +24,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.20.0",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "tsx": "catalog:"
   }
 }
