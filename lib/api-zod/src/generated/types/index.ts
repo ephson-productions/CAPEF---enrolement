@@ -25,6 +25,7 @@ export * from './errorResponse';
 export * from './exportMembersCategory';
 export * from './exportMembersMemberType';
 export * from './exportMembersParams';
+export * from './exportMembersStatus';
 export * from './exportResult';
 export * from './getDashboardStatsParams';
 export * from './getRecentActivityParams';

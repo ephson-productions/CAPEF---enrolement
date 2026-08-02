@@ -837,6 +837,7 @@ export type ExportMembersParams = {
 category?: ExportMembersCategory;
 memberType?: ExportMembersMemberType;
 regionId?: number;
+status?: ExportMembersStatus;
 };
 
 export type ExportMembersCategory = typeof ExportMembersCategory[keyof typeof ExportMembersCategory];
@@ -856,6 +857,17 @@ export type ExportMembersMemberType = typeof ExportMembersMemberType[keyof typeo
 export const ExportMembersMemberType = {
   physique: 'physique',
   morale: 'morale',
+} as const;
+
+export type ExportMembersStatus = typeof ExportMembersStatus[keyof typeof ExportMembersStatus];
+
+
+export const ExportMembersStatus = {
+  incomplet: 'incomplet',
+  en_attente: 'en_attente',
+  valide: 'valide',
+  desactive: 'desactive',
+  bloque: 'bloque',
 } as const;
 
 export type GetDashboardStatsParams = {

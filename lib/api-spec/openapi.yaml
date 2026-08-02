@@ -367,13 +367,19 @@ paths:
           name: regionId
           schema:
             type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [incomplet, en_attente, valide, desactive, bloque]
       responses:
         "200":
-          description: CSV export URL
+          description: Streamed CSV file
           content:
-            application/json:
+            text/csv:
               schema:
-                $ref: "#/components/schemas/ExportResult"
+                type: string
+                format: binary
 
   /members/{id}:
     get:

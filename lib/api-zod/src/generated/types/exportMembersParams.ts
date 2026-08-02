@@ -7,9 +7,11 @@
  */
 import type { ExportMembersCategory } from './exportMembersCategory';
 import type { ExportMembersMemberType } from './exportMembersMemberType';
+import type { ExportMembersStatus } from './exportMembersStatus';
 
 export type ExportMembersParams = {
 category?: ExportMembersCategory;
 memberType?: ExportMembersMemberType;
 regionId?: number;
+status?: ExportMembersStatus;
 };

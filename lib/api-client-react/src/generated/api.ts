@@ -31,7 +31,6 @@ import type {
   Department,
   ErrorResponse,
   ExportMembersParams,
-  ExportResult,
   GetDashboardStatsParams,
   GetRecentActivityParams,
   HealthStatus,
@@ -1099,9 +1098,9 @@ export const getExportMembersUrl = (params?: ExportMembersParams,) => {
 /**
  * @summary Export members as CSV
  */
-export const exportMembers = async (params?: ExportMembersParams, options?: RequestInit): Promise<ExportResult> => {
+export const exportMembers = async (params?: ExportMembersParams, options?: RequestInit): Promise<Blob> => {
 
-  return customFetch<ExportResult>(getExportMembersUrl(params),
+  return customFetch<Blob>(getExportMembersUrl(params),
   {
     ...options,
     method: 'GET'

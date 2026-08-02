@@ -488,12 +488,11 @@ export const CreateMemberResponse = zod.object({
 export const ExportMembersQueryParams = zod.object({
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),
   "memberType": zod.enum(['physique', 'morale']).optional(),
-  "regionId": zod.coerce.number().optional()
+  "regionId": zod.coerce.number().optional(),
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']).optional()
 })
 
-export const ExportMembersResponse = zod.object({
-  "downloadUrl": zod.string()
-})
+export const ExportMembersResponse = zod.unknown()
 
 
 /**

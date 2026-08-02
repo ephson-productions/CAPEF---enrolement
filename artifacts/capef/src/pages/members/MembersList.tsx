@@ -41,7 +41,8 @@ export default function MembersList() {
   const handleExport = () => {
     setIsExporting(true);
     try {
-      const url = getExportMembersUrl({ category, memberType });
+      const apiBase = import.meta.env.VITE_API_URL ?? '';
+      const url = `${apiBase}${getExportMembersUrl({ category, memberType, status })}`;
       window.open(url, '_blank');
     } finally {
       setIsExporting(false);

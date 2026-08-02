@@ -268,7 +268,7 @@ router.post("/members", requireAppUser, async (req, res): Promise<void> => {
 // GET /api/members/export
 router.get("/members/export", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { category, memberType, regionId } = req.query;
+  const { category, memberType, regionId, status } = req.query;
 
   const conditions: any[] = [];
   if (appUser.role === "agent") conditions.push(eq(membersTable.createdById, appUser.id));
@@ -276,14 +276,51 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   if (category) conditions.push(eq(membersTable.category, String(category)));
   if (memberType) conditions.push(eq(membersTable.memberType, String(memberType)));
   if (regionId && appUser.role !== "supervisor") conditions.push(eq(membersTable.regionId, Number(regionId)));
+  if (status) conditions.push(eq(membersTable.status, String(status)));
 
   const rows = conditions.length
     ? await db.select().from(membersTable).where(and(...conditions))
     : await db.select().from(membersTable);
 
-  // Generate CSV content
-  const headers = ["ID", "Numéro membre", "Type", "Catégorie", "Nom/Organisation", "Région", "Village", "Statut", "Date création"];
+  const categoryTranslation: Record<string, string> = {
+    agriculteur: "agriculture",
+    pecheur: "fishing",
+    eleveur: "livestock",
+    forestier: "forestry",
+    artisan: "artisanat"
+  };
+
+  // Legacy consular columns requested by Ephraim + new helpful columns
+  const headers = [
+    "matricule",
+    "name",
+    "forme",
+    "activite",
+    "nature",
+    "date_creation",
+    "region",
+    "departement",
+    "commune",
+    "mobile",
+    "village",
+    "statut",
+    "agent",
+    "inscription",
+    "cotisation",
+    "adhesion_yunus",
+    "inscription_date",
+    "cotisation_restant",
+    "adhesion_yunus_restant"
+  ];
   const csvRows = [headers.join(",")];
+
+  const escapeCsv = (str: any) => {
+    const val = str === null || str === undefined ? "" : String(str);
+    if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
+      return `"${val.replace(/"/g, '""')}"`;
+    }
+    return val;
+  };
 
   for (const m of rows) {
     const physique = m.physiqueData as any;
@@ -291,29 +328,84 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     const name = m.memberType === "physique"
       ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
       : (morale?.nom ?? "");
+    const forme = m.memberType === "morale"
+      ? (morale?.typeOrganisation ?? "")
+      : "";
+    const activite = categoryTranslation[m.category] || m.category;
+    const mobile = m.memberType === "physique"
+      ? (physique?.telephone1 ?? "")
+      : (morale?.telephone1 ?? "");
+
     const [region] = m.regionId
       ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
       : [null];
+    const [dept] = m.departmentId
+      ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
+      : [null];
+    const [arr] = m.arrondissementId
+      ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
+      : [null];
+
+    // Build the nature column from member activities and line items
+    const memberActivities = await db
+      .select()
+      .from(memberActivitiesTable)
+      .where(eq(memberActivitiesTable.memberId, m.id));
+
+    const lineItemDetails: string[] = [];
+    for (const act of memberActivities) {
+      const items = await db
+        .select()
+        .from(activityLineItemsTable)
+        .where(eq(activityLineItemsTable.activityId, act.id));
+      for (const item of items) {
+        if (act.activityType === "agriculteur") {
+          if (item.cropName) lineItemDetails.push(item.cropName);
+        } else if (act.activityType === "pecheur") {
+          if (item.speciesPêche) lineItemDetails.push(item.speciesPêche);
+        } else if (act.activityType === "eleveur") {
+          if (item.species) lineItemDetails.push(item.species);
+        } else if (act.activityType === "forestier") {
+          if (item.essence) lineItemDetails.push(item.essence);
+        } else if (act.activityType === "artisan") {
+          if (item.artisanatProducts) lineItemDetails.push(item.artisanatProducts);
+        }
+      }
+    }
+    const nature = lineItemDetails.length > 0 ? lineItemDetails.join("; ") : "";
+
+    const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
 
     csvRows.push([
-      m.id,
-      m.memberNumber,
-      m.memberType,
-      m.category,
-      `"${name.replace(/"/g, '""')}"`,
-      region?.name ?? "",
-      m.village ?? "",
-      m.status,
-      m.createdAt.toISOString().split("T")[0],
+      escapeCsv(m.memberNumber),
+      escapeCsv(name),
+      escapeCsv(forme),
+      escapeCsv(activite),
+      escapeCsv(nature),
+      escapeCsv(m.createdAt.toISOString().split("T")[0]),
+      escapeCsv(region?.name),
+      escapeCsv(dept?.name),
+      escapeCsv(arr?.name),
+      escapeCsv(mobile),
+      escapeCsv(m.village),
+      escapeCsv(m.status),
+      escapeCsv(creator?.name),
+      "", // inscription (blank)
+      "", // cotisation (blank)
+      "", // adhesion_yunus (blank)
+      "", // inscription_date (blank)
+      "", // cotisation_restant (blank)
+      ""  // adhesion_yunus_restant (blank)
     ].join(","));
   }
 
   const csv = csvRows.join("\n");
-  const base64 = Buffer.from(csv, "utf-8").toString("base64");
+  const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
 
-  // For now return a data URL; in production this would be stored in object storage
-  const downloadUrl = `data:text/csv;charset=utf-8;base64,${base64}`;
-  res.json({ downloadUrl });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  // Prepend a UTF-8 BOM so Excel opens accented French characters correctly
+  res.send("\uFEFF" + csv);
 });
 
 // GET /api/members/:id
