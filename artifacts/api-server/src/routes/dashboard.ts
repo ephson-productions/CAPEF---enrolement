@@ -3,6 +3,7 @@ import { eq, sql, gte, and } from "drizzle-orm";
 import { db, membersTable, regionsTable, usersTable } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { representedByWomanCondition } from "../lib/memberFilters";
 
 const router: IRouter = Router();
 
@@ -43,6 +44,19 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
     const totalPhysique = physiqueResult?.count ?? 0;
 
     const totalMorale = totalMembers - totalPhysique;
+
+    // Organizations represented by a woman count (respecting active role-based filter whereClause)
+    const [femaleMoraleResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(membersTable)
+      .where(
+        and(
+          whereClause ? whereClause : sql`true`,
+          eq(membersTable.memberType, "morale"),
+          representedByWomanCondition
+        )
+      );
+    const organisationsRepresenteesParFemmes = femaleMoraleResult?.count ?? 0;
 
     // By category
     const categoryRows = await db
@@ -103,6 +117,7 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
       totalMembers,
       totalPhysique,
       totalMorale,
+      organisationsRepresenteesParFemmes,
       byCategory,
       byRegion,
       byStatus,

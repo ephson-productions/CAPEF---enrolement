@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGetDashboardStats, useListRegions } from '@workspace/api-client-react';
-import { Users, Building2, Trees, Droplets, Tractor, Hammer, ArrowRight } from 'lucide-react';
+import { Users, Building2, Trees, Droplets, Tractor, Hammer, ArrowRight, UserCheck } from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function Dashboard() {
@@ -128,41 +128,58 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-muted-foreground">Total Enrôlés</h3>
+            <h3 className="font-semibold text-muted-foreground text-sm">Total Enrôlés</h3>
             <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
               <Users className="h-5 w-5 text-primary" />
             </div>
           </div>
           <div className="mt-4">
-            <span className="text-4xl font-bold text-foreground">{stats?.totalMembers || 0}</span>
-            <p className="text-sm text-muted-foreground mt-1">+ {stats?.recentWeekCount || 0} cette semaine</p>
+            <span className="text-3xl font-bold text-foreground">{stats?.totalMembers || 0}</span>
+            <p className="text-xs text-muted-foreground mt-1">+ {stats?.recentWeekCount || 0} cette semaine</p>
           </div>
         </div>
 
         <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-muted-foreground">Personnes Physiques</h3>
+            <h3 className="font-semibold text-muted-foreground text-sm">Personnes Physiques</h3>
             <div className="h-10 w-10 bg-secondary/10 rounded-full flex items-center justify-center">
               <UserIcon className="h-5 w-5 text-secondary-foreground" />
             </div>
           </div>
           <div className="mt-4">
-            <span className="text-4xl font-bold text-foreground">{stats?.totalPhysique || 0}</span>
+            <span className="text-3xl font-bold text-foreground">{stats?.totalPhysique || 0}</span>
           </div>
         </div>
 
         <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-muted-foreground">Personnes Morales</h3>
+            <h3 className="font-semibold text-muted-foreground text-sm">Personnes Morales</h3>
             <div className="h-10 w-10 bg-accent rounded-full flex items-center justify-center">
               <Building2 className="h-5 w-5 text-accent-foreground" />
             </div>
           </div>
           <div className="mt-4">
-            <span className="text-4xl font-bold text-foreground">{stats?.totalMorale || 0}</span>
+            <span className="text-3xl font-bold text-foreground">{stats?.totalMorale || 0}</span>
+          </div>
+        </div>
+
+        <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-muted-foreground text-sm">Représentation Féminine</h3>
+            <div className="h-10 w-10 bg-rose-500/10 rounded-full flex items-center justify-center">
+              <UserCheck className="h-5 w-5 text-rose-500" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <span className="text-3xl font-bold text-foreground">{stats?.organisationsRepresenteesParFemmes || 0}</span>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats?.totalMorale && stats.totalMorale > 0
+                ? `${Math.round((stats.organisationsRepresenteesParFemmes / stats.totalMorale) * 100)}`
+                : 0}% des personnes morales
+            </p>
           </div>
         </div>
       </div>

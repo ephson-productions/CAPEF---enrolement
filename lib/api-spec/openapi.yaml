@@ -316,6 +316,12 @@ paths:
           schema:
             type: string
             enum: [incomplet, en_attente, valide, desactive, bloque]
+        - in: query
+          name: representantGenre
+          schema:
+            type: string
+            enum: [femme, homme]
+          description: Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
       responses:
         "200":
           description: Paginated members list
@@ -372,6 +378,12 @@ paths:
           schema:
             type: string
             enum: [incomplet, en_attente, valide, desactive, bloque]
+        - in: query
+          name: representantGenre
+          schema:
+            type: string
+            enum: [femme, homme]
+          description: Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
       responses:
         "200":
           description: Streamed CSV file
@@ -1562,13 +1574,15 @@ components:
 
     DashboardStats:
       type: object
-      required: [totalMembers, totalPhysique, totalMorale, byCategory, byRegion, recentWeekCount]
+      required: [totalMembers, totalPhysique, totalMorale, organisationsRepresenteesParFemmes, byCategory, byRegion, recentWeekCount]
       properties:
         totalMembers:
           type: integer
         totalPhysique:
           type: integer
         totalMorale:
+          type: integer
+        organisationsRepresenteesParFemmes:
           type: integer
         byCategory:
           type: array

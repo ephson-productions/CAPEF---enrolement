@@ -7,6 +7,7 @@
  */
 import type { ExportMembersCategory } from './exportMembersCategory';
 import type { ExportMembersMemberType } from './exportMembersMemberType';
+import type { ExportMembersRepresentantGenre } from './exportMembersRepresentantGenre';
 import type { ExportMembersStatus } from './exportMembersStatus';
 
 export type ExportMembersParams = {
@@ -14,4 +15,8 @@ category?: ExportMembersCategory;
 memberType?: ExportMembersMemberType;
 regionId?: number;
 status?: ExportMembersStatus;
+/**
+ * Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
+ */
+representantGenre?: ExportMembersRepresentantGenre;
 };

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useListMembers, useListUsers, getExportMembersUrl } from '@workspace/api-client-react';
-import type { ListMembersCategory, ListMembersMemberType, ListMembersStatus } from '@workspace/api-client-react';
+import type { ListMembersCategory, ListMembersMemberType, ListMembersStatus, ListMembersRepresentantGenre } from '@workspace/api-client-react';
 import { Link } from 'wouter';
+import { useEffect } from 'react';
 import {
   Search, Download, Plus, FileText, ChevronLeft, ChevronRight, User as UserIcon, Building2, Eye, Edit, MapPin
 } from 'lucide-react';
@@ -17,12 +18,20 @@ export default function MembersList() {
   const [memberType, setMemberType] = useState<ListMembersMemberType | undefined>();
   const [status, setStatus] = useState<ListMembersStatus | undefined>();
   const [agentId, setAgentId] = useState<number | undefined>(undefined);
+  const [representantGenre, setRepresentantGenre] = useState<ListMembersRepresentantGenre | undefined>();
+
+  // Reset representation filter if memberType is physique
+  useEffect(() => {
+    if (memberType === 'physique') {
+      setRepresentantGenre(undefined);
+    }
+  }, [memberType]);
 
   const { data, isLoading } = useListMembers(
-    { page, search: search || undefined, category, memberType, status, createdById: agentId },
+    { page, search: search || undefined, category, memberType, status, createdById: agentId, representantGenre },
     {
       query: {
-        queryKey: ['members', { page, search, category, memberType, status, agentId }],
+        queryKey: ['members', { page, search, category, memberType, status, agentId, representantGenre }],
         placeholderData: (prev) => prev,
       }
     }
@@ -42,7 +51,7 @@ export default function MembersList() {
     setIsExporting(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL ?? '';
-      const url = `${apiBase}${getExportMembersUrl({ category, memberType, status })}`;
+      const url = `${apiBase}${getExportMembersUrl({ category, memberType, status, representantGenre })}`;
       window.open(url, '_blank');
     } finally {
       setIsExporting(false);
@@ -146,6 +155,18 @@ export default function MembersList() {
             <option value="desactive">Désactivé</option>
             <option value="bloque">Bloqué</option>
           </select>
+
+          {memberType !== 'physique' && (
+            <select
+              value={representantGenre || ''}
+              onChange={(e) => setRepresentantGenre(e.target.value ? e.target.value as ListMembersRepresentantGenre : undefined)}
+              className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm animate-in fade-in"
+            >
+              <option value="">Tous les types de représentation</option>
+              <option value="femme">Représentée par une femme</option>
+              <option value="homme">Représentée par un homme</option>
+            </select>
+          )}
 
           {(isAdmin || isSupervisor) && (
             <select

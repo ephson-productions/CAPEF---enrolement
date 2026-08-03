@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, sql, ne } from "drizzle-orm";
+import { eq, and, ilike, sql, ne, not } from "drizzle-orm";
 import {
   db,
   membersTable,
@@ -11,6 +11,7 @@ import {
   activityLineItemsTable
 } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
+import { representedByWomanCondition } from "../lib/memberFilters";
 import crypto from "crypto";
 import QRCode from "qrcode";
 
@@ -156,11 +157,21 @@ async function updateMemberStatusIfNeeded(memberId: number): Promise<void> {
 // GET /api/members
 router.get("/members", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { category, memberType, regionId, departmentId, search, page = "1", limit = "20", createdById, status } = req.query;
+  const { category, memberType, regionId, departmentId, search, page = "1", limit = "20", createdById, status, representantGenre } = req.query;
 
   const pageNum = Math.max(1, parseInt(String(page), 10));
   const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10)));
   const offset = (pageNum - 1) * limitNum;
+
+  if (representantGenre && memberType === "physique") {
+    res.json({
+      data: [],
+      total: 0,
+      page: pageNum,
+      limit: limitNum,
+    });
+    return;
+  }
 
   const conditions: any[] = [];
 
@@ -177,6 +188,15 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
   if (departmentId) conditions.push(eq(membersTable.departmentId, Number(departmentId)));
   if (createdById && appUser.role === "admin") conditions.push(eq(membersTable.createdById, Number(createdById)));
   if (status) conditions.push(eq(membersTable.status, String(status)));
+
+  if (representantGenre) {
+    conditions.push(eq(membersTable.memberType, "morale"));
+    if (representantGenre === "femme") {
+      conditions.push(representedByWomanCondition);
+    } else if (representantGenre === "homme") {
+      conditions.push(not(representedByWomanCondition));
+    }
+  }
 
   let query = db.select().from(membersTable);
   let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(membersTable);
@@ -270,7 +290,15 @@ router.post("/members", requireAppUser, async (req, res): Promise<void> => {
 // GET /api/members/export
 router.get("/members/export", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { category, memberType, regionId, status } = req.query;
+  const { category, memberType, regionId, status, representantGenre } = req.query;
+
+  if (representantGenre && memberType === "physique") {
+    const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send("\uFEFF"); // Return empty file
+    return;
+  }
 
   const conditions: any[] = [];
   if (appUser.role === "agent") conditions.push(eq(membersTable.createdById, appUser.id));
@@ -279,6 +307,15 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   if (memberType) conditions.push(eq(membersTable.memberType, String(memberType)));
   if (regionId && appUser.role !== "supervisor") conditions.push(eq(membersTable.regionId, Number(regionId)));
   if (status) conditions.push(eq(membersTable.status, String(status)));
+
+  if (representantGenre) {
+    conditions.push(eq(membersTable.memberType, "morale"));
+    if (representantGenre === "femme") {
+      conditions.push(representedByWomanCondition);
+    } else if (representantGenre === "homme") {
+      conditions.push(not(representedByWomanCondition));
+    }
+  }
 
   const rows = conditions.length
     ? await db.select().from(membersTable).where(and(...conditions))

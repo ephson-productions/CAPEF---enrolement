@@ -753,6 +753,7 @@ export interface DashboardStats {
   totalMembers: number;
   totalPhysique: number;
   totalMorale: number;
+  organisationsRepresenteesParFemmes: number;
   byCategory: CategoryCount[];
   byRegion: RegionCount[];
   byStatus?: StatusCount[];
@@ -803,6 +804,10 @@ page?: number;
 limit?: number;
 createdById?: number;
 status?: ListMembersStatus;
+/**
+ * Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
+ */
+representantGenre?: ListMembersRepresentantGenre;
 };
 
 export type ListMembersCategory = typeof ListMembersCategory[keyof typeof ListMembersCategory];
@@ -835,11 +840,23 @@ export const ListMembersStatus = {
   bloque: 'bloque',
 } as const;
 
+export type ListMembersRepresentantGenre = typeof ListMembersRepresentantGenre[keyof typeof ListMembersRepresentantGenre];
+
+
+export const ListMembersRepresentantGenre = {
+  femme: 'femme',
+  homme: 'homme',
+} as const;
+
 export type ExportMembersParams = {
 category?: ExportMembersCategory;
 memberType?: ExportMembersMemberType;
 regionId?: number;
 status?: ExportMembersStatus;
+/**
+ * Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
+ */
+representantGenre?: ExportMembersRepresentantGenre;
 };
 
 export type ExportMembersCategory = typeof ExportMembersCategory[keyof typeof ExportMembersCategory];
@@ -870,6 +887,14 @@ export const ExportMembersStatus = {
   valide: 'valide',
   desactive: 'desactive',
   bloque: 'bloque',
+} as const;
+
+export type ExportMembersRepresentantGenre = typeof ExportMembersRepresentantGenre[keyof typeof ExportMembersRepresentantGenre];
+
+
+export const ExportMembersRepresentantGenre = {
+  femme: 'femme',
+  homme: 'homme',
 } as const;
 
 export type GetDashboardStatsParams = {

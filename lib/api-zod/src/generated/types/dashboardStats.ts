@@ -13,6 +13,7 @@ export interface DashboardStats {
   totalMembers: number;
   totalPhysique: number;
   totalMorale: number;
+  organisationsRepresenteesParFemmes: number;
   byCategory: CategoryCount[];
   byRegion: RegionCount[];
   byStatus?: StatusCount[];

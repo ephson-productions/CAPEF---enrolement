@@ -7,6 +7,7 @@
  */
 import type { ListMembersCategory } from './listMembersCategory';
 import type { ListMembersMemberType } from './listMembersMemberType';
+import type { ListMembersRepresentantGenre } from './listMembersRepresentantGenre';
 import type { ListMembersStatus } from './listMembersStatus';
 
 export type ListMembersParams = {
@@ -19,4 +20,8 @@ page?: number;
 limit?: number;
 createdById?: number;
 status?: ListMembersStatus;
+/**
+ * Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
+ */
+representantGenre?: ListMembersRepresentantGenre;
 };

@@ -259,7 +259,8 @@ export const ListMembersQueryParams = zod.object({
   "page": zod.coerce.number().default(listMembersQueryPageDefault),
   "limit": zod.coerce.number().default(listMembersQueryLimitDefault),
   "createdById": zod.coerce.number().optional(),
-  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']).optional()
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']).optional(),
+  "representantGenre": zod.enum(['femme', 'homme']).optional().describe('Filtre les Personnes Morales selon que le représentant 1 et\/ou 2 est une femme ou un homme')
 })
 
 export const ListMembersResponse = zod.object({
@@ -490,7 +491,8 @@ export const ExportMembersQueryParams = zod.object({
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),
   "memberType": zod.enum(['physique', 'morale']).optional(),
   "regionId": zod.coerce.number().optional(),
-  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']).optional()
+  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']).optional(),
+  "representantGenre": zod.enum(['femme', 'homme']).optional().describe('Filtre les Personnes Morales selon que le représentant 1 et\/ou 2 est une femme ou un homme')
 })
 
 export const ExportMembersResponse = zod.unknown()
@@ -1961,6 +1963,7 @@ export const GetDashboardStatsResponse = zod.object({
   "totalMembers": zod.number(),
   "totalPhysique": zod.number(),
   "totalMorale": zod.number(),
+  "organisationsRepresenteesParFemmes": zod.number(),
   "byCategory": zod.array(zod.object({
   "category": zod.string(),
   "count": zod.number()
