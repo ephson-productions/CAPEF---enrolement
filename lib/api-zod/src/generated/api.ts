@@ -29,10 +29,15 @@ export const GetMeResponse = zod.object({
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string()
 })
@@ -56,10 +61,15 @@ export const ProvisionUserResponse = zod.object({
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string()
 })
@@ -83,10 +93,15 @@ export const ListUsersResponseItem = zod.object({
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string()
 })
@@ -103,10 +118,15 @@ export const CreateUserBody = zod.object({
   "regionId": zod.number().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']).optional(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional()
 })
 
@@ -120,10 +140,15 @@ export const CreateUserResponse = zod.object({
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string()
 })
@@ -146,10 +171,15 @@ export const GetUserResponse = zod.object({
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string()
 })
@@ -163,15 +193,21 @@ export const UpdateUserParams = zod.object({
 })
 
 export const UpdateUserBody = zod.object({
+  "email": zod.string().optional(),
   "name": zod.string().optional(),
   "role": zod.enum(['admin', 'supervisor', 'agent']).optional(),
   "regionId": zod.number().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']).optional(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional()
 })
 
@@ -185,10 +221,15 @@ export const UpdateUserResponse = zod.object({
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
+  "regionName": zod.string().nullish(),
   "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish()
+  "departmentName": zod.string().nullish(),
+  "arrondissementId": zod.number().nullish(),
+  "arrondissementName": zod.string().nullish()
 })).optional(),
   "createdAt": zod.string()
 })

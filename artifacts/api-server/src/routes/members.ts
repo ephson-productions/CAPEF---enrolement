@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, sql, ne, not } from "drizzle-orm";
+import { eq, and, or, ilike, sql, ne, not } from "drizzle-orm";
 import {
   db,
   membersTable,
@@ -8,7 +8,8 @@ import {
   arrondissementsTable,
   usersTable,
   memberActivitiesTable,
-  activityLineItemsTable
+  activityLineItemsTable,
+  userZoneAssignmentsTable
 } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
 import { representedByWomanCondition } from "../lib/memberFilters";
@@ -26,6 +27,31 @@ function generateMemberNumber(category: string, id: number): string {
     artisan: "ART",
   };
   return `CAPEF-${prefix[category] ?? "MBR"}-${String(id).padStart(6, "0")}`;
+}
+
+async function buildSupervisorZoneConditions(appUser: any) {
+  if (appUser.role !== "supervisor") return null;
+
+  const dbAssignments = await db
+    .select()
+    .from(userZoneAssignmentsTable)
+    .where(eq(userZoneAssignmentsTable.userId, appUser.id));
+
+  if (dbAssignments.length > 0) {
+    const zoneConditions = dbAssignments.map((za) => {
+      const parts = [eq(membersTable.regionId, za.regionId)];
+      if (za.departmentId) parts.push(eq(membersTable.departmentId, za.departmentId));
+      if (za.arrondissementId) parts.push(eq(membersTable.arrondissementId, za.arrondissementId));
+      return and(...parts);
+    });
+    return or(...zoneConditions);
+  }
+
+  if (appUser.regionId) {
+    return eq(membersTable.regionId, appUser.regionId);
+  }
+
+  return null;
 }
 
 async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect) {
@@ -178,8 +204,11 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
   // Role-based filtering
   if (appUser.role === "agent") {
     conditions.push(eq(membersTable.createdById, appUser.id));
-  } else if (appUser.role === "supervisor" && appUser.regionId) {
-    conditions.push(eq(membersTable.regionId, appUser.regionId));
+  } else if (appUser.role === "supervisor") {
+    const supervisorCond = await buildSupervisorZoneConditions(appUser);
+    if (supervisorCond) {
+      conditions.push(supervisorCond);
+    }
   }
 
   if (category) conditions.push(eq(membersTable.category, String(category)));
@@ -301,8 +330,14 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   }
 
   const conditions: any[] = [];
-  if (appUser.role === "agent") conditions.push(eq(membersTable.createdById, appUser.id));
-  else if (appUser.role === "supervisor" && appUser.regionId) conditions.push(eq(membersTable.regionId, appUser.regionId));
+  if (appUser.role === "agent") {
+    conditions.push(eq(membersTable.createdById, appUser.id));
+  } else if (appUser.role === "supervisor") {
+    const supervisorCond = await buildSupervisorZoneConditions(appUser);
+    if (supervisorCond) {
+      conditions.push(supervisorCond);
+    }
+  }
   if (category) conditions.push(eq(membersTable.category, String(category)));
   if (memberType) conditions.push(eq(membersTable.memberType, String(memberType)));
   if (regionId && appUser.role !== "supervisor") conditions.push(eq(membersTable.regionId, Number(regionId)));

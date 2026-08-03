@@ -9,7 +9,13 @@
 export interface ZoneAssignment {
   regionId: number;
   /** @nullable */
+  regionName?: string | null;
+  /** @nullable */
   departmentId?: number | null;
   /** @nullable */
+  departmentName?: string | null;
+  /** @nullable */
   arrondissementId?: number | null;
+  /** @nullable */
+  arrondissementName?: string | null;
 }

@@ -9,13 +9,14 @@ type AuthContextType = {
   isAdmin: boolean;
   isSupervisor: boolean;
   isAgent: boolean;
+  refetch: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { isSignedIn } = useUser();
-  const { data: user, isLoading: isMeLoading } = useGetMe({
+  const { data: user, isLoading: isMeLoading, refetch } = useGetMe({
     query: {
       enabled: !!isSignedIn,
       retry: false,
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAdmin: role === 'admin',
     isSupervisor: role === 'supervisor',
     isAgent: role === 'agent',
+    refetch,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

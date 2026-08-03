@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AppUserInputRole } from './appUserInputRole';
+import type { AppUserInputStatus } from './appUserInputStatus';
 import type { ZoneAssignment } from './zoneAssignment';
 
 export interface AppUserInput {
@@ -18,5 +19,8 @@ export interface AppUserInput {
   cniNumber?: string | null;
   /** @nullable */
   cniPhotoUrl?: string | null;
+  /** @nullable */
+  profilePhotoUrl?: string | null;
+  status?: AppUserInputStatus;
   assignedZones?: ZoneAssignment[];
 }

@@ -38,6 +38,14 @@ export default function UsersList() {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch(status) {
+      case 'suspended': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">Suspendu</span>;
+      case 'banned': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-200 uppercase">Banni</span>;
+      default: return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 uppercase">Actif</span>;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -61,8 +69,9 @@ export default function UsersList() {
               <tr>
                 <th className="px-6 py-3 font-semibold">Utilisateur</th>
                 <th className="px-6 py-3 font-semibold">Email</th>
+                <th className="px-6 py-3 font-semibold">Statut</th>
                 <th className="px-6 py-3 font-semibold">Rôle</th>
-                <th className="px-6 py-3 font-semibold">Région Assig.</th>
+                <th className="px-6 py-3 font-semibold">Zones Assignées</th>
                 <th className="px-6 py-3 font-semibold">Création</th>
                 <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
@@ -82,8 +91,13 @@ export default function UsersList() {
               ) : (
                 users?.map((u) => (
                   <tr key={u.id} className="hover:bg-muted/10 transition-colors">
-                    <td className="px-6 py-4 font-medium text-foreground">{u.name}</td>
+                    <td className="px-6 py-4 font-medium text-foreground">
+                      <Link href={`/users/${u.id}`} className="hover:text-primary hover:underline cursor-pointer">
+                        {u.name}
+                      </Link>
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground">{u.email}</td>
+                    <td className="px-6 py-4">{getStatusBadge(u.status)}</td>
                     <td className="px-6 py-4">
                       {editingRole === u.id ? (
                         <select
@@ -91,7 +105,7 @@ export default function UsersList() {
                           defaultValue={u.role}
                           onChange={(e) => handleRoleChange(u.id, e.target.value as AppUserUpdateRole)}
                           onBlur={() => setEditingRole(null)}
-                          className="px-2 py-1 text-sm rounded border border-primary focus:ring-1 focus:ring-primary outline-none"
+                          className="px-2 py-1 text-sm rounded border border-primary focus:ring-1 focus:ring-primary outline-none bg-background text-foreground"
                         >
                           <option value="agent">Agent de terrain</option>
                           <option value="supervisor">Superviseur</option>
@@ -101,17 +115,32 @@ export default function UsersList() {
                         getRoleBadge(u.role)
                       )}
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground">{u.regionName || 'Toutes'}</td>
+                    <td className="px-6 py-4 text-muted-foreground max-w-xs truncate">
+                      {u.assignedZones && u.assignedZones.length > 0
+                        ? u.assignedZones.map((z: any) => {
+                            const parts = [z.regionName];
+                            if (z.departmentName) parts.push(z.departmentName);
+                            if (z.arrondissementName) parts.push(z.arrondissementName);
+                            return parts.join(' > ');
+                          }).join(', ')
+                        : 'Nationale (Toutes)'}
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
                       {format(new Date(u.createdAt), 'dd MMM yyyy', { locale: fr })}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right space-x-3">
                       <button
                         onClick={() => setEditingRole(u.id)}
-                        className="text-sm font-medium text-primary hover:underline"
+                        className="text-xs font-semibold text-primary hover:underline"
                       >
                         Modifier rôle
                       </button>
+                      <Link
+                        href={`/users/${u.id}`}
+                        className="text-xs font-semibold text-secondary-foreground hover:underline cursor-pointer"
+                      >
+                        Gérer fiche
+                      </Link>
                     </td>
                   </tr>
                 ))

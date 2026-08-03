@@ -16,9 +16,15 @@ export interface ErrorResponse {
 export interface ZoneAssignment {
   regionId: number;
   /** @nullable */
+  regionName?: string | null;
+  /** @nullable */
   departmentId?: number | null;
   /** @nullable */
+  departmentName?: string | null;
+  /** @nullable */
   arrondissementId?: number | null;
+  /** @nullable */
+  arrondissementName?: string | null;
 }
 
 export type AppUserRole = typeof AppUserRole[keyof typeof AppUserRole];
@@ -28,6 +34,15 @@ export const AppUserRole = {
   admin: 'admin',
   supervisor: 'supervisor',
   agent: 'agent',
+} as const;
+
+export type AppUserStatus = typeof AppUserStatus[keyof typeof AppUserStatus];
+
+
+export const AppUserStatus = {
+  active: 'active',
+  suspended: 'suspended',
+  banned: 'banned',
 } as const;
 
 export interface AppUser {
@@ -44,6 +59,9 @@ export interface AppUser {
   cniNumber?: string | null;
   /** @nullable */
   cniPhotoUrl?: string | null;
+  /** @nullable */
+  profilePhotoUrl?: string | null;
+  status: AppUserStatus;
   assignedZones?: ZoneAssignment[];
   createdAt: string;
 }
@@ -62,6 +80,15 @@ export const AppUserInputRole = {
   agent: 'agent',
 } as const;
 
+export type AppUserInputStatus = typeof AppUserInputStatus[keyof typeof AppUserInputStatus];
+
+
+export const AppUserInputStatus = {
+  active: 'active',
+  suspended: 'suspended',
+  banned: 'banned',
+} as const;
+
 export interface AppUserInput {
   email: string;
   name: string;
@@ -72,6 +99,9 @@ export interface AppUserInput {
   cniNumber?: string | null;
   /** @nullable */
   cniPhotoUrl?: string | null;
+  /** @nullable */
+  profilePhotoUrl?: string | null;
+  status?: AppUserInputStatus;
   assignedZones?: ZoneAssignment[];
 }
 
@@ -84,7 +114,17 @@ export const AppUserUpdateRole = {
   agent: 'agent',
 } as const;
 
+export type AppUserUpdateStatus = typeof AppUserUpdateStatus[keyof typeof AppUserUpdateStatus];
+
+
+export const AppUserUpdateStatus = {
+  active: 'active',
+  suspended: 'suspended',
+  banned: 'banned',
+} as const;
+
 export interface AppUserUpdate {
+  email?: string;
   name?: string;
   role?: AppUserUpdateRole;
   /** @nullable */
@@ -93,6 +133,9 @@ export interface AppUserUpdate {
   cniNumber?: string | null;
   /** @nullable */
   cniPhotoUrl?: string | null;
+  /** @nullable */
+  profilePhotoUrl?: string | null;
+  status?: AppUserUpdateStatus;
   assignedZones?: ZoneAssignment[];
 }
 
