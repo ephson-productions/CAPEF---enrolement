@@ -1164,6 +1164,83 @@ export function useExportMembers<TData = Awaited<ReturnType<typeof exportMembers
 
 
 
+export const getGetPublicMemberByBadgeTokenUrl = (badgeToken: string,) => {
+
+
+
+
+  return `/api/public/members/badge/${badgeToken}`
+}
+
+/**
+ * @summary Get a single member by public badge token
+ */
+export const getPublicMemberByBadgeToken = async (badgeToken: string, options?: RequestInit): Promise<Member> => {
+
+  return customFetch<Member>(getGetPublicMemberByBadgeTokenUrl(badgeToken),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicMemberByBadgeTokenQueryKey = (badgeToken: string,) => {
+    return [
+    `/api/public/members/badge/${badgeToken}`
+    ] as const;
+    }
+
+
+export const getGetPublicMemberByBadgeTokenQueryOptions = <TData = Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>, TError = ErrorType<ErrorResponse>>(badgeToken: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicMemberByBadgeTokenQueryKey(badgeToken);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>> = ({ signal }) => getPublicMemberByBadgeToken(badgeToken, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: badgeToken !== null && badgeToken !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicMemberByBadgeTokenQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>>
+export type GetPublicMemberByBadgeTokenQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get a single member by public badge token
+ */
+
+export function useGetPublicMemberByBadgeToken<TData = Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>, TError = ErrorType<ErrorResponse>>(
+ badgeToken: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMemberByBadgeToken>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicMemberByBadgeTokenQueryOptions(badgeToken,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetMemberUrl = (id: number,) => {
 
 

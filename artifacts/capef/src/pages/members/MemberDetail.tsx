@@ -101,8 +101,24 @@ export default function MemberDetail() {
     try {
       const result = await generateBadge.mutateAsync({ id });
       if (result.badgeUrl) {
-        window.open(result.badgeUrl, '_blank');
+        // Convert the base64 SVG data URL into a safe blob URL to bypass Chrome's top-frame navigation restriction on data URLs
+        const base64Data = result.badgeUrl.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/svg+xml' });
+        const objectUrl = URL.createObjectURL(blob);
+
+        window.open(objectUrl, '_blank');
         toast({ title: 'Badge généré', description: 'Le badge a été ouvert dans un nouvel onglet.' });
+
+        // Cleanup the object URL to avoid memory leaks
+        setTimeout(() => {
+          URL.revokeObjectURL(objectUrl);
+        }, 5000);
       }
     } catch (err) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de générer le badge.' });

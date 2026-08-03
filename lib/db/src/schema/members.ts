@@ -20,6 +20,7 @@ export const membersTable = pgTable("members", {
   moraleData: jsonb("morale_data"),
   categoryData: jsonb("category_data"),
   badgeUrl: text("badge_url"),
+  badgeToken: text("badge_token").unique(),
   // Status column added for Phase 3
   status: text("status").notNull().default("incomplet"), // incomplet | en_attente | valide | desactive | bloque
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

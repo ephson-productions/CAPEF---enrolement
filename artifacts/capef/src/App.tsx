@@ -24,6 +24,7 @@ import UsersList from './pages/users/UsersList';
 import AddAgent from './pages/users/AddAgent';
 import Profile from './pages/Profile';
 import NotFound from './pages/not-found';
+import BadgeVerify from './pages/members/BadgeVerify';
 
 const queryClient = new QueryClient();
 
@@ -226,6 +227,7 @@ function ClerkProviderWithRoutes() {
                 <Route path="/" component={HomeRedirect} />
                 <Route path="/sign-in/*?" component={SignInPage} />
                 <Route path="/sign-up/*?" component={SignUpPage} />
+                <Route path="/badge-verify/:token" component={BadgeVerify} />
 
                 {/* Protected shell wrapper handles other routes */}
                 <Route>

@@ -11,6 +11,8 @@ import {
   activityLineItemsTable
 } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
+import crypto from "crypto";
+import QRCode from "qrcode";
 
 const router: IRouter = Router();
 
@@ -940,6 +942,13 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
     return;
   }
 
+  // Generate badge_token if not already present
+  let token = member.badgeToken;
+  if (!token) {
+    token = crypto.randomUUID();
+    await db.update(membersTable).set({ badgeToken: token }).where(eq(membersTable.id, id));
+  }
+
   const physique = member.physiqueData as any;
   const morale = member.moraleData as any;
   const name = member.memberType === "physique"
@@ -950,8 +959,34 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
     ? await db.select().from(regionsTable).where(eq(regionsTable.id, member.regionId)).limit(1)
     : [null];
 
-  // Generate a simple SVG-based badge as base64-encoded HTML for download
-  const qrData = `CAPEF:${member.memberNumber}`;
+  const phone = member.memberType === "physique"
+    ? (physique?.telephone1 ?? "-")
+    : (morale?.telephone1 ?? "-");
+
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const verificationUrl = `${frontendUrl}/badge-verify/${token}`;
+
+  const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 150 });
+
+  let avatarSvg = "";
+  if (member.memberType === "physique" && physique?.photoUrl) {
+    avatarSvg = `
+  <defs>
+    <clipPath id="avatar-clip">
+      <rect x="24" y="115" width="55" height="55" rx="6"/>
+    </clipPath>
+  </defs>
+  <rect x="23" y="114" width="57" height="57" rx="7" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
+  <image x="24" y="115" width="55" height="55" href="${physique.photoUrl}" clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>
+    `;
+  } else {
+    avatarSvg = `
+  <rect x="23" y="114" width="57" height="57" rx="7" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.2"/>
+  <rect x="24" y="115" width="55" height="55" rx="6" fill="#ffffff" fill-opacity="0.1"/>
+  <text x="51" y="148" font-family="Arial,sans-serif" font-size="24" fill="#ffffff" fill-opacity="0.3" text-anchor="middle">${member.memberType === "physique" ? "👤" : "🏢"}</text>
+    `;
+  }
+
   const badgeSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="320" height="200" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -962,18 +997,25 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   </defs>
   <rect width="320" height="200" rx="12" fill="url(#bg)"/>
   <rect x="12" y="12" width="296" height="176" rx="8" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.3"/>
-  <text x="160" y="38" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" opacity="0.8">CHAMBRE D'AGRICULTURE, DE LA PÊCHE ET DES FORÊTS</text>
-  <text x="160" y="54" font-family="Arial,sans-serif" font-size="14" font-weight="bold" fill="#fbbf24" text-anchor="middle">CAPEF CAMEROUN</text>
-  <line x1="30" y1="62" x2="290" y2="62" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.3"/>
-  <text x="160" y="86" font-family="Arial,sans-serif" font-size="16" font-weight="bold" fill="#ffffff" text-anchor="middle">${name}</text>
-  <text x="160" y="104" font-family="Arial,sans-serif" font-size="11" fill="#d1fae5" text-anchor="middle">${member.category.toUpperCase()} — ${member.memberType === "physique" ? "Personne Physique" : "Personne Morale"}</text>
-  <text x="160" y="120" font-family="Arial,sans-serif" font-size="10" fill="#bbf7d0" text-anchor="middle">${region?.name ?? ""}</text>
-  <rect x="230" y="130" width="64" height="64" rx="4" fill="#ffffff"/>
-  <text x="262" y="165" font-family="Arial,sans-serif" font-size="6" fill="#166534" text-anchor="middle" font-weight="bold">QR CODE</text>
-  <text x="262" y="175" font-family="Arial,sans-serif" font-size="5" fill="#166534" text-anchor="middle">${member.memberNumber}</text>
-  <text x="120" y="148" font-family="Arial,sans-serif" font-size="9" fill="#bbf7d0" text-anchor="middle">N° MEMBRE</text>
-  <text x="120" y="164" font-family="Arial,sans-serif" font-size="13" font-weight="bold" fill="#fbbf24" text-anchor="middle">${member.memberNumber}</text>
-  <text x="120" y="186" font-family="Arial,sans-serif" font-size="8" fill="#6ee7b7" text-anchor="middle">Enrôlé le ${member.createdAt.toISOString().split("T")[0]}</text>
+  <text x="160" y="34" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle" opacity="0.8">CHAMBRE D'AGRICULTURE, DE LA PÊCHE ET DES FORÊTS</text>
+  <text x="160" y="48" font-family="Arial,sans-serif" font-size="12" font-weight="bold" fill="#fbbf24" text-anchor="middle">CAPEF CAMEROUN</text>
+  <line x1="30" y1="56" x2="290" y2="56" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.3"/>
+  <text x="160" y="76" font-family="Arial,sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">${name}</text>
+  <text x="160" y="92" font-family="Arial,sans-serif" font-size="10" fill="#d1fae5" text-anchor="middle">${member.category.toUpperCase()} — ${member.memberType === "physique" ? "Personne Physique" : "Personne Morale"}</text>
+  <text x="160" y="106" font-family="Arial,sans-serif" font-size="9" fill="#bbf7d0" text-anchor="middle">${region?.name ?? ""}</text>
+
+  <!-- Left Side: Member Photo / Icon -->
+  ${avatarSvg}
+
+  <!-- Center Side: Member Number and Phone -->
+  <text x="154" y="128" font-family="Arial,sans-serif" font-size="8" fill="#6ee7b7" text-anchor="middle">N° MEMBRE</text>
+  <text x="154" y="144" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#fbbf24" text-anchor="middle">${member.memberNumber}</text>
+  <text x="154" y="160" font-family="Arial,sans-serif" font-size="8" fill="#bbf7d0" text-anchor="middle">Tél: ${phone}</text>
+  <text x="154" y="176" font-family="Arial,sans-serif" font-size="7" fill="#6ee7b7" text-anchor="middle" opacity="0.8">Enrôlé le ${member.createdAt.toISOString().split("T")[0]}</text>
+
+  <!-- Right Side: Scannable QR Code -->
+  <rect x="231" y="114" width="57" height="57" rx="7" fill="#ffffff"/>
+  <image x="232" y="115" width="55" height="55" href="${qrDataUrl}"/>
 </svg>`;
 
   const base64Badge = Buffer.from(badgeSvg, "utf-8").toString("base64");
@@ -1043,6 +1085,52 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
   }
 
   res.json({ created, failed: errors.length, errors });
+});
+
+const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+
+const publicRateLimiter = (req: any, res: any, next: any) => {
+  const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute window
+  const maxRequests = 30; // Max 30 requests per minute
+
+  const record = ipRequestCounts.get(ip);
+
+  if (!record || now > record.resetAt) {
+    ipRequestCounts.set(ip, { count: 1, resetAt: now + windowMs });
+    next();
+  } else {
+    record.count++;
+    if (record.count > maxRequests) {
+      res.status(429).json({ error: "Trop de requêtes. Veuillez réessayer dans une minute." });
+    } else {
+      next();
+    }
+  }
+};
+
+// GET /api/public/members/badge/:badgeToken
+router.get("/public/members/badge/:badgeToken", publicRateLimiter, async (req, res): Promise<void> => {
+  const token = req.params.badgeToken;
+  if (!token) {
+    res.status(404).json({ error: "Token requis" });
+    return;
+  }
+
+  const [member] = await db
+    .select()
+    .from(membersTable)
+    .where(eq(membersTable.badgeToken, token))
+    .limit(1);
+
+  if (!member) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+
+  // Return full member record using the standard formatMember helper
+  res.json(await formatMember(member, true));
 });
 
 export default router;

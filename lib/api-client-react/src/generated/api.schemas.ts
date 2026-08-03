@@ -524,6 +524,8 @@ export interface Member {
   memberNumber: string;
   memberType: MemberMemberType;
   category: MemberCategory;
+  /** @nullable */
+  displayName?: string | null;
   individualOrOrg?: MemberIndividualOrOrg;
   /** @nullable */
   regionId?: number | null;

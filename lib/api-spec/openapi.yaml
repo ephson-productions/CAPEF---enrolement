@@ -381,6 +381,31 @@ paths:
                 type: string
                 format: binary
 
+  /public/members/badge/{badge_token}:
+    get:
+      operationId: getPublicMemberByBadgeToken
+      tags: [members]
+      summary: Get a single member by public badge token
+      parameters:
+        - in: path
+          name: badge_token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Member detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /members/{id}:
     get:
       operationId: getMember
@@ -1301,6 +1326,8 @@ components:
         category:
           type: string
           enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        displayName:
+          type: ["string", "null"]
         individualOrOrg:
           type: string
           enum: [individuel, organisation]
