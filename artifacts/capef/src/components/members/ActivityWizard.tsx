@@ -786,9 +786,16 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
               <div className="flex gap-2">
                 <button
                   onClick={handleAddLineItem}
-                  className="bg-secondary text-secondary-foreground font-semibold px-4 py-2 rounded-md hover:bg-secondary/90 flex items-center gap-1.5"
+                  disabled={createLineItem.isPending}
+                  className="bg-secondary text-secondary-foreground font-semibold px-4 py-2 rounded-md hover:bg-secondary/90 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Plus className="h-4 w-4" /> Ajouter cette ligne
+                  {createLineItem.isPending ? (
+                    <>Enregistrement...</>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" /> Ajouter cette ligne
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={handleNextStep}

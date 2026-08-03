@@ -645,6 +645,51 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
   res.sendStatus(204);
 });
 
+function normalizeLineItemPayload(body: any) {
+  const payload: Record<string, any> = {};
+
+  const textFields = [
+    "parcelleGroupId", "cropCategory", "cropName", "cultureType",
+    "productionUnit", "species", "foodType", "speciesPêche",
+    "subCategory", "essence", "plantationType", "artisanatProducts", "rawMaterials"
+  ];
+
+  const numericFields = [
+    "superficieHa", "productionQuantity", "productionFcfa", "cheptelSize", "parentLineItemId"
+  ];
+
+  for (const f of textFields) {
+    if (body[f] === undefined || body[f] === "" || body[f] === null) {
+      payload[f] = null;
+    } else {
+      payload[f] = String(body[f]);
+    }
+  }
+
+  for (const f of numericFields) {
+    if (body[f] === undefined || body[f] === "" || body[f] === null) {
+      payload[f] = null;
+    } else {
+      const num = Number(body[f]);
+      payload[f] = Number.isNaN(num) ? null : num;
+    }
+  }
+
+  if (body.isPrincipalCrop === undefined || body.isPrincipalCrop === null) {
+    payload.isPrincipalCrop = true;
+  } else {
+    payload.isPrincipalCrop = Boolean(body.isPrincipalCrop);
+  }
+
+  if (body.products === undefined || body.products === null) {
+    payload.products = null;
+  } else {
+    payload.products = body.products; // Already jsonb
+  }
+
+  return payload;
+}
+
 // POST /api/members/:id/activities/:activityId/line-items
 router.post("/members/:id/activities/:activityId/line-items", requireAppUser, async (req, res): Promise<void> => {
   const rawAct = Array.isArray(req.params.activityId) ? req.params.activityId[0] : req.params.activityId;
@@ -663,12 +708,14 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
     return;
   }
 
+  const normalized = normalizeLineItemPayload(req.body);
+
   try {
     const [item] = await db
       .insert(activityLineItemsTable)
       .values({
         activityId,
-        ...req.body
+        ...normalized
       })
       .returning();
 
@@ -686,6 +733,8 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
       constraint: error.constraint,
       schema: error.schema,
       table: error.table,
+      payload: req.body,
+      normalizedPayload: normalized
     });
 
     res.status(400).json({
@@ -708,10 +757,12 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
 
+  const normalized = normalizeLineItemPayload(req.body);
+
   try {
     const [updated] = await db
       .update(activityLineItemsTable)
-      .set(req.body)
+      .set(normalized)
       .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
       .returning();
 
@@ -734,6 +785,8 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
       constraint: error.constraint,
       schema: error.schema,
       table: error.table,
+      payload: req.body,
+      normalizedPayload: normalized
     });
 
     res.status(400).json({
