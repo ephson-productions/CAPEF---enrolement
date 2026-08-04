@@ -1050,28 +1050,30 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   const theme = categoryThemes[member.category.toLowerCase()] || { bg: "#f1f3f4", text: "#3c4043", primary: "#5f6368", label: member.category.toUpperCase() };
 
   const dateEnrolementStr = formatDate(member.createdAt);
-  const expirationDate = new Date(member.createdAt);
-  expirationDate.setFullYear(expirationDate.getFullYear() + 2);
-  const dateExpirationStr = formatDate(expirationDate);
 
   let avatarSvgHD = "";
   if (member.memberType === "physique" && physique?.photoUrl) {
     avatarSvgHD = `
     <g clip-path="url(#photo-clip)">
-      <image href="${physique.photoUrl}" x="50" y="225" width="220" height="260" preserveAspectRatio="xMidYMid slice" />
+      <image href="${physique.photoUrl}" x="50" y="250" width="220" height="260" preserveAspectRatio="xMidYMid slice" />
     </g>
     `;
   } else {
     const initial = name.charAt(0).toUpperCase() || "C";
     avatarSvgHD = `
     <g clip-path="url(#photo-clip)">
-      <rect x="50" y="225" width="220" height="260" fill="${theme.bg}" />
-      <circle cx="160" cy="320" r="55" fill="${theme.primary}" fill-opacity="0.2" />
-      <path d="M105,420 C105,380 135,360 160,360 C185,360 215,380 215,420" fill="none" stroke="${theme.primary}" stroke-width="6" stroke-linecap="round" />
-      <circle cx="160" cy="310" r="30" fill="${theme.primary}" />
-      <text x="160" y="460" font-family="'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="bold" fill="${theme.text}" text-anchor="middle" fill-opacity="0.3">${initial}</text>
+      <rect x="50" y="250" width="220" height="260" fill="${theme.bg}" />
+      <circle cx="160" cy="345" r="55" fill="${theme.primary}" fill-opacity="0.2" />
+      <path d="M105,445 C105,405 135,385 160,385 C185,385 215,405 215,445" fill="none" stroke="${theme.primary}" stroke-width="6" stroke-linecap="round" />
+      <circle cx="160" cy="335" r="30" fill="${theme.primary}" />
+      <text x="160" y="485" font-family="'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="bold" fill="${theme.text}" text-anchor="middle" fill-opacity="0.3">${initial}</text>
     </g>
     `;
+  }
+
+  let signatureImageSvg = "";
+  if (physique?.signatureUrl) {
+    signatureImageSvg = `<image href="${physique.signatureUrl}" x="42" y="567" width="196" height="56" preserveAspectRatio="xMidYMid contain" />`;
   }
 
   const badgeSvg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1108,63 +1110,65 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <!-- Watermark logo in back -->
       <image href="${logoDataUrl}" x="350" y="150" width="350" height="350" opacity="0.04" />
 
-      <!-- Elegant top banner stripes (Cameroon colors) -->
-      <rect x="0" y="0" width="1012" height="15" fill="#006a4e"/> <!-- Green -->
-      <rect x="337" y="0" width="338" height="15" fill="#ce1126"/> <!-- Red -->
-      <rect x="675" y="0" width="337" height="15" fill="#fecd0b"/> <!-- Yellow -->
-      <!-- Small gold star in red stripe -->
-      <polygon points="506,1.5 509,8 516,8 510,12 512,18 506,14 500,18 502,12 496,8 503,8" fill="#fecd0b" />
+      <!-- Adjusted horizontal bicolour banner Vert #005A36, Rouge #E11D48 -->
+      <rect x="0" y="145" width="1012" height="15" fill="#005A36"/> <!-- Green -->
+      <rect x="0" y="160" width="1012" height="15" fill="#E11D48"/> <!-- Red -->
+      <!-- Interrupted pavé blanc with CAPEF -->
+      <rect x="441" y="141" width="130" height="38" rx="4" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5" />
+      <text x="506" y="167" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36" text-anchor="middle">CAPEF</text>
 
-      <!-- Top Header content -->
-      <!-- Official Logo Left -->
-      <image href="${logoDataUrl}" x="50" y="35" width="95" height="95" />
+      <!-- Top Header 3-column bilingual layout -->
+      <!-- Left Column (French) -->
+      <text x="50" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#005A36">REPUBLIQUE DU CAMEROUN</text>
+      <text x="50" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043">Paix-Travail-Patrie</text>
+      <text x="50" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043">*************</text>
+      <text x="50" y="87" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8">CHAMBRE D’AGRICULTURE, DES PECHES, DE L’ELEVAGE</text>
+      <text x="50" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8">ET DES FORETS DU CAMEROUN</text>
+      <text x="50" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043">*************</text>
 
-      <!-- Bilingual header text -->
-      <text x="160" y="55" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#006a4e" letter-spacing="1">REPUBLIQUE DU CAMEROUN</text>
-      <text x="160" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043">Paix - Travail - Patrie</text>
-      <text x="160" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" opacity="0.8">CHAMBRE D'AGRICULTURE, DES PECHES,</text>
-      <text x="160" y="105" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" opacity="0.8">DE L'ELEVAGE ET DES FORETS</text>
+      <!-- Center Logo -->
+      <image href="${logoDataUrl}" x="456" y="30" width="100" height="100" />
 
-      <text x="962" y="55" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#ce1126" text-anchor="end" letter-spacing="1">REPUBLIC OF CAMEROON</text>
-      <text x="962" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" text-anchor="end">Peace - Work - Fatherland</text>
-      <text x="962" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">CHAMBER OF AGRICULTURE, FISHERIES,</text>
-      <text x="962" y="105" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">LIVESTOCK AND FORESTS</text>
-
-      <!-- Horizontal separator line -->
-      <line x1="50" y1="145" x2="962" y2="145" stroke="#006a4e" stroke-width="2.5" stroke-opacity="0.2"/>
+      <!-- Right Column (English) -->
+      <text x="962" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#E11D48" text-anchor="end">REPUBLIC OF CAMEROON</text>
+      <text x="962" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="end">Peace-Work-Fatherland</text>
+      <text x="962" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="end">*************</text>
+      <text x="962" y="87" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">CHAMBER OF AGRICULTURE, FISHERIES, LIVESTOCK</text>
+      <text x="962" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">AND FORESTS OF CAMEROON</text>
+      <text x="962" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="end">*************</text>
 
       <!-- Card Main Title Ribbon -->
-      <rect x="50" y="155" width="912" height="40" rx="6" fill="#006a4e" />
-      <text x="506" y="182" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">CARTE D'ENRÔLEMENT CONSULAIRE / CONSULAR REGISTRATION CARD</text>
+      <rect x="50" y="195" width="912" height="40" rx="6" fill="#005A36" />
+      <text x="506" y="222" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">CARTE D'ENRÔLEMENT CONSULAIRE / CONSULAR REGISTRATION CARD</text>
 
       <!-- Member Photo Container -->
       <defs>
         <clipPath id="photo-clip">
-          <rect x="50" y="225" width="220" height="260" rx="16"/>
+          <rect x="50" y="250" width="220" height="260" rx="16"/>
         </clipPath>
       </defs>
       <!-- Premium Photo Frame Shadow -->
-      <rect x="48" y="223" width="224" height="264" rx="18" fill="none" stroke="#006a4e" stroke-width="3" stroke-opacity="0.3"/>
+      <rect x="48" y="248" width="224" height="264" rx="18" fill="none" stroke="#005A36" stroke-width="3" stroke-opacity="0.3"/>
       <!-- Actual image or vector placeholder -->
       ${avatarSvgHD}
 
       <!-- Category Pill Badge -->
-      <rect x="50" y="505" width="220" height="42" rx="10" fill="${theme.bg}" stroke="${theme.primary}" stroke-width="1.5" />
-      <text x="160" y="531" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${theme.label}</text>
+      <rect x="50" y="525" width="220" height="42" rx="10" fill="${theme.bg}" stroke="${theme.primary}" stroke-width="1.5" />
+      <text x="160" y="551" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${theme.label}</text>
 
       <!-- User Information list on the right -->
       <!-- Name -->
-      <text x="310" y="245" class="label">Nom complet / Full Name</text>
-      <text x="310" y="275" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${name.toUpperCase()}</text>
+      <text x="310" y="270" class="label">Nom complet / Full Name</text>
+      <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${name.toUpperCase()}</text>
 
       <!-- Member number and Phone inside a styled banner row -->
-      <rect x="310" y="295" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
-      <text x="325" y="325" class="label" font-size="12">N° MEMBRE / ID:</text>
-      <text x="460" y="327" class="num-member">${member.memberNumber}</text>
+      <rect x="310" y="315" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
+      <text x="325" y="345" class="label" font-size="12">N° MEMBRE / ID:</text>
+      <text x="460" y="347" class="num-member">${member.memberNumber}</text>
 
       <!-- Rest of profile fields -->
       <!-- Location info columns -->
-      <g transform="translate(310, 365)">
+      <g transform="translate(310, 380)">
         <text x="0" y="15" class="label">Région / Region</text>
         <text x="0" y="40" class="value">${region?.name ?? "-"}</text>
 
@@ -1172,7 +1176,8 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
         <text x="230" y="40" class="value">${dept?.name ?? "-"}</text>
       </g>
 
-      <g transform="translate(310, 435)">
+      <!-- Arrondissement on its own separate line underneath Region & Department to prevent overlap -->
+      <g transform="translate(310, 450)">
         <text x="0" y="15" class="label">Arrondissement / Subdivision</text>
         <text x="0" y="40" class="value">${arr?.name ?? "-"}</text>
 
@@ -1180,25 +1185,24 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
         <text x="230" y="40" class="value">${phone}</text>
       </g>
 
-      <!-- Dates banner footer -->
-      <g transform="translate(310, 505)">
+      <!-- Dates banner footer — No expiration date -->
+      <g transform="translate(310, 525)">
         <rect x="0" y="0" width="440" height="42" rx="8" fill="#fffbeb" stroke="#fef3c7" stroke-width="1.5" />
-        <text x="20" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="bold" fill="#b45309">ENRÔLÉ LE: ${dateEnrolementStr}</text>
-        <text x="240" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="900" fill="#ce1126">EXPIRE LE: ${dateExpirationStr}</text>
+        <text x="220" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="bold" fill="#b45309" text-anchor="middle">DATE D'ENRÔLEMENT: ${dateEnrolementStr}</text>
       </g>
 
       <!-- Right/Bottom QR Code frame & image -->
-      <rect x="790" y="225" width="170" height="170" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="2"/>
-      <image href="${qrDataUrl}" x="795" y="230" width="160" height="160" />
-      <text x="875" y="415" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="800" fill="#006a4e" text-anchor="middle">VERIFICATION SCAN</text>
+      <rect x="790" y="250" width="170" height="170" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="2"/>
+      <image href="${qrDataUrl}" x="795" y="255" width="160" height="160" />
+      <text x="875" y="440" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="800" fill="#005A36" text-anchor="middle">VERIFICATION SCAN</text>
 
       <!-- Dynamic signature of Director / official seal inside Recto Card -->
-      <g transform="translate(790, 445)">
+      <g transform="translate(790, 465)">
         <rect x="0" y="0" width="170" height="102" rx="10" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
         <text x="85" y="25" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#70757a" text-anchor="middle">SCEAU ET SIGNATURE</text>
         <!-- Subtle simulated dynamic signature vector of CAPEF General Secretariat -->
         <path d="M 35 65 Q 65 45 95 65 T 145 55 M 55 50 Q 85 75 115 50" fill="none" stroke="#1d4ed8" stroke-width="2" opacity="0.7" />
-        <text x="85" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#006a4e" text-anchor="middle">Secrétariat Général CAPEF</text>
+        <text x="85" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#005A36" text-anchor="middle">Secrétariat Général CAPEF</text>
       </g>
     </g>
   </g>
@@ -1225,18 +1229,18 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <!-- Back header stripes mirroring Recto (Cameroon colors) -->
       <rect x="0" y="0" width="1012" height="15" fill="#fecd0b"/> <!-- Yellow -->
       <rect x="337" y="0" width="338" height="15" fill="#ce1126"/> <!-- Red -->
-      <rect x="675" y="0" width="337" height="15" fill="#006a4e"/> <!-- Green -->
+      <rect x="675" y="0" width="337" height="15" fill="#005A36"/> <!-- Green -->
       <!-- Star -->
       <polygon points="506,1.5 509,8 516,8 510,12 512,18 506,14 500,18 502,12 496,8 503,8" fill="#fecd0b" />
 
       <!-- Terms of Use container -->
       <g transform="translate(60, 45)">
-        <text x="446" y="40" font-family="'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="900" fill="#006a4e" text-anchor="middle" letter-spacing="1">CONDITIONS D'UTILISATION / TERMS OF USE</text>
-        <line x1="246" y1="55" x2="646" y2="55" stroke="#006a4e" stroke-width="2" opacity="0.3"/>
+        <text x="446" y="40" font-family="'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="900" fill="#005A36" text-anchor="middle" letter-spacing="1">CONDITIONS D'UTILISATION / TERMS OF USE</text>
+        <line x1="246" y1="55" x2="646" y2="55" stroke="#005A36" stroke-width="2" opacity="0.3"/>
 
         <!-- French Terms -->
         <g transform="translate(0, 90)">
-          <text x="0" y="0" class="disclaimer-title" fill="#006a4e">Réglementation Consulaire :</text>
+          <text x="0" y="0" class="disclaimer-title" fill="#005A36">Réglementation Consulaire :</text>
           <text x="0" y="28" class="disclaimer-text">1. Cette carte d'enrôlement est strictement personnelle, incessible et demeure la propriété exclusive de la CAPEF.</text>
           <text x="0" y="53" class="disclaimer-text">2. Elle atteste de l'inscription officielle du titulaire au registre consulaire professionnel de la Chambre au Cameroun.</text>
           <text x="0" y="78" class="disclaimer-text">3. Le titulaire s'engage à respecter scrupuleusement les statuts, règlements et chartes professionnelles en vigueur.</text>
@@ -1258,11 +1262,12 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <!-- Signature boxes at bottom of Verso -->
       <line x1="60" y1="520" x2="952" y2="520" stroke="#e5e7eb" stroke-width="1.5" />
 
-      <text x="120" y="555" class="signature-title" text-anchor="middle">SIGNATURE DU TITULAIRE / HOLDER'S SIGNATURE</text>
-      <!-- Simulation of holder's signing area -->
-      <rect x="40" y="565" width="160" height="45" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3" />
+      <text x="140" y="555" class="signature-title" text-anchor="middle">SIGNATURE DU TITULAIRE / HOLDER'S SIGNATURE</text>
+      <!-- Simulation of holder's signing area / Tactile signature -->
+      <rect x="40" y="565" width="200" height="60" rx="4" fill="#ffffff" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3" />
+      ${signatureImageSvg}
 
-      <text x="506" y="575" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#006a4e" text-anchor="middle" letter-spacing="1">CHAMBRE D'AGRICULTURE, DES PECHES, DE L'ELEVAGE ET DES FORETS</text>
+      <text x="506" y="575" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#005A36" text-anchor="middle" letter-spacing="1">CHAMBRE D'AGRICULTURE, DES PECHES, DE L'ELEVAGE ET DES FORETS</text>
       <text x="506" y="595" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#70757a" text-anchor="middle">BP 287 Yaoundé, Cameroun — Email: contact@capef.cm</text>
 
       <text x="892" y="555" class="signature-title" text-anchor="end">SIGNATURE DU PRESIDENT / PRESIDENT'S SIGNATURE</text>
