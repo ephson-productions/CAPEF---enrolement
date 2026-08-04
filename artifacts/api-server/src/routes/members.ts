@@ -14,6 +14,8 @@ import { requireAppUser } from "../lib/auth";
 import { representedByWomanCondition } from "../lib/memberFilters";
 import crypto from "crypto";
 import QRCode from "qrcode";
+import fs from "fs";
+import path from "path";
 
 const router: IRouter = Router();
 
@@ -968,6 +970,14 @@ router.post("/members/:id/block", requireAppUser, async (req, res): Promise<void
   res.json(await formatMember(updated, true));
 });
 
+function formatDate(date: Date): string {
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 // POST /api/members/:id/badge — generate badge PDF with QR code
 router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -995,6 +1005,12 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   const [region] = member.regionId
     ? await db.select().from(regionsTable).where(eq(regionsTable.id, member.regionId)).limit(1)
     : [null];
+  const [dept] = member.departmentId
+    ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, member.departmentId)).limit(1)
+    : [null];
+  const [arr] = member.arrondissementId
+    ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, member.arrondissementId)).limit(1)
+    : [null];
 
   const phone = member.memberType === "physique"
     ? (physique?.telephone1 ?? "-")
@@ -1003,56 +1019,258 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   const verificationUrl = `${frontendUrl}/badge-verify/${token}`;
 
-  const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 150 });
+  const qrDataUrl = await QRCode.toDataURL(verificationUrl, { margin: 1, width: 220 });
 
-  let avatarSvg = "";
+  let base64Logo = "";
+  try {
+    const pathsToTry = [
+      path.resolve(__dirname, "../../../capef/public/assets/LOGO_CAPEF.png"),
+      path.resolve(process.cwd(), "artifacts/capef/public/assets/LOGO_CAPEF.png"),
+      path.resolve(process.cwd(), "../capef/public/assets/LOGO_CAPEF.png"),
+      path.resolve(__dirname, "../../../../artifacts/capef/public/assets/LOGO_CAPEF.png"),
+    ];
+    for (const p of pathsToTry) {
+      if (fs.existsSync(p)) {
+        base64Logo = fs.readFileSync(p).toString("base64");
+        break;
+      }
+    }
+  } catch (err) {
+    console.error("Failed to read logo image:", err);
+  }
+  const logoDataUrl = base64Logo ? `data:image/png;base64,${base64Logo}` : "";
+
+  const categoryThemes: Record<string, { bg: string; text: string; primary: string; label: string }> = {
+    agriculteur: { bg: "#e6f4ea", text: "#137333", primary: "#1e8e3e", label: "AGRICULTEUR" },
+    pecheur: { bg: "#e8f0fe", text: "#1a73e8", primary: "#1967d2", label: "PÊCHEUR" },
+    eleveur: { bg: "#fce8e6", text: "#c5221f", primary: "#d93025", label: "ÉLEVEUR" },
+    forestier: { bg: "#fef7e0", text: "#b06000", primary: "#f29900", label: "FORESTIER" },
+    artisan: { bg: "#f3e8ff", text: "#6b21a8", primary: "#a855f7", label: "ARTISAN" },
+  };
+  const theme = categoryThemes[member.category.toLowerCase()] || { bg: "#f1f3f4", text: "#3c4043", primary: "#5f6368", label: member.category.toUpperCase() };
+
+  const dateEnrolementStr = formatDate(member.createdAt);
+  const expirationDate = new Date(member.createdAt);
+  expirationDate.setFullYear(expirationDate.getFullYear() + 2);
+  const dateExpirationStr = formatDate(expirationDate);
+
+  let avatarSvgHD = "";
   if (member.memberType === "physique" && physique?.photoUrl) {
-    avatarSvg = `
-  <defs>
-    <clipPath id="avatar-clip">
-      <rect x="24" y="115" width="55" height="55" rx="6"/>
-    </clipPath>
-  </defs>
-  <rect x="23" y="114" width="57" height="57" rx="7" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.5"/>
-  <image x="24" y="115" width="55" height="55" href="${physique.photoUrl}" clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>
+    avatarSvgHD = `
+    <g clip-path="url(#photo-clip)">
+      <image href="${physique.photoUrl}" x="50" y="225" width="220" height="260" preserveAspectRatio="xMidYMid slice" />
+    </g>
     `;
   } else {
-    avatarSvg = `
-  <rect x="23" y="114" width="57" height="57" rx="7" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.2"/>
-  <rect x="24" y="115" width="55" height="55" rx="6" fill="#ffffff" fill-opacity="0.1"/>
-  <text x="51" y="148" font-family="Arial,sans-serif" font-size="24" fill="#ffffff" fill-opacity="0.3" text-anchor="middle">${member.memberType === "physique" ? "👤" : "🏢"}</text>
+    const initial = name.charAt(0).toUpperCase() || "C";
+    avatarSvgHD = `
+    <g clip-path="url(#photo-clip)">
+      <rect x="50" y="225" width="220" height="260" fill="${theme.bg}" />
+      <circle cx="160" cy="320" r="55" fill="${theme.primary}" fill-opacity="0.2" />
+      <path d="M105,420 C105,380 135,360 160,360 C185,360 215,380 215,420" fill="none" stroke="${theme.primary}" stroke-width="6" stroke-linecap="round" />
+      <circle cx="160" cy="310" r="30" fill="${theme.primary}" />
+      <text x="160" y="460" font-family="'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="bold" fill="${theme.text}" text-anchor="middle" fill-opacity="0.3">${initial}</text>
+    </g>
     `;
   }
 
   const badgeSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="320" height="200" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#166534;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#14532d;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  <rect width="320" height="200" rx="12" fill="url(#bg)"/>
-  <rect x="12" y="12" width="296" height="176" rx="8" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.3"/>
-  <text x="160" y="34" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle" opacity="0.8">CHAMBRE D'AGRICULTURE, DE LA PÊCHE ET DES FORÊTS</text>
-  <text x="160" y="48" font-family="Arial,sans-serif" font-size="12" font-weight="bold" fill="#fbbf24" text-anchor="middle">CAPEF CAMEROUN</text>
-  <line x1="30" y1="56" x2="290" y2="56" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.3"/>
-  <text x="160" y="76" font-family="Arial,sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">${name}</text>
-  <text x="160" y="92" font-family="Arial,sans-serif" font-size="10" fill="#d1fae5" text-anchor="middle">${member.category.toUpperCase()} — ${member.memberType === "physique" ? "Personne Physique" : "Personne Morale"}</text>
-  <text x="160" y="106" font-family="Arial,sans-serif" font-size="9" fill="#bbf7d0" text-anchor="middle">${region?.name ?? ""}</text>
+<svg width="1012" height="1276" viewBox="0 0 1012 1276" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .card-title { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 26px; fill: #0d5c3a; }
+    .card-subtitle { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 16px; fill: #3c4043; }
+    .label { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #70757a; text-transform: uppercase; letter-spacing: 0.5px; }
+    .value { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #1f2937; }
+    .value-highlight { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; font-weight: 800; fill: #d97706; }
+    .category-badge { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 800; }
+    .num-member { font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: bold; fill: #111827; }
+    .disclaimer-title { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 18px; font-weight: bold; fill: #1f2937; }
+    .disclaimer-text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; fill: #4b5563; line-height: 20px; }
+    .signature-title { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 13px; font-weight: bold; fill: #4b5563; }
+  </style>
 
-  <!-- Left Side: Member Photo / Icon -->
-  ${avatarSvg}
+  <!-- ================= RECTO CARD ================= -->
+  <g id="recto">
+    <!-- Outer Card Border -->
+    <rect x="0" y="0" width="1012" height="638" rx="28" fill="#ffffff" stroke="#e5e7eb" stroke-width="4"/>
+    <clipPath id="recto-clip">
+      <rect x="0" y="0" width="1012" height="638" rx="28"/>
+    </clipPath>
+    <g clip-path="url(#recto-clip)">
+      <!-- Background subtle gradient and design features -->
+      <linearGradient id="recto-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#f0fdf4" stop-opacity="1" />
+        <stop offset="50%" stop-color="#ffffff" stop-opacity="1" />
+        <stop offset="100%" stop-color="#ecfdf5" stop-opacity="1" />
+      </linearGradient>
+      <rect x="0" y="0" width="1012" height="638" fill="url(#recto-bg-grad)" />
 
-  <!-- Center Side: Member Number and Phone -->
-  <text x="154" y="128" font-family="Arial,sans-serif" font-size="8" fill="#6ee7b7" text-anchor="middle">N° MEMBRE</text>
-  <text x="154" y="144" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#fbbf24" text-anchor="middle">${member.memberNumber}</text>
-  <text x="154" y="160" font-family="Arial,sans-serif" font-size="8" fill="#bbf7d0" text-anchor="middle">Tél: ${phone}</text>
-  <text x="154" y="176" font-family="Arial,sans-serif" font-size="7" fill="#6ee7b7" text-anchor="middle" opacity="0.8">Enrôlé le ${member.createdAt.toISOString().split("T")[0]}</text>
+      <!-- Watermark logo in back -->
+      <image href="${logoDataUrl}" x="350" y="150" width="350" height="350" opacity="0.04" />
 
-  <!-- Right Side: Scannable QR Code -->
-  <rect x="231" y="114" width="57" height="57" rx="7" fill="#ffffff"/>
-  <image x="232" y="115" width="55" height="55" href="${qrDataUrl}"/>
+      <!-- Elegant top banner stripes (Cameroon colors) -->
+      <rect x="0" y="0" width="1012" height="15" fill="#006a4e"/> <!-- Green -->
+      <rect x="337" y="0" width="338" height="15" fill="#ce1126"/> <!-- Red -->
+      <rect x="675" y="0" width="337" height="15" fill="#fecd0b"/> <!-- Yellow -->
+      <!-- Small gold star in red stripe -->
+      <polygon points="506,1.5 509,8 516,8 510,12 512,18 506,14 500,18 502,12 496,8 503,8" fill="#fecd0b" />
+
+      <!-- Top Header content -->
+      <!-- Official Logo Left -->
+      <image href="${logoDataUrl}" x="50" y="35" width="95" height="95" />
+
+      <!-- Bilingual header text -->
+      <text x="160" y="55" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#006a4e" letter-spacing="1">REPUBLIQUE DU CAMEROUN</text>
+      <text x="160" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043">Paix - Travail - Patrie</text>
+      <text x="160" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" opacity="0.8">CHAMBRE D'AGRICULTURE, DES PECHES,</text>
+      <text x="160" y="105" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" opacity="0.8">DE L'ELEVAGE ET DES FORETS</text>
+
+      <text x="962" y="55" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#ce1126" text-anchor="end" letter-spacing="1">REPUBLIC OF CAMEROON</text>
+      <text x="962" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" text-anchor="end">Peace - Work - Fatherland</text>
+      <text x="962" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">CHAMBER OF AGRICULTURE, FISHERIES,</text>
+      <text x="962" y="105" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">LIVESTOCK AND FORESTS</text>
+
+      <!-- Horizontal separator line -->
+      <line x1="50" y1="145" x2="962" y2="145" stroke="#006a4e" stroke-width="2.5" stroke-opacity="0.2"/>
+
+      <!-- Card Main Title Ribbon -->
+      <rect x="50" y="155" width="912" height="40" rx="6" fill="#006a4e" />
+      <text x="506" y="182" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">CARTE D'ENRÔLEMENT CONSULAIRE / CONSULAR REGISTRATION CARD</text>
+
+      <!-- Member Photo Container -->
+      <defs>
+        <clipPath id="photo-clip">
+          <rect x="50" y="225" width="220" height="260" rx="16"/>
+        </clipPath>
+      </defs>
+      <!-- Premium Photo Frame Shadow -->
+      <rect x="48" y="223" width="224" height="264" rx="18" fill="none" stroke="#006a4e" stroke-width="3" stroke-opacity="0.3"/>
+      <!-- Actual image or vector placeholder -->
+      ${avatarSvgHD}
+
+      <!-- Category Pill Badge -->
+      <rect x="50" y="505" width="220" height="42" rx="10" fill="${theme.bg}" stroke="${theme.primary}" stroke-width="1.5" />
+      <text x="160" y="531" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${theme.label}</text>
+
+      <!-- User Information list on the right -->
+      <!-- Name -->
+      <text x="310" y="245" class="label">Nom complet / Full Name</text>
+      <text x="310" y="275" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${name.toUpperCase()}</text>
+
+      <!-- Member number and Phone inside a styled banner row -->
+      <rect x="310" y="295" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
+      <text x="325" y="325" class="label" font-size="12">N° MEMBRE / ID:</text>
+      <text x="460" y="327" class="num-member">${member.memberNumber}</text>
+
+      <!-- Rest of profile fields -->
+      <!-- Location info columns -->
+      <g transform="translate(310, 365)">
+        <text x="0" y="15" class="label">Région / Region</text>
+        <text x="0" y="40" class="value">${region?.name ?? "-"}</text>
+
+        <text x="230" y="15" class="label">Département / Division</text>
+        <text x="230" y="40" class="value">${dept?.name ?? "-"}</text>
+      </g>
+
+      <g transform="translate(310, 435)">
+        <text x="0" y="15" class="label">Arrondissement / Subdivision</text>
+        <text x="0" y="40" class="value">${arr?.name ?? "-"}</text>
+
+        <text x="230" y="15" class="label">Téléphone / Contacts</text>
+        <text x="230" y="40" class="value">${phone}</text>
+      </g>
+
+      <!-- Dates banner footer -->
+      <g transform="translate(310, 505)">
+        <rect x="0" y="0" width="440" height="42" rx="8" fill="#fffbeb" stroke="#fef3c7" stroke-width="1.5" />
+        <text x="20" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="bold" fill="#b45309">ENRÔLÉ LE: ${dateEnrolementStr}</text>
+        <text x="240" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="900" fill="#ce1126">EXPIRE LE: ${dateExpirationStr}</text>
+      </g>
+
+      <!-- Right/Bottom QR Code frame & image -->
+      <rect x="790" y="225" width="170" height="170" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="2"/>
+      <image href="${qrDataUrl}" x="795" y="230" width="160" height="160" />
+      <text x="875" y="415" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="800" fill="#006a4e" text-anchor="middle">VERIFICATION SCAN</text>
+
+      <!-- Dynamic signature of Director / official seal inside Recto Card -->
+      <g transform="translate(790, 445)">
+        <rect x="0" y="0" width="170" height="102" rx="10" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+        <text x="85" y="25" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#70757a" text-anchor="middle">SCEAU ET SIGNATURE</text>
+        <!-- Subtle simulated dynamic signature vector of CAPEF General Secretariat -->
+        <path d="M 35 65 Q 65 45 95 65 T 145 55 M 55 50 Q 85 75 115 50" fill="none" stroke="#1d4ed8" stroke-width="2" opacity="0.7" />
+        <text x="85" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#006a4e" text-anchor="middle">Secrétariat Général CAPEF</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================= VERSO CARD ================= -->
+  <g id="verso" transform="translate(0, 638)">
+    <!-- Outer Card Border -->
+    <rect x="0" y="0" width="1012" height="638" rx="28" fill="#ffffff" stroke="#e5e7eb" stroke-width="4"/>
+    <clipPath id="verso-clip">
+      <rect x="0" y="0" width="1012" height="638" rx="28"/>
+    </clipPath>
+    <g clip-path="url(#verso-clip)">
+      <!-- Background subtle gradient and design features -->
+      <linearGradient id="verso-bg-grad" x1="100%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stop-color="#f9fafb" stop-opacity="1" />
+        <stop offset="50%" stop-color="#ffffff" stop-opacity="1" />
+        <stop offset="100%" stop-color="#f3f4f6" stop-opacity="1" />
+      </linearGradient>
+      <rect x="0" y="0" width="1012" height="638" fill="url(#verso-bg-grad)" />
+
+      <!-- Massive faded watermarked logo for back validation -->
+      <image href="${logoDataUrl}" x="306" y="119" width="400" height="400" opacity="0.08" />
+
+      <!-- Back header stripes mirroring Recto (Cameroon colors) -->
+      <rect x="0" y="0" width="1012" height="15" fill="#fecd0b"/> <!-- Yellow -->
+      <rect x="337" y="0" width="338" height="15" fill="#ce1126"/> <!-- Red -->
+      <rect x="675" y="0" width="337" height="15" fill="#006a4e"/> <!-- Green -->
+      <!-- Star -->
+      <polygon points="506,1.5 509,8 516,8 510,12 512,18 506,14 500,18 502,12 496,8 503,8" fill="#fecd0b" />
+
+      <!-- Terms of Use container -->
+      <g transform="translate(60, 45)">
+        <text x="446" y="40" font-family="'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="900" fill="#006a4e" text-anchor="middle" letter-spacing="1">CONDITIONS D'UTILISATION / TERMS OF USE</text>
+        <line x1="246" y1="55" x2="646" y2="55" stroke="#006a4e" stroke-width="2" opacity="0.3"/>
+
+        <!-- French Terms -->
+        <g transform="translate(0, 90)">
+          <text x="0" y="0" class="disclaimer-title" fill="#006a4e">Réglementation Consulaire :</text>
+          <text x="0" y="28" class="disclaimer-text">1. Cette carte d'enrôlement est strictement personnelle, incessible et demeure la propriété exclusive de la CAPEF.</text>
+          <text x="0" y="53" class="disclaimer-text">2. Elle atteste de l'inscription officielle du titulaire au registre consulaire professionnel de la Chambre au Cameroun.</text>
+          <text x="0" y="78" class="disclaimer-text">3. Le titulaire s'engage à respecter scrupuleusement les statuts, règlements et chartes professionnelles en vigueur.</text>
+          <text x="0" y="103" class="disclaimer-text">4. En cas de perte, de vol ou de détérioration, le titulaire doit obligatoirement en informer la délégation régionale de sa zone.</text>
+          <text x="0" y="128" class="disclaimer-text">5. Les autorités publiques sont priées de prêter assistance et de faciliter l'accès du titulaire aux services de développement.</text>
+        </g>
+
+        <!-- English Terms -->
+        <g transform="translate(0, 275)">
+          <text x="0" y="0" class="disclaimer-title" fill="#ce1126">Consular Regulation :</text>
+          <text x="0" y="28" class="disclaimer-text">1. This registration card is strictly personal, non-transferable and remains the exclusive property of CAPEF.</text>
+          <text x="0" y="53" class="disclaimer-text">2. It certifies the holder's official registration in the professional consular registry of the Chamber in Cameroon.</text>
+          <text x="0" y="78" class="disclaimer-text">3. The holder agrees to fully comply with all professional bylaws, internal regulations, and ethical standards.</text>
+          <text x="0" y="103" class="disclaimer-text">4. In case of loss, theft or damage, the holder must immediately notify the local regional delegation office.</text>
+          <text x="0" y="128" class="disclaimer-text">5. Public authorities are kindly requested to assist and facilitate the holder's access to professional assistance.</text>
+        </g>
+      </g>
+
+      <!-- Signature boxes at bottom of Verso -->
+      <line x1="60" y1="520" x2="952" y2="520" stroke="#e5e7eb" stroke-width="1.5" />
+
+      <text x="120" y="555" class="signature-title" text-anchor="middle">SIGNATURE DU TITULAIRE / HOLDER'S SIGNATURE</text>
+      <!-- Simulation of holder's signing area -->
+      <rect x="40" y="565" width="160" height="45" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3" />
+
+      <text x="506" y="575" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="900" fill="#006a4e" text-anchor="middle" letter-spacing="1">CHAMBRE D'AGRICULTURE, DES PECHES, DE L'ELEVAGE ET DES FORETS</text>
+      <text x="506" y="595" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#70757a" text-anchor="middle">BP 287 Yaoundé, Cameroun — Email: contact@capef.cm</text>
+
+      <text x="892" y="555" class="signature-title" text-anchor="end">SIGNATURE DU PRESIDENT / PRESIDENT'S SIGNATURE</text>
+      <!-- Simulation of official signature stamp -->
+      <path d="M 820 575 Q 840 565 860 580 T 900 570" fill="none" stroke="#ce1126" stroke-width="2.5" opacity="0.6"/>
+      <circle cx="860" cy="580" r="22" fill="none" stroke="#ce1126" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.5" />
+    </g>
+  </g>
 </svg>`;
 
   const base64Badge = Buffer.from(badgeSvg, "utf-8").toString("base64");
