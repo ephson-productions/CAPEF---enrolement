@@ -731,7 +731,43 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        onChange(reader.result as string);
+        const rawBase64 = reader.result as string;
+
+        // Compress image using HTML5 Canvas to prevent HTTP 413 Payload Too Large and LocalStorage QuotaExceededError
+        const img = new Image();
+        img.src = rawBase64;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const max_size = 1024;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > max_size) {
+              height = Math.round((height * max_size) / width);
+              width = max_size;
+            }
+          } else {
+            if (height > max_size) {
+              width = Math.round((width * max_size) / height);
+              height = max_size;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+            onChange(compressedBase64);
+          } else {
+            onChange(rawBase64);
+          }
+        };
+        img.onerror = () => {
+          onChange(rawBase64);
+        };
       };
       reader.readAsDataURL(file);
     }
