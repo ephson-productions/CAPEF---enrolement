@@ -1,36 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, gte, and, or } from "drizzle-orm";
-import { db, membersTable, regionsTable, usersTable, userZoneAssignmentsTable } from "@workspace/db";
+import { eq, sql, gte, and } from "drizzle-orm";
+import { db, membersTable, regionsTable, usersTable } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { representedByWomanCondition } from "../lib/memberFilters";
 
 const router: IRouter = Router();
-
-async function buildSupervisorZoneConditions(appUser: any) {
-  if (appUser.role !== "supervisor") return null;
-
-  const dbAssignments = await db
-    .select()
-    .from(userZoneAssignmentsTable)
-    .where(eq(userZoneAssignmentsTable.userId, appUser.id));
-
-  if (dbAssignments.length > 0) {
-    const zoneConditions = dbAssignments.map((za) => {
-      const parts = [eq(membersTable.regionId, za.regionId)];
-      if (za.departmentId) parts.push(eq(membersTable.departmentId, za.departmentId));
-      if (za.arrondissementId) parts.push(eq(membersTable.arrondissementId, za.arrondissementId));
-      return and(...parts);
-    });
-    return or(...zoneConditions);
-  }
-
-  if (appUser.regionId) {
-    return eq(membersTable.regionId, appUser.regionId);
-  }
-
-  return null;
-}
 
 // GET /api/dashboard/stats
 router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> => {
@@ -41,11 +16,8 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
     const conditions: any[] = [];
     if (appUser.role === "agent") {
       conditions.push(eq(membersTable.createdById, appUser.id));
-    } else if (appUser.role === "supervisor") {
-      const supervisorCond = await buildSupervisorZoneConditions(appUser);
-      if (supervisorCond) {
-        conditions.push(supervisorCond);
-      }
+    } else if (appUser.role === "supervisor" && appUser.regionId) {
+      conditions.push(eq(membersTable.regionId, appUser.regionId));
     }
 
     if (status) conditions.push(eq(membersTable.status, String(status)));
@@ -167,11 +139,8 @@ router.get("/dashboard/recent", requireAppUser, async (req, res): Promise<void> 
 
     if (appUser.role === "agent") {
       query = query.where(eq(membersTable.createdById, appUser.id)) as any;
-    } else if (appUser.role === "supervisor") {
-      const supervisorCond = await buildSupervisorZoneConditions(appUser);
-      if (supervisorCond) {
-        query = query.where(supervisorCond) as any;
-      }
+    } else if (appUser.role === "supervisor" && appUser.regionId) {
+      query = query.where(eq(membersTable.regionId, appUser.regionId)) as any;
     }
 
     const rows = await query

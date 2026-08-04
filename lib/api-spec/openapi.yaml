@@ -895,20 +895,14 @@ components:
       properties:
         regionId:
           type: integer
-        regionName:
-          type: ["string", "null"]
         departmentId:
           type: ["integer", "null"]
-        departmentName:
-          type: ["string", "null"]
         arrondissementId:
           type: ["integer", "null"]
-        arrondissementName:
-          type: ["string", "null"]
 
     AppUser:
       type: object
-      required: [id, clerkUserId, email, name, role, status, createdAt]
+      required: [id, clerkUserId, email, name, role, createdAt]
       properties:
         id:
           type: integer
@@ -929,11 +923,6 @@ components:
           type: ["string", "null"]
         cniPhotoUrl:
           type: ["string", "null"]
-        profilePhotoUrl:
-          type: ["string", "null"]
-        status:
-          type: string
-          enum: [active, suspended, banned]
         assignedZones:
           type: array
           items:
@@ -967,11 +956,6 @@ components:
           type: ["string", "null"]
         cniPhotoUrl:
           type: ["string", "null"]
-        profilePhotoUrl:
-          type: ["string", "null"]
-        status:
-          type: string
-          enum: [active, suspended, banned]
         assignedZones:
           type: array
           items:
@@ -980,8 +964,6 @@ components:
     AppUserUpdate:
       type: object
       properties:
-        email:
-          type: string
         name:
           type: string
         role:
@@ -993,11 +975,6 @@ components:
           type: ["string", "null"]
         cniPhotoUrl:
           type: ["string", "null"]
-        profilePhotoUrl:
-          type: ["string", "null"]
-        status:
-          type: string
-          enum: [active, suspended, banned]
         assignedZones:
           type: array
           items:

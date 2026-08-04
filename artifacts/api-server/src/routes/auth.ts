@@ -42,7 +42,10 @@ router.get("/auth/me", requireAppUser, async (req, res): Promise<void> => {
 router.post("/auth/provision", requireAuth, async (req, res): Promise<void> => {
   try {
     const clerkUserId = (req as any).clerkUserId;
-    const { email, name } = req.body;
+
+    // Support both flat body payload and nested Orval `{ data: { email, name } }` payload
+    const email = req.body.email || req.body.data?.email;
+    const name = req.body.name || req.body.data?.name;
 
     if (!email || !name) {
       res.status(400).json({ error: "email et name sont requis" });
