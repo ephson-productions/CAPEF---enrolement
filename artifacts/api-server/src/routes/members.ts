@@ -449,83 +449,6 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   res.send("\uFEFF" + csv);
 });
 
-// GET /api/members/:id
-router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const appUser = (req as any).appUser;
-
-  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!member) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-
-  // Agents can only see their own members
-  if (appUser.role === "agent" && member.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-  // Supervisors can only see their region
-  if (appUser.role === "supervisor" && appUser.regionId && member.regionId !== appUser.regionId) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-
-  res.json(await formatMember(member, true));
-});
-
-// PUT /api/members/:id
-router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const appUser = (req as any).appUser;
-
-  const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-
-  if (appUser.role === "agent" && existing.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-
-  const updates: Record<string, unknown> = {};
-  const fields = ["category", "individualOrOrg", "regionId", "departmentId", "arrondissementId", "village", "gpsLat", "gpsLng", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
-  for (const f of fields) {
-    if (req.body[f] !== undefined) updates[f] = req.body[f];
-  }
-
-  const [updated] = await db
-    .update(membersTable)
-    .set(updates)
-    .where(eq(membersTable.id, id))
-    .returning();
-
-  res.json(await formatMember(updated, true));
-});
-
-// DELETE /api/members/:id
-router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const appUser = (req as any).appUser;
-
-  if (appUser.role !== "admin") {
-    res.status(403).json({ error: "Seul l'administrateur peut supprimer des membres" });
-    return;
-  }
-
-  const [deleted] = await db.delete(membersTable).where(eq(membersTable.id, id)).returning();
-  if (!deleted) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-  res.sendStatus(204);
-});
-
 // GET /api/members/:id/activities
 router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -1285,6 +1208,83 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   await db.update(membersTable).set({ badgeUrl }).where(eq(membersTable.id, id));
 
   res.json({ badgeUrl, memberNumber: member.memberNumber });
+});
+
+// GET /api/members/:id
+router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
+
+  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
+  if (!member) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+
+  // Agents can only see their own members
+  if (appUser.role === "agent" && member.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+  // Supervisors can only see their region
+  if (appUser.role === "supervisor" && appUser.regionId && member.regionId !== appUser.regionId) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  res.json(await formatMember(member, true));
+});
+
+// PUT /api/members/:id
+router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
+
+  const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+
+  if (appUser.role === "agent" && existing.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {};
+  const fields = ["category", "individualOrOrg", "regionId", "departmentId", "arrondissementId", "village", "gpsLat", "gpsLng", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
+  for (const f of fields) {
+    if (req.body[f] !== undefined) updates[f] = req.body[f];
+  }
+
+  const [updated] = await db
+    .update(membersTable)
+    .set(updates)
+    .where(eq(membersTable.id, id))
+    .returning();
+
+  res.json(await formatMember(updated, true));
+});
+
+// DELETE /api/members/:id
+router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
+
+  if (appUser.role !== "admin") {
+    res.status(403).json({ error: "Seul l'administrateur peut supprimer des membres" });
+    return;
+  }
+
+  const [deleted] = await db.delete(membersTable).where(eq(membersTable.id, id)).returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+  res.sendStatus(204);
 });
 
 // POST /api/members/sync — bulk offline sync

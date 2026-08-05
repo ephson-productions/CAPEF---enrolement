@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, usersTable, regionsTable } from "@workspace/db";
 import { requireAppUser, requireRole } from "../lib/auth";
+import { clerkClient } from "@clerk/express";
 
 const router: IRouter = Router();
 
@@ -49,7 +50,8 @@ router.get("/users", requireAppUser, requireRole("admin", "supervisor"), async (
 
 // POST /api/users
 router.post("/users", requireAppUser, requireRole("admin"), async (req, res): Promise<void> => {
-  const { email, name, role, regionId, cniNumber, cniPhotoUrl, assignedZones } = req.body;
+  const body = req.body && req.body.data !== undefined && typeof req.body.data === "object" && req.body.data !== null ? req.body.data : req.body;
+  const { email, name, role, regionId, cniNumber, cniPhotoUrl, assignedZones } = body;
   if (!email || !name || !role) {
     res.status(400).json({ error: "email, name et role sont requis" });
     return;
@@ -64,12 +66,12 @@ router.post("/users", requireAppUser, requireRole("admin"), async (req, res): Pr
 
   // Phase 5 deviation requirement: Create invitation flow on Clerk instead of temporal raw password
   try {
-    // Note: ClerkClient usually comes from @clerk/express or imported in custom lib.
-    // In our server sandbox environment, we will mock this flow gracefully if Clerk secrets are unconfigured.
-    // We log the Clerk invitation trigger clearly.
-    console.log(`[CLERK INVITATION FLOW] Creating Clerk invitation for email: ${email}`);
+    await clerkClient.invitations.createInvitation({
+      emailAddress: email,
+    });
+    console.log(`[CLERK INVITATION FLOW] Successfully invited email address via Clerk: ${email}`);
   } catch (err: any) {
-    console.error("Clerk invitation failed, falling back to mock registration", err);
+    console.error("Clerk invitation failed, proceeding locally:", err);
   }
 
   const [user] = await db
@@ -105,7 +107,8 @@ router.get("/users/:id", requireAppUser, requireRole("admin"), async (req, res):
 router.put("/users/:id", requireAppUser, requireRole("admin"), async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const { name, role, regionId, cniNumber, cniPhotoUrl, assignedZones } = req.body;
+  const body = req.body && req.body.data !== undefined && typeof req.body.data === "object" && req.body.data !== null ? req.body.data : req.body;
+  const { name, role, regionId, cniNumber, cniPhotoUrl, assignedZones } = body;
 
   const updates: Record<string, unknown> = {};
   if (name) updates.name = name;
