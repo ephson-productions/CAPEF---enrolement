@@ -449,6 +449,83 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   res.send("\uFEFF" + csv);
 });
 
+// GET /api/members/:id
+router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
+
+  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
+  if (!member) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+
+  // Agents can only see their own members
+  if (appUser.role === "agent" && member.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+  // Supervisors can only see their region
+  if (appUser.role === "supervisor" && appUser.regionId && member.regionId !== appUser.regionId) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  res.json(await formatMember(member, true));
+});
+
+// PUT /api/members/:id
+router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
+
+  const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+
+  if (appUser.role === "agent" && existing.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {};
+  const fields = ["category", "individualOrOrg", "regionId", "departmentId", "arrondissementId", "village", "gpsLat", "gpsLng", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
+  for (const f of fields) {
+    if (req.body[f] !== undefined) updates[f] = req.body[f];
+  }
+
+  const [updated] = await db
+    .update(membersTable)
+    .set(updates)
+    .where(eq(membersTable.id, id))
+    .returning();
+
+  res.json(await formatMember(updated, true));
+});
+
+// DELETE /api/members/:id
+router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
+
+  if (appUser.role !== "admin") {
+    res.status(403).json({ error: "Seul l'administrateur peut supprimer des membres" });
+    return;
+  }
+
+  const [deleted] = await db.delete(membersTable).where(eq(membersTable.id, id)).returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+  res.sendStatus(204);
+});
+
 // GET /api/members/:id/activities
 router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -1037,28 +1114,28 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <rect x="0" y="145" width="1012" height="15" fill="#005A36"/> <!-- Green -->
       <rect x="0" y="160" width="1012" height="15" fill="#E11D48"/> <!-- Red -->
       <!-- Interrupted pavé blanc with CAPEF -->
-      <rect x="441" y="141" width="130" height="38" rx="4" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5" />
+      <rect x="441" y="141" width="130" height="38" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5" />
       <text x="506" y="167" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36" text-anchor="middle">CAPEF</text>
 
       <!-- Top Header 3-column bilingual layout -->
       <!-- Left Column (French) -->
-      <text x="50" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#005A36">REPUBLIQUE DU CAMEROUN</text>
-      <text x="50" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043">Paix-Travail-Patrie</text>
-      <text x="50" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043">*************</text>
-      <text x="50" y="87" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8">CHAMBRE D’AGRICULTURE, DES PECHES, DE L’ELEVAGE</text>
-      <text x="50" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8">ET DES FORETS DU CAMEROUN</text>
-      <text x="50" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043">*************</text>
+      <text x="228" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#005A36" text-anchor="middle">REPUBLIQUE DU CAMEROUN</text>
+      <text x="228" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">Paix-Travail-Patrie</text>
+      <text x="228" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
+      <text x="228" y="87" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8" text-anchor="middle">CHAMBRE D’AGRICULTURE, DES PECHES, DE L’ELEVAGE</text>
+      <text x="228" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8" text-anchor="middle">ET DES FORETS DU CAMEROUN</text>
+      <text x="228" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
 
       <!-- Center Logo -->
       <image href="${logoDataUrl}" x="456" y="30" width="100" height="100" />
 
       <!-- Right Column (English) -->
-      <text x="962" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#E11D48" text-anchor="end">REPUBLIC OF CAMEROON</text>
-      <text x="962" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="end">Peace-Work-Fatherland</text>
-      <text x="962" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="end">*************</text>
-      <text x="962" y="87" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">CHAMBER OF AGRICULTURE, FISHERIES, LIVESTOCK</text>
-      <text x="962" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="end" opacity="0.8">AND FORESTS OF CAMEROON</text>
-      <text x="962" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="end">*************</text>
+      <text x="784" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#E11D48" text-anchor="middle">REPUBLIC OF CAMEROON</text>
+      <text x="784" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">Peace-Work-Fatherland</text>
+      <text x="784" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
+      <text x="784" y="87" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8" text-anchor="middle">CHAMBER OF AGRICULTURE, FISHERIES, LIVESTOCK</text>
+      <text x="784" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8" text-anchor="middle">AND FORESTS OF CAMEROON</text>
+      <text x="784" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
 
       <!-- Card Main Title Ribbon -->
       <rect x="50" y="195" width="912" height="40" rx="6" fill="#005A36" />
@@ -1084,14 +1161,18 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <text x="310" y="270" class="label">Nom complet / Full Name</text>
       <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${name.toUpperCase()}</text>
 
-      <!-- Member number and Phone inside a styled banner row -->
-      <rect x="310" y="315" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
-      <text x="325" y="345" class="label" font-size="12">N° MEMBRE / ID:</text>
-      <text x="460" y="347" class="num-member">${member.memberNumber}</text>
+      <!-- Téléphone / Contacts -->
+      <text x="310" y="325" class="label">Téléphone / Contacts</text>
+      <text x="310" y="350" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36">${phone}</text>
+
+      <!-- Member number inside a styled banner row -->
+      <rect x="310" y="365" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
+      <text x="325" y="395" class="label" font-size="12">N° MEMBRE / ID:</text>
+      <text x="460" y="397" class="num-member">${member.memberNumber}</text>
 
       <!-- Rest of profile fields -->
       <!-- Location info columns -->
-      <g transform="translate(310, 380)">
+      <g transform="translate(310, 420)">
         <text x="0" y="15" class="label">Région / Region</text>
         <text x="0" y="40" class="value">${region?.name ?? "-"}</text>
 
@@ -1100,16 +1181,13 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       </g>
 
       <!-- Arrondissement on its own separate line underneath Region & Department to prevent overlap -->
-      <g transform="translate(310, 450)">
+      <g transform="translate(310, 475)">
         <text x="0" y="15" class="label">Arrondissement / Subdivision</text>
         <text x="0" y="40" class="value">${arr?.name ?? "-"}</text>
-
-        <text x="230" y="15" class="label">Téléphone / Contacts</text>
-        <text x="230" y="40" class="value">${phone}</text>
       </g>
 
       <!-- Dates banner footer — No expiration date -->
-      <g transform="translate(310, 525)">
+      <g transform="translate(310, 535)">
         <rect x="0" y="0" width="440" height="42" rx="8" fill="#fffbeb" stroke="#fef3c7" stroke-width="1.5" />
         <text x="220" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="bold" fill="#b45309" text-anchor="middle">DATE D'ENRÔLEMENT: ${dateEnrolementStr}</text>
       </g>
@@ -1208,83 +1286,6 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   await db.update(membersTable).set({ badgeUrl }).where(eq(membersTable.id, id));
 
   res.json({ badgeUrl, memberNumber: member.memberNumber });
-});
-
-// GET /api/members/:id
-router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const appUser = (req as any).appUser;
-
-  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!member) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-
-  // Agents can only see their own members
-  if (appUser.role === "agent" && member.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-  // Supervisors can only see their region
-  if (appUser.role === "supervisor" && appUser.regionId && member.regionId !== appUser.regionId) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-
-  res.json(await formatMember(member, true));
-});
-
-// PUT /api/members/:id
-router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const appUser = (req as any).appUser;
-
-  const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-
-  if (appUser.role === "agent" && existing.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-
-  const updates: Record<string, unknown> = {};
-  const fields = ["category", "individualOrOrg", "regionId", "departmentId", "arrondissementId", "village", "gpsLat", "gpsLng", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
-  for (const f of fields) {
-    if (req.body[f] !== undefined) updates[f] = req.body[f];
-  }
-
-  const [updated] = await db
-    .update(membersTable)
-    .set(updates)
-    .where(eq(membersTable.id, id))
-    .returning();
-
-  res.json(await formatMember(updated, true));
-});
-
-// DELETE /api/members/:id
-router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const appUser = (req as any).appUser;
-
-  if (appUser.role !== "admin") {
-    res.status(403).json({ error: "Seul l'administrateur peut supprimer des membres" });
-    return;
-  }
-
-  const [deleted] = await db.delete(membersTable).where(eq(membersTable.id, id)).returning();
-  if (!deleted) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-  res.sendStatus(204);
 });
 
 // POST /api/members/sync — bulk offline sync
