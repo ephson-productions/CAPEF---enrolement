@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useListMembers, useListUsers, getExportMembersUrl } from '@workspace/api-client-react';
+import { useListMembers, useListUsers, exportMembers } from '@workspace/api-client-react';
 import type { ListMembersCategory, ListMembersMemberType, ListMembersStatus, ListMembersRepresentantGenre } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import { useEffect } from 'react';
@@ -9,9 +9,11 @@ import {
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAuthContext } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
 
 export default function MembersList() {
   const { isAdmin, isSupervisor } = useAuthContext();
+  const { toast } = useToast();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<ListMembersCategory | undefined>();
@@ -47,12 +49,41 @@ export default function MembersList() {
 
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     setIsExporting(true);
     try {
-      const apiBase = import.meta.env.VITE_API_URL ?? '';
-      const url = `${apiBase}${getExportMembersUrl({ category, memberType, status, representantGenre })}`;
-      window.open(url, '_blank');
+      const result = await exportMembers({ category, memberType, status, representantGenre });
+      let downloadUrl: string;
+      let shouldRevoke = false;
+
+      if (result && (result as any).downloadUrl) {
+        downloadUrl = (result as any).downloadUrl;
+      } else if (result instanceof Blob) {
+        downloadUrl = window.URL.createObjectURL(result);
+        shouldRevoke = true;
+      } else {
+        // Fallback for any raw/string contents
+        const blob = new Blob([result as any], { type: 'text/csv;charset=utf-8;' });
+        downloadUrl = window.URL.createObjectURL(blob);
+        shouldRevoke = true;
+      }
+
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `capef-membres-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      if (shouldRevoke) {
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: "Impossible d'exporter les membres. Veuillez réessayer."
+      });
     } finally {
       setIsExporting(false);
     }
