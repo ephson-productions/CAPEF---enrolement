@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGetDashboardStats, useListRegions } from '@workspace/api-client-react';
 import { Users, Building2, Trees, Droplets, Tractor, Hammer, ArrowRight, UserCheck } from 'lucide-react';
 import { Link } from 'wouter';
+import { CATEGORY_STYLES } from '@/lib/category-colors';
 
 export default function Dashboard() {
   const [status, setStatus] = useState<string | undefined>('');
@@ -192,25 +193,33 @@ export default function Dashboard() {
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {byCategory.map((cat) => (
-                <div key={cat.category} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center">
-                      {getCategoryIcon(cat.category)}
+              {byCategory.map((cat) => {
+                const style = CATEGORY_STYLES[cat.category.toLowerCase()];
+                return (
+                  <div
+                    key={cat.category}
+                    className={`group flex items-center justify-between p-2.5 rounded-lg transition-colors ${style?.hoverBg ?? 'hover:bg-muted/50'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                        {getCategoryIcon(cat.category)}
+                      </div>
+                      <span className={`font-medium capitalize text-foreground transition-colors ${style?.groupHoverText ?? ''}`}>
+                        {cat.category}
+                      </span>
                     </div>
-                    <span className="font-medium capitalize text-foreground">{cat.category}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-semibold">{cat.count}</span>
-                    <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${Math.min(100, ((cat.count) / (stats?.totalMembers || 1)) * 100)}%` }}
-                      ></div>
+                    <div className="flex items-center gap-4">
+                      <span className={`font-semibold transition-colors ${style?.groupHoverText ?? ''}`}>{cat.count}</span>
+                      <div className="w-24 h-2 bg-muted rounded-full overflow-hidden shrink-0">
+                        <div
+                          className="h-full bg-primary rounded-full"
+                          style={{ width: `${Math.min(100, ((cat.count) / (stats?.totalMembers || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {byCategory.length === 0 && (
                 <p className="text-muted-foreground text-center py-4">Aucune donnée disponible.</p>
               )}

@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   User as UserIcon, Building2, MapPin, Tractor, Droplets, Trees, Hammer, CheckCircle2, ChevronRight, ChevronLeft, Save, Upload, PenTool
 } from 'lucide-react';
+import { CATEGORY_STYLES } from '@/lib/category-colors';
 
 const representativeSchema = z.object({
   ordre: z.number(),
@@ -1110,13 +1111,25 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       { id: 'eleveur', label: 'Éleveur', icon: Building2, color: 'text-orange-500' },
                       { id: 'forestier', label: 'Exploitant Forestier', icon: Trees, color: 'text-emerald-700' },
                       { id: 'artisan', label: 'Artisan', icon: Hammer, color: 'text-purple-500' },
-                    ].map(cat => (
-                      <label key={cat.id} className={`cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${category === cat.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
-                        <input type="radio" value={cat.id} {...methods.register('category')} className="sr-only" />
-                        <cat.icon className={`h-8 w-8 ${cat.color}`} />
-                        <span className="font-bold text-foreground">{cat.label}</span>
-                      </label>
-                    ))}
+                    ].map(cat => {
+                      const style = CATEGORY_STYLES[cat.id];
+                      return (
+                        <label
+                          key={cat.id}
+                          className={`group cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                            category === cat.id
+                              ? 'border-primary bg-primary/5'
+                              : `border-border ${style?.hoverBg ?? 'hover:bg-muted/50'} ${style?.hoverBorder ?? 'hover:border-primary/50'}`
+                          }`}
+                        >
+                          <input type="radio" value={cat.id} {...methods.register('category')} className="sr-only" />
+                          <cat.icon className={`h-8 w-8 transition-colors ${category === cat.id ? cat.color : `${cat.color} ${style?.groupHoverText ?? ''}`}`} />
+                          <span className={`font-bold transition-colors ${category === cat.id ? 'text-foreground' : `text-foreground ${style?.groupHoverText ?? ''}`}`}>
+                            {cat.label}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
