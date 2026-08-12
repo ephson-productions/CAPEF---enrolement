@@ -16,8 +16,61 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import ExcelJS from "exceljs";
 
 const router: IRouter = Router();
+
+function sanitizeSheetName(name: string): string {
+  let sanitized = name.replace(/[\\\/?:*\[\]]/g, "");
+  sanitized = sanitized.trim();
+  if (sanitized.length === 0) {
+    sanitized = "Sheet";
+  }
+  return sanitized.slice(0, 31);
+}
+
+function parseToDate(dateStr: any): Date | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
+function setupSheet(sheet: ExcelJS.Worksheet, headers: string[]) {
+  const headerRow = sheet.addRow(headers);
+  headerRow.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF005A36" } // #005A36
+  };
+  headerRow.alignment = { vertical: "middle", horizontal: "left" };
+}
+
+function finalizeWorkbookFormatting(workbook: ExcelJS.Workbook) {
+  workbook.eachSheet((sheet) => {
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      row.font = { name: "Arial", size: 10 };
+    });
+
+    sheet.columns.forEach((column) => {
+      let maxLength = 0;
+      column.eachCell?.({ includeEmpty: true }, (cell) => {
+        let valueStr = "";
+        if (cell.value instanceof Date) {
+          valueStr = "DD/MM/YYYY";
+        } else if (cell.value !== null && cell.value !== undefined) {
+          valueStr = String(cell.value);
+        }
+        if (valueStr.length > maxLength) {
+          maxLength = valueStr.length;
+        }
+      });
+      column.width = Math.max(maxLength + 4, 12);
+    });
+  });
+}
 
 function generateMemberNumber(category: string, id: number): string {
   const prefix: Record<string, string> = {
@@ -294,11 +347,23 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   const appUser = (req as any).appUser;
   const { category, memberType, regionId, status, representantGenre } = req.query;
 
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "CAPEF PWA";
+  workbook.created = new Date();
+
+  // Return empty/blank sheet if filtered illegally
   if (representantGenre && memberType === "physique") {
-    const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send("\uFEFF"); // Return empty file
+    const sheet = workbook.addWorksheet("Tous les membres");
+    setupSheet(sheet, [
+      "matricule", "name", "forme", "activite", "nature", "date_creation",
+      "region", "departement", "commune", "mobile", "inscription", "cotisation",
+      "adhesion_yunus", "inscription_date", "cotisation_restant", "adhesion_yunus_restant",
+      "village", "statut", "agent"
+    ]);
+    finalizeWorkbookFormatting(workbook);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const dataUrl = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${Buffer.from(buffer).toString("base64")}`;
+    res.json({ downloadUrl: dataUrl });
     return;
   }
 
@@ -331,7 +396,6 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     artisan: "artisanat"
   };
 
-  // Legacy consular columns requested by Ephraim + new helpful columns
   const headers = [
     "matricule",
     "name",
@@ -343,26 +407,58 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     "departement",
     "commune",
     "mobile",
-    "village",
-    "statut",
-    "agent",
     "inscription",
     "cotisation",
     "adhesion_yunus",
     "inscription_date",
     "cotisation_restant",
-    "adhesion_yunus_restant"
+    "adhesion_yunus_restant",
+    "village",
+    "statut",
+    "agent"
   ];
-  const csvRows = [headers.join(",")];
 
-  const escapeCsv = (str: any) => {
-    const val = str === null || str === undefined ? "" : String(str);
-    if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
-      return `"${val.replace(/"/g, '""')}"`;
-    }
-    return val;
-  };
+  // Helper map for region lookups
+  const dbRegions = await db.select().from(regionsTable);
+  const regionMap = new Map<number, typeof regionsTable.$inferSelect>();
+  for (const r of dbRegions) {
+    regionMap.set(r.id, r);
+  }
 
+  // Helper to load other reference maps
+  const departmentsList = await db.select().from(departmentsTable);
+  const departmentMap = new Map<number, string>();
+  for (const d of departmentsList) {
+    departmentMap.set(d.id, d.name);
+  }
+
+  const arrondissementsList = await db.select().from(arrondissementsTable);
+  const arrondissementMap = new Map<number, string>();
+  for (const a of arrondissementsList) {
+    arrondissementMap.set(a.id, a.name);
+  }
+
+  const usersList = await db.select().from(usersTable);
+  const userMap = new Map<number, string>();
+  for (const u of usersList) {
+    userMap.set(u.id, u.name);
+  }
+
+  // Setup main master worksheet
+  const masterSheetName = sanitizeSheetName("Tous les membres");
+  const masterSheet = workbook.addWorksheet(masterSheetName);
+  setupSheet(masterSheet, headers);
+
+  // Grouping maps
+  const membersByRegion = new Map<number | "none", any[]>();
+
+  // Initialize group arrays
+  for (const r of dbRegions) {
+    membersByRegion.set(r.id, []);
+  }
+  membersByRegion.set("none", []);
+
+  // Process rows
   for (const m of rows) {
     const physique = m.physiqueData as any;
     const morale = m.moraleData as any;
@@ -377,15 +473,15 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
       ? (physique?.telephone1 ?? "")
       : (morale?.telephone1 ?? "");
 
-    const [region] = m.regionId
-      ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
-      : [null];
-    const [dept] = m.departmentId
-      ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
-      : [null];
-    const [arr] = m.arrondissementId
-      ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
-      : [null];
+    const dateCreationStr = m.memberType === "physique"
+      ? physique?.dateNaissance
+      : morale?.dateImmatriculation;
+    const dateCreation = parseToDate(dateCreationStr);
+
+    const regionObj = m.regionId ? regionMap.get(m.regionId) : null;
+    const regionName = regionObj?.name ?? "";
+    const departmentName = m.departmentId ? departmentMap.get(m.departmentId) : "";
+    const arrondissementName = m.arrondissementId ? arrondissementMap.get(m.arrondissementId) : "";
 
     // Build the nature column from member activities and line items
     const memberActivities = await db
@@ -415,38 +511,83 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     }
     const nature = lineItemDetails.length > 0 ? lineItemDetails.join("; ") : "";
 
-    const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+    const agentName = m.createdById ? (userMap.get(m.createdById) ?? "") : "";
 
-    csvRows.push([
-      escapeCsv(m.memberNumber),
-      escapeCsv(name),
-      escapeCsv(forme),
-      escapeCsv(activite),
-      escapeCsv(nature),
-      escapeCsv(m.createdAt.toISOString().split("T")[0]),
-      escapeCsv(region?.name),
-      escapeCsv(dept?.name),
-      escapeCsv(arr?.name),
-      escapeCsv(mobile),
-      escapeCsv(m.village),
-      escapeCsv(m.status),
-      escapeCsv(creator?.name),
+    const rowData = [
+      m.memberNumber,
+      name,
+      forme,
+      activite,
+      nature,
+      dateCreation, // Cell type auto-coercion works if Date object is supplied
+      regionName,
+      departmentName,
+      arrondissementName,
+      mobile,
       "", // inscription (blank)
       "", // cotisation (blank)
       "", // adhesion_yunus (blank)
       "", // inscription_date (blank)
       "", // cotisation_restant (blank)
-      ""  // adhesion_yunus_restant (blank)
-    ].join(","));
+      "", // adhesion_yunus_restant (blank)
+      m.village ?? "",
+      m.status,
+      agentName
+    ];
+
+    // Add to master sheet
+    const addedRow = masterSheet.addRow(rowData);
+    if (dateCreation) {
+      addedRow.getCell(6).numFmt = "dd/mm/yyyy";
+    }
+
+    // Add to regional grouping
+    const rKey = m.regionId ?? "none";
+    if (!membersByRegion.has(rKey)) {
+      membersByRegion.set(rKey, []);
+    }
+    membersByRegion.get(rKey)!.push({ rowData, dateCreation });
   }
 
-  const csv = csvRows.join("\n");
-  const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
+  // Sort regional sheets alphabetically by region name
+  const sortedRegions = dbRegions.slice().sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  // Prepend a UTF-8 BOM so Excel opens accented French characters correctly
-  res.send("\uFEFF" + csv);
+  // Build regional sheets
+  for (const r of sortedRegions) {
+    const rMembers = membersByRegion.get(r.id) || [];
+    if (rMembers.length > 0) {
+      const sheetName = sanitizeSheetName(r.name);
+      const sheet = workbook.addWorksheet(sheetName);
+      setupSheet(sheet, headers);
+      for (const mData of rMembers) {
+        const addedRow = sheet.addRow(mData.rowData);
+        if (mData.dateCreation) {
+          addedRow.getCell(6).numFmt = "dd/mm/yyyy";
+        }
+      }
+    }
+  }
+
+  // Build "Sans région" sheet if unassigned members exist
+  const noneMembers = membersByRegion.get("none") || [];
+  if (noneMembers.length > 0) {
+    const sheetName = sanitizeSheetName("Sans région");
+    const sheet = workbook.addWorksheet(sheetName);
+    setupSheet(sheet, headers);
+    for (const mData of noneMembers) {
+      const addedRow = sheet.addRow(mData.rowData);
+      if (mData.dateCreation) {
+        addedRow.getCell(6).numFmt = "dd/mm/yyyy";
+      }
+    }
+  }
+
+  finalizeWorkbookFormatting(workbook);
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const dataUrl = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${Buffer.from(buffer).toString("base64")}`;
+
+  res.json({ downloadUrl: dataUrl });
 });
 
 // GET /api/members/:id

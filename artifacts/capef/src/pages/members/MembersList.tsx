@@ -70,7 +70,7 @@ export default function MembersList() {
 
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.setAttribute('download', `capef-membres-${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `capef-membres-${new Date().toISOString().split('T')[0]}.xlsx`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -125,7 +125,7 @@ export default function MembersList() {
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exporter CSV</span>
+            <span className="hidden sm:inline">Exporter Registre</span>
           </button>
           <Link
             href="/members/new"
