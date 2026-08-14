@@ -38,13 +38,19 @@ export default function Dashboard() {
   }
 
   const getCategoryIcon = (cat: string) => {
-    switch (cat.toLowerCase()) {
-      case 'agriculteur': return <Tractor className="h-5 w-5 text-primary" />;
-      case 'pecheur': return <Droplets className="h-5 w-5 text-blue-500" />;
-      case 'eleveur': return <Building2 className="h-5 w-5 text-orange-500" />;
-      case 'forestier': return <Trees className="h-5 w-5 text-green-700" />;
-      case 'artisan': return <Hammer className="h-5 w-5 text-purple-500" />;
-      default: return <Users className="h-5 w-5 text-primary" />;
+    const lower = cat.toLowerCase();
+    const style = CATEGORY_STYLES[lower];
+    const baseText = style?.baseText ?? "text-primary";
+    const groupHoverText = style?.groupHoverText ?? "";
+    const classes = `h-5 w-5 transition-colors ${baseText} ${groupHoverText}`;
+
+    switch (lower) {
+      case 'agriculteur': return <Tractor className={classes} />;
+      case 'pecheur': return <Droplets className={classes} />;
+      case 'eleveur': return <Building2 className={classes} />;
+      case 'forestier': return <Trees className={classes} />;
+      case 'artisan': return <Hammer className={classes} />;
+      default: return <Users className={classes} />;
     }
   };
 
@@ -201,7 +207,7 @@ export default function Dashboard() {
                     className={`group flex items-center justify-between p-2.5 rounded-lg transition-colors ${style?.hoverBg ?? 'hover:bg-muted/50'}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                      <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${style?.iconBg ?? 'bg-muted'} ${style?.groupHoverIconBg ?? ''}`}>
                         {getCategoryIcon(cat.category)}
                       </div>
                       <span className={`font-medium capitalize text-foreground transition-colors ${style?.groupHoverText ?? ''}`}>

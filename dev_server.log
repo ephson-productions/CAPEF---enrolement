@@ -3,7 +3,7 @@
 > vite --config vite.config.ts --host 0.0.0.0
 
 
-  VITE v7.3.6  ready in 349 ms
+  VITE v7.3.6  ready in 803 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: http://192.168.0.2:3000/
