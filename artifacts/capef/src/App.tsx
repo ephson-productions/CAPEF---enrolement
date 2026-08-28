@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { AuthProvider } from './lib/auth';
 import { OfflineQueueProvider } from './lib/offline-sync';
 import { ClerkProvisioner } from './components/auth/ClerkProvisioner';
+import { ThemeProvider } from './components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -250,9 +251,11 @@ function ClerkProviderWithRoutes() {
 
 function App() {
   return (
-    <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
-    </WouterRouter>
+    <ThemeProvider defaultTheme="light" storageKey="capef-theme">
+      <WouterRouter base={basePath}>
+        <ClerkProviderWithRoutes />
+      </WouterRouter>
+    </ThemeProvider>
   );
 }
 

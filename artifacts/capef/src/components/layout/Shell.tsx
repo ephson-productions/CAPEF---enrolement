@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { useAuthContext } from '@/lib/auth';
 import { useOfflineQueue } from '@/lib/offline-sync';
 import { useClerk } from '@clerk/react';
+import { useTheme } from '@/components/theme-provider';
 import {
   LayoutDashboard,
   Users,
@@ -12,7 +13,9 @@ import {
   Wifi,
   WifiOff,
   User,
-  ShieldAlert
+  ShieldAlert,
+  Moon,
+  Sun
 } from 'lucide-react';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -21,6 +24,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, isLoading } = useAuthContext();
   const { isOnline, queueCount, syncNow, isSyncing } = useOfflineQueue();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === 'dark';
 
   const navigation = [
     { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
@@ -118,7 +123,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <span className="font-bold text-foreground">CAPEF</span>
           </div>
 
-          <div className="flex items-center gap-4 ml-auto">
+          <div className="flex items-center gap-3 ml-auto">
             {/* Sync Status Badge */}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${isOnline ? (queueCount > 0 ? 'bg-secondary/20 text-secondary-foreground' : 'bg-primary/10 text-primary') : 'bg-destructive/10 text-destructive'}`}>
               {isOnline ? (
@@ -142,6 +147,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 </>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              aria-label={isDark ? 'Activer le thème clair' : 'Activer le thème sombre'}
+              title={isDark ? 'Passer au thème clair' : 'Passer au thème sombre'}
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-border bg-card px-3 text-muted-foreground shadow-sm transition-[background-color,color,transform,box-shadow] duration-200 hover:-translate-y-px hover:bg-accent hover:text-accent-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              <span className="hidden md:inline text-xs font-semibold">{isDark ? 'Clair' : 'Sombre'}</span>
+            </button>
           </div>
         </header>
 

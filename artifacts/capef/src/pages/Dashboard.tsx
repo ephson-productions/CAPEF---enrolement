@@ -79,7 +79,7 @@ export default function Dashboard() {
 
         <Link
           href="/members/new"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow transition-[background-color,transform,box-shadow] duration-200 hover:bg-primary/90 hover:-translate-y-0.5 hover:shadow-md"
         >
           Nouvel Enrôlement
           <ArrowRight className="h-4 w-4" />
@@ -87,7 +87,7 @@ export default function Dashboard() {
       </div>
 
       {/* Dashboard Filter Controls */}
-      <div className="bg-card rounded-xl p-4 border border-border shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-card rounded-xl p-4 border border-border shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4 transition-[box-shadow,border-color] duration-200 hover:shadow-md hover:border-primary/20">
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Filtrer par Statut</label>
           <select
@@ -136,7 +136,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
+        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-primary/30">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Total Enrôlés</h3>
             <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center">
@@ -149,7 +149,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
+        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-secondary/40">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Personnes Physiques</h3>
             <div className="h-10 w-10 bg-secondary/10 rounded-full flex items-center justify-center">
@@ -161,7 +161,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
+        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-primary/30">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Personnes Morales</h3>
             <div className="h-10 w-10 bg-accent rounded-full flex items-center justify-center">
@@ -173,7 +173,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between">
+        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-rose-400/40">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Représentation Féminine</h3>
             <div className="h-10 w-10 bg-rose-500/10 rounded-full flex items-center justify-center">
@@ -193,7 +193,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Par Catégorie */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-primary/25">
           <div className="px-6 py-4 border-b border-border bg-muted/20">
             <h3 className="font-bold text-foreground">Répartition par Catégorie</h3>
           </div>
@@ -204,7 +204,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={cat.category}
-                    className={`group flex items-center justify-between p-2.5 rounded-lg transition-colors ${style?.hoverBg ?? 'hover:bg-muted/50'}`}
+                    className={`group flex items-center justify-between p-2.5 rounded-lg border border-transparent transition-[background-color,color,transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-sm ${style?.hoverBg ?? 'hover:bg-muted/50'} ${style?.hoverBorder ?? 'hover:border-border'}`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${style?.iconBg ?? 'bg-muted'} ${style?.groupHoverIconBg ?? ''}`}>
@@ -234,14 +234,14 @@ export default function Dashboard() {
         </div>
 
         {/* Par Région */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-primary/25">
           <div className="px-6 py-4 border-b border-border bg-muted/20">
             <h3 className="font-bold text-foreground">Répartition par Région</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               {byRegion.map((reg) => (
-                <div key={reg.regionName} className="flex items-center justify-between">
+                <div key={reg.regionName} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:bg-muted/50 hover:border-border hover:shadow-sm">
                   <span className="font-medium text-foreground">{reg.regionName}</span>
                   <div className="flex items-center gap-4">
                     <span className="font-semibold text-muted-foreground">{reg.count}</span>
@@ -256,14 +256,14 @@ export default function Dashboard() {
         </div>
 
         {/* Par Statut */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-md hover:border-primary/25">
           <div className="px-6 py-4 border-b border-border bg-muted/20">
             <h3 className="font-bold text-foreground">Répartition par Statut</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               {byStatus.map((st) => (
-                <div key={st.status} className="flex items-center justify-between">
+                <div key={st.status} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:bg-muted/50 hover:border-border hover:shadow-sm">
                   <span className="font-medium text-foreground">{getStatusLabel(st.status)}</span>
                   <div className="flex items-center gap-4">
                     <span className="font-semibold text-muted-foreground">{st.count}</span>
