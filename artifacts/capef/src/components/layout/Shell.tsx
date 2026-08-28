@@ -63,7 +63,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 onClick={closeMobileMenu}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-md font-medium transition-colors
+                  flex items-center gap-3 px-3 py-2.5 rounded-md font-medium
+                  transition-[background-color,color,transform,box-shadow] duration-200
+                  hover:translate-x-1 hover:shadow-sm
                   ${isActive
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
                     : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -81,7 +83,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <Link
             href="/profile"
             onClick={closeMobileMenu}
-            className="flex items-center gap-3 px-3 py-2 mb-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground transition-colors"
+            className="flex items-center gap-3 px-3 py-2 mb-2 rounded-md text-sidebar-foreground transition-[background-color,color,transform,box-shadow] duration-200 hover:translate-x-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm"
           >
             <div className="h-8 w-8 rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-bold text-sm shrink-0">
               {user?.name?.charAt(0).toUpperCase() || <User size={16} />}
@@ -94,7 +96,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-destructive-foreground/80 hover:text-destructive-foreground hover:bg-destructive/20 rounded-md transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-destructive-foreground/80 rounded-md transition-[background-color,color,transform,box-shadow] duration-200 hover:translate-x-1 hover:text-destructive-foreground hover:bg-destructive/20 hover:shadow-sm"
           >
             <LogOut className="h-4 w-4 shrink-0" />
             Déconnexion
