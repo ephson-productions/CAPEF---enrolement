@@ -16,7 +16,7 @@ Critical structural vulnerabilities and architectural gaps were confirmed:
 1. **P0 Data Loss**: The offline action queue (`capef_offline_actions_queue`) for field-collected activity and line-item operations is silently discarded on reconnection without server transmission (`offline-sync.tsx`).
 2. **P0 Privilege Escalation**: Fresh or truncated database states automatically grant `admin` privileges to the first user provisioned via Clerk (`auth.ts`).
 3. **P0/P1 IDOR & Broken Authorization**: Nested resource endpoints (`/members/:id/activities`, line items, badges) fail to verify member ownership or regional assignment scopes (`members.ts`).
-4. **P1 Public PII Disclosure**: The unauthenticated public badge verification endpoint returns full member identity records, including CNI numbers, birthdates, addresses, and signatures (`members.ts`).
+4. **P1 Unauthenticated Badge Access & Missing Auth Boundary**: The badge verification endpoint (`/api/public/members/badge/:badgeToken`) returns full member detail records without requiring authentication (`members.ts`).
 5. **P1 SVG Stored XSS**: Badge SVG generation interpolates raw user strings into XML/SVG documents rendered directly in top-level browser contexts (`members.ts`, `MemberDetail.tsx`).
 6. **P1 Database Integrity Risk**: Zero foreign keys, zero non-PK indexes, zero unique constraints on activities, and non-transactional member creation exist in the Drizzle schema and PostgreSQL migrations (`schema/index.ts`).
 7. **P1 Migration & Startup Hazards**: Destructive `drizzle-kit push --force` is executed on git merges (`scripts/post-merge.sh`), while application startup triggers uncoordinated, non-transactional database migrations and reference seeding on every boot (`index.ts`, `lib/migration.ts`).
@@ -38,7 +38,7 @@ The audit was conducted using a zero-trust, static inspection process across all
    - *Identity & Onboarding*: Clerk Webhook / Provisioning → App User Creation → Role Assignment → Session Authorization.
    - *Member Enrollment*: Frontend Form → Zod Schema → API Endpoint → Non-transactional Member Insertion → Number Generation → Activity Seeding.
    - *Offline Workflow*: Form Capture → LocalStorage Queue → Reconnection Event → `syncNow()` Replay Loop → Action Clearing.
-   - *Badge Generation & Public Verification*: Member Fetch → SVG String Formatting → Base64 Object URL → Public Token Verification Route.
+   - *Badge Generation & Verification*: Member Fetch → SVG String Formatting → Base64 Object URL → Authenticated Token Verification Route (`requireAppUser`).
    - *Database Evolution*: Drizzle Schema → Migration Files → `drizzle.config.ts` → Deployment Scripts (`post-merge.sh`).
 4. **Limitations**: Dynamic execution (e.g., `pnpm test`, `pnpm typecheck`) was restricted to static analysis because `node_modules` was not pre-installed in the environment, and installing dependencies would modify the repository state.
 
@@ -53,7 +53,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 | **AUTH-001** | F02 | — | `artifacts/api-server/src/routes/auth.ts:90-106` | **CONFIRMED** | **P0** | `isFirstUser = !count` assigns `admin` role to first provisioned Clerk user without bootstrap validation. |
 | **AUTH-002** | F03 | CAP-03 | `artifacts/api-server/src/routes/users.ts:56-85` | **CONFIRMED** | **P1** | `POST /users` assigns `pending_<ts>` Clerk ID without issuing real Clerk invitation; initial login conflicts on unique email. |
 | **AUTHZ-001** | F07 | CAP-01 | `artifacts/api-server/src/routes/members.ts:530-868, 982+` | **CONFIRMED** | **P0** | Nested member activity, line-item, and badge routes enforce `requireAppUser` but omit member ownership/regional checks. |
-| **PRIV-001** | F05 | CAP-02 | `artifacts/api-server/src/routes/members.ts:1375-1396` | **CONFIRMED** | **P1** | Public badge endpoint reuses `formatMember(member, true)`, returning CNI numbers, birth dates, phone, and signatures. |
+| **PRIV-001** | F05 | CAP-02 | `artifacts/api-server/src/routes/members.ts:1375-1396` | **CONFIRMED** | **P1** | Badge verification endpoint returns full member record to unauthenticated callers instead of enforcing `requireAppUser` authentication. |
 | **PRIV-002** | F06 | — | `artifacts/api-server/src/routes/members.ts:982-1050`, `MemberDetail.tsx:100-126` | **CONFIRMED** | **P1** | Badge SVG string templates interpolate raw user fields; frontend opens `blob:` object URL in top-level browser context. |
 | **DATA-001** | F01 | CAP-07 | `artifacts/capef/src/lib/offline-sync.tsx:70-80` | **CONFIRMED** | **P0** | `syncNow()` resets `capef_offline_actions_queue` to `[]` without transmitting queued activity/line-item mutations to server. |
 | **DATA-002** | F09 | CAP-05 | `artifacts/api-server/src/routes/members.ts:251-275` | **CONFIRMED** | **P1** | `POST /members` inserts `memberNumber: "PENDING"` then updates; concurrent creates trigger unique constraint 500 crashes. |
@@ -107,14 +107,14 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 - **Root Cause**: Absence of a centralized resource-authorization middleware. While member detail/update routes check `createdById` or `regionId`, nested activity and badge routes skip member authorization entirely.
 - **Impact**: Any authenticated low-privilege field agent can view, create, edit, or delete activities, line items, and badges for members owned by other agents or regions.
 
-### PRIV-001: Unauthenticated Member PII Exposure via Public Badge Verification
+### PRIV-001: Unauthenticated Access to Badge Verification & Missing Auth Boundary
 - **Severity**: P1
-- **Domain**: Privacy & Data Protection
+- **Domain**: Authentication & Badge Verification
 - **Status**: CONFIRMED
-- **File**: `artifacts/api-server/src/routes/members.ts` (lines 1375-1396)
-- **Description**: The public endpoint `GET /api/public/members/badge/:badgeToken` calls `formatMember(member, true)`.
-- **Root Cause**: Reuse of the internal member formatting function with `includeDetail = true` for an unauthenticated public route.
-- **Impact**: Anyone holding or scanning a member badge QR code can extract full PII, including CNI numbers, dates of birth, full residential addresses, personal phone numbers, signatures, and organizational details.
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 1375-1396), `artifacts/capef/src/App.tsx`
+- **Description**: The badge verification endpoint `GET /api/public/members/badge/:badgeToken` is mounted without authentication middleware (`requireAppUser`). Consequently, unauthenticated callers directly requesting this endpoint receive full member profiles. Business requirements dictate that verifying member details via QR scanning must be restricted to authenticated CAPEF agents (who need full member details to perform field checks).
+- **Root Cause**: Missing `requireAppUser` middleware on the backend badge verification route, and lack of authentication enforcement on the frontend `/badge-verify/:token` route.
+- **Impact**: Unauthenticated users scanning QR codes can access detailed member records if queried directly. Requiring authentication ensures only authorized CAPEF agents can inspect member identity profiles.
 
 ### PRIV-002: Stored XSS Vector in Generated Badge SVG
 - **Severity**: P1
@@ -306,7 +306,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 ## 6. P1 CRITICAL STABILIZATION
 
 1. **AUTH-002**: Broken Clerk agent invitation lifecycle and email collision (`users.ts`).
-2. **PRIV-001**: Unauthenticated full member PII leakage on public badge endpoint (`members.ts`).
+2. **PRIV-001**: Require `requireAppUser` authentication for badge verification routes so only logged-in agents can inspect full member details (`members.ts`, `App.tsx`).
 3. **PRIV-002**: Stored XSS vulnerability in generated SVG member badge templates (`members.ts`).
 4. **DATA-002**: Concurrent enrollment `memberNumber` race conditions and non-transactional writes (`members.ts`).
 5. **DB-001**: Total lack of foreign keys, cascades, non-PK indexes, and unique constraints in schema (`schema/index.ts`).
@@ -342,12 +342,13 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ### Threat Model & Attack Surface Map
 ```
-[ Unauthenticated Attacker ] ──► GET /api/public/members/badge/:token ──► Extracts Full PII (PRIV-001)
+[ Unauthenticated Attacker ] ──► GET /api/members/badge/:token        ──► Rejected HTTP 401 Unauthorized (PRIV-001)
                             ──► POST /api/auth/provision (Fresh DB)  ──► Escalates to Admin (AUTH-001)
                             ──► Spoof X-Forwarded-For               ──► Bypasses Rate Limiter (SEC-002)
 
 [ Low-Privilege Agent ]     ──► POST /api/members/:other_id/activities ──► IDOR / Cross-Agent Edit (AUTHZ-001)
                             ──► Inject <script> in Name/Village      ──► Stored XSS via Badge SVG (PRIV-002)
+                            ──► Scan Member Badge QR Code           ──► Authenticates & Verifies Full Record (PRIV-001)
 
 [ Malicious Origin ]        ──► Any *.vercel.app domain              ──► CSRF via Permissive CORS (SEC-001)
 ```
@@ -355,7 +356,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 ### Detailed Attack Analysis
 - **AUTH-001 Exploitation Path**: An attacker registers any account on Clerk and calls `POST /api/auth/provision` while `users` table is empty or during a database migration window. The server evaluates `!count` as `true` and assigns the `admin` role.
 - **AUTHZ-001 Exploitation Path**: An agent authenticated in Region A notes a target member ID belonging to Region B (`id: 42`). The agent submits `POST /api/members/42/activities`. The route checks `requireAppUser` (which succeeds) and immediately inserts the activity without validating whether member `42` belongs to the agent's region or assignment scope.
-- **PRIV-001 Exploitation Path**: An attacker obtains a public badge QR token (e.g. from a physical badge or public image) and queries `GET /api/public/members/badge/:token`. The server executes `formatMember(member, true)` and returns the member's CNI number, phone number, signatures, birth date, and residential address in plain JSON.
+- **PRIV-001 Auth Boundary Requirement**: Scanning a member's badge QR code triggers a lookup for `/badge-verify/:badgeToken`. To satisfy CAPEF field operation requirements, the frontend route and backend API must be protected by authentication (`requireAppUser`). Unauthenticated visitors or phones scanning the QR code will be prompted to sign in first. Once authenticated as a CAPEF user/agent, the full member detail record (`formatMember(member, true)`) is returned so agents can inspect and verify identity documents, activities, and contact details.
 
 ---
 
@@ -386,7 +387,7 @@ Validated & Scoped Request Handler ──► DB Transaction
 1. **Central Policy Engine**: Implement a declarative authorization helper `authorizeMemberAccess(user, memberId, requiredAction)` that enforces:
    - `admin`: Full read/write across all records.
    - `supervisor`: Read/write restricted to members within `user.regionId` or `user.assignedZones`.
-   - `agent`: Read/write restricted to members created by `user.id` (`createdById == user.id`).
+   - `agent`: Read/write restricted to members created by `user.id` (`createdById == user.id`), while retaining global read/verify capability for member badges via `requireAppUser`.
 2. **Unified Agent Provisioning**: Replace the `pending_<ts>` hack in `POST /api/users` with an explicit Clerk Invitation call via `@clerk/express` / Clerk SDK, storing the returned `invitation.id`. On user sign-in, correlate by invitation or email in an atomic transaction.
 
 ---
@@ -531,7 +532,7 @@ To ensure stabilization, a comprehensive test suite must be introduced:
 | **Authorization Policy**| Vitest / Supertest | `routes/members.ts` | Cross-agent member modification blocked (HTTP 403), supervisor region scope isolation. |
 | **Member & Activity API**| Vitest / Supertest | `routes/members.ts` | Transactional member creation, sequential member numbers, nested activity creation. |
 | **Offline Synchronization**| Vitest | `offline-sync.tsx` | Queue retry persistence, non-clearing on failure, idempotency key handling. |
-| **Public Badge Safety** | Vitest / Supertest | `routes/members.ts` | Exclusion of PII from public DTO, XML entity escaping in SVG output. |
+| **Badge Verification Auth** | Vitest / Supertest | `routes/members.ts` | Rejection of unauthenticated badge scans (HTTP 401); successful full member fetch for authenticated agents. |
 
 ---
 
@@ -555,7 +556,7 @@ The following ordered plan details the exact remediation sequence required to ac
 | **1** | **DATA-001** | **P0** | Silent offline queue data loss. | Queue cleared without transmission. | Transmit offline actions sequentially; clear items only upon server HTTP 200/201. | None | `artifacts/capef/src/lib/offline-sync.tsx` | `pnpm typecheck` |
 | **2** | **AUTH-001** | **P0** | First user becomes admin automatically. | `!count` check in JIT provision. | Seed initial admin via CLI or ENV bootstrap (`INITIAL_ADMIN_EMAIL`); reject implicit escalation. | None | `artifacts/api-server/src/routes/auth.ts` | `pnpm typecheck` |
 | **3** | **AUTHZ-001** | **P0** | IDOR on nested activities/badges. | Missing resource ownership check. | Create `authorizeMemberAccess` middleware checking `createdById` / `regionId`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
-| **4** | **PRIV-001** | **P1** | Public badge endpoint leaks PII. | Reuses internal `formatMember(..., true)`. | Define `PublicBadgeDTO` returning only `fullName`, `memberNumber`, `category`, and `status`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
+| **4** | **PRIV-001** | **P1** | Unauthenticated badge verification. | Missing `requireAppUser` middleware. | Require `requireAppUser` on badge verification route; redirect unauthenticated scanners to sign in before returning full member details. | None | `artifacts/api-server/src/routes/members.ts`, `artifacts/capef/src/App.tsx` | `pnpm typecheck` |
 | **5** | **PRIV-002** | **P1** | Stored XSS in badge SVG. | Raw string interpolation in SVG. | Escape XML entities in string fields (`he.encode` / XML escape helper). | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
 | **6** | **AUTH-002** | **P1** | Broken Clerk agent invitation. | Fake `pending_<ts>` Clerk ID used. | Integrate `@clerk/express` `createInvitation`; link `clerkUserId` dynamically on webhook/provision. | AUTH-001 | `artifacts/api-server/src/routes/users.ts`, `auth.ts` | `pnpm typecheck` |
 | **7** | **DATA-002** | **P1** | Non-transactional member creation. | Two-step SQL write with "PENDING". | Wrap member insert + sequence number generation + activity seeding in `db.transaction()`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
@@ -627,14 +628,15 @@ The following atomic, step-by-step tasks define the technical implementation ins
   4. Return HTTP 403 Forbidden if authorization fails. Attach to all nested `/members/:id/*` routes.
 - **Acceptance Criteria**: Field agents attempting to modify activities or badges on members owned by other agents receive HTTP 403.
 
-### Task REM-PRIV-001: Sanitize Public Badge Verification Endpoint
-- **Objective**: Prevent unauthenticated leakage of member CNI numbers, birth dates, addresses, and signatures.
-- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`
+### Task REM-PRIV-001: Require Authentication for Badge Verification & Return Full Member Profile
+- **Objective**: Ensure only authenticated CAPEF agents/users can scan/verify member badges, returning the full member detail record for official field inspection.
+- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`, `artifacts/capef/src/App.tsx`
 - **Instructions**:
-  1. Refactor `GET /api/public/members/badge/:badgeToken`.
-  2. Construct a restricted `PublicBadgeDTO`: `{ fullName, memberNumber, category, status, isVerified: true, photoUrl }`.
-  3. Exclude `cniNumber`, `phone`, `physiqueData`, `moraleData`, `signatures`, and internal creator details.
-- **Acceptance Criteria**: Querying the public badge endpoint returns only non-sensitive verification fields.
+  1. Refactor `/api/public/members/badge/:badgeToken` route to attach `requireAppUser` middleware.
+  2. When an authenticated agent queries `/api/members/badge/:badgeToken`, execute `formatMember(member, true)` and return the full member profile (including activities, line items, and organizational/contact info).
+  3. Reject unauthenticated badge queries with HTTP 401 Unauthorized.
+  4. Update frontend `App.tsx` routing so `/badge-verify/:token` requires authentication; if an unauthenticated user scans the QR code, redirect them to sign in first. Once signed in, render the full `BadgeVerify` page.
+- **Acceptance Criteria**: Scanning a badge QR code requires sign-in if not authenticated; once authenticated as a CAPEF agent/user, the complete member profile is displayed for field verification. Unauthenticated API calls return HTTP 401.
 
 ### Task REM-PRIV-002: Escape XML Entities in SVG Badge Templates
 - **Objective**: Neutralize stored XSS vectors in generated SVG badge markup.
@@ -679,7 +681,7 @@ Feature development on CAPEF Digital Enrolment may resume **ONLY** when all of t
    - [ ] Unauthenticated admin bootstrap in `auth.ts` is replaced with explicit environment-seeded admin evaluation.
    - [ ] All nested member activity, line-item, and badge routes enforce resource-level authorization checks (HTTP 403 on scope mismatch).
 2. **Data & Privacy Hardened**:
-   - [ ] Public badge verification endpoint returns restricted `PublicBadgeDTO` excluding CNI numbers, birth dates, addresses, and signatures.
+   - [ ] Badge verification routes enforce `requireAppUser` authentication, allowing authenticated CAPEF agents to verify full member profiles while blocking unauthenticated access (HTTP 401).
    - [ ] SVG badge generator escapes all user input strings, neutralizing stored XSS vectors.
    - [ ] Member enrollment write path executes inside an atomic PostgreSQL transaction.
 3. **Database Integrity Locked**:
@@ -697,4 +699,4 @@ Feature development on CAPEF Digital Enrolment may resume **ONLY** when all of t
 ### **🔴 STOP FEATURE DEVELOPMENT — STABILIZATION REQUIRED**
 
 **Engineering Justification**:
-The CAPEF Digital Enrolment platform contains **3 P0 Blockers** (silent offline data loss, unauthenticated admin takeover, and universal IDOR authorization bypasses) and **8 P1 Critical Defects** (including public PII leaks, SVG stored XSS, non-transactional writes, total lack of database referential integrity, destructive force-push deployments, and zero automated tests). Continuing feature development on this foundation introduces compound risk, multiplies technical debt, and threatens the security of citizen identity data. Feature development must remain paused until the Master Remediation Plan (Phases 0 and 1) is executed and verified.
+The CAPEF Digital Enrolment platform contains **3 P0 Blockers** (silent offline data loss, unauthenticated admin takeover, and universal IDOR authorization bypasses) and **8 P1 Critical Defects** (including unauthenticated badge access, SVG stored XSS, non-transactional writes, total lack of database referential integrity, destructive force-push deployments, and zero automated tests). Continuing feature development on this foundation introduces compound risk, multiplies technical debt, and threatens the security of citizen identity data. Feature development must remain paused until the Master Remediation Plan (Phases 0 and 1) is executed and verified.
