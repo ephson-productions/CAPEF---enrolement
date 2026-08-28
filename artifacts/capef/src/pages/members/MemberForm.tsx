@@ -1079,9 +1079,9 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 <div>
                   <h3 className="text-lg font-bold mb-4">Type de membre</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <label className={`cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-all ${memberType === 'physique' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
+                    <label className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'physique' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
                       <input type="radio" value="physique" {...methods.register('memberType')} className="sr-only" />
-                      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${memberType === 'physique' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
+                      <div className={`h-12 w-12 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0 ${memberType === 'physique' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
                         <UserIcon className="h-6 w-6" />
                       </div>
                       <div>
@@ -1089,9 +1089,9 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                         <div className="text-sm text-muted-foreground">Individu, exploitant indépendant</div>
                       </div>
                     </label>
-                    <label className={`cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-all ${memberType === 'morale' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
+                    <label className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'morale' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
                       <input type="radio" value="morale" {...methods.register('memberType')} className="sr-only" />
-                      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${memberType === 'morale' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
+                      <div className={`h-12 w-12 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0 ${memberType === 'morale' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
                         <Building2 className="h-6 w-6" />
                       </div>
                       <div>
@@ -1116,14 +1116,14 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       return (
                         <label
                           key={cat.id}
-                          className={`group cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 text-center transition-all ${
+                            className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 text-center transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:shadow-none ${
                             category === cat.id
                               ? 'border-primary bg-primary/5'
                               : `border-border ${style?.hoverBg ?? 'hover:bg-muted/50'} ${style?.hoverBorder ?? 'hover:border-primary/50'}`
                           }`}
                         >
                           <input type="radio" value={cat.id} {...methods.register('category')} className="sr-only" />
-                          <cat.icon className={`h-8 w-8 transition-colors ${category === cat.id ? cat.color : `${cat.color} ${style?.groupHoverText ?? ''}`}`} />
+                          <cat.icon className={`h-8 w-8 transition-[color,transform] duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0 ${category === cat.id ? cat.color : `${cat.color} ${style?.groupHoverText ?? ''}`}`} />
                           <span className={`font-bold transition-colors ${category === cat.id ? 'text-foreground' : `text-foreground ${style?.groupHoverText ?? ''}`}`}>
                             {cat.label}
                           </span>
