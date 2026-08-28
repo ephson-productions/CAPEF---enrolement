@@ -42,7 +42,7 @@ export default function Dashboard() {
     const style = CATEGORY_STYLES[lower];
     const baseText = style?.baseText ?? "text-primary";
     const groupHoverText = style?.groupHoverText ?? "";
-     const classes = `h-5 w-5 transition-[color,transform] duration-500 ease-out group-hover:-translate-y-0.5 group-active:translate-y-0 ${baseText} ${groupHoverText}`;
+     const classes = `h-5 w-5 transition-[color,transform] duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0 ${baseText} ${groupHoverText}`;
 
     switch (lower) {
       case 'agriculteur': return <Tractor className={classes} />;
@@ -136,10 +136,10 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 hover:shadow-md hover:border-primary/30 active:translate-y-0 active:shadow-sm">
+        <div tabIndex={0} className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 focus:-translate-y-1 hover:shadow-md focus:shadow-md hover:border-primary/30 focus:border-primary/30 active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Total Enrôlés</h3>
-            <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0">
+            <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-focus:-translate-y-1 group-active:translate-y-0">
               <Users className="h-5 w-5 text-primary" />
             </div>
           </div>
@@ -149,11 +149,11 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 hover:shadow-md hover:border-secondary/40 active:translate-y-0 active:shadow-sm">
+        <div tabIndex={0} className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 focus:-translate-y-1 hover:shadow-md focus:shadow-md hover:border-secondary/40 focus:border-secondary/60 active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Personnes Physiques</h3>
-            <div className="h-10 w-10 bg-secondary/10 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0">
-              <UserIcon className="h-5 w-5 text-secondary-foreground" />
+            <div className="h-10 w-10 rounded-full flex items-center justify-center bg-amber-500/15 dark:bg-amber-400/20 transition-[background-color,transform] duration-500 ease-out group-hover:-translate-y-1 group-focus:-translate-y-1 group-active:translate-y-0">
+              <UserIcon className="h-5 w-5 text-amber-700 dark:text-amber-300" />
             </div>
           </div>
           <div className="mt-4">
@@ -161,10 +161,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 hover:shadow-md hover:border-primary/30 active:translate-y-0 active:shadow-sm">
+        <div tabIndex={0} className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 focus:-translate-y-1 hover:shadow-md focus:shadow-md hover:border-primary/30 focus:border-primary/30 active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Personnes Morales</h3>
-            <div className="h-10 w-10 bg-accent rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0">
+            <div className="h-10 w-10 bg-accent rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-focus:-translate-y-1 group-active:translate-y-0">
               <Building2 className="h-5 w-5 text-accent-foreground" />
             </div>
           </div>
@@ -173,10 +173,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 hover:shadow-md hover:border-rose-400/40 active:translate-y-0 active:shadow-sm">
+        <div tabIndex={0} className="group bg-card rounded-xl p-6 border border-border shadow-sm flex flex-col justify-between transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 focus:-translate-y-1 hover:shadow-md focus:shadow-md hover:border-rose-400/40 focus:border-rose-400/60 active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-muted-foreground text-sm">Représentation Féminine</h3>
-            <div className="h-10 w-10 bg-rose-500/10 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-active:translate-y-0">
+            <div className="h-10 w-10 bg-rose-500/10 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-focus:-translate-y-1 group-active:translate-y-0">
               <UserCheck className="h-5 w-5 text-rose-500" />
             </div>
           </div>
@@ -204,10 +204,11 @@ export default function Dashboard() {
                 return (
                   <div
                     key={cat.category}
-                    className={`group flex items-center justify-between p-2.5 rounded-lg border border-transparent transition-[background-color,color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:shadow-none ${style?.hoverBg ?? 'hover:bg-muted/50'} ${style?.hoverBorder ?? 'hover:border-border'}`}
+                    tabIndex={0}
+                    className={`group flex items-center justify-between p-2.5 rounded-lg border border-transparent transition-[background-color,color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 focus:-translate-y-0.5 hover:shadow-sm focus:shadow-sm active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${style?.hoverBg ?? 'hover:bg-muted/50'} ${style?.hoverBorder ?? 'hover:border-border'}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 transition-[background-color,transform] duration-500 ease-out group-hover:-translate-y-0.5 group-active:translate-y-0 ${style?.iconBg ?? 'bg-muted'} ${style?.groupHoverIconBg ?? ''}`}>
+                      <div className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 transition-[background-color,transform] duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0 ${style?.iconBg ?? 'bg-muted'} ${style?.groupHoverIconBg ?? ''}`}>
                         {getCategoryIcon(cat.category)}
                       </div>
                       <span className={`font-medium capitalize text-foreground transition-colors ${style?.groupHoverText ?? ''}`}>
@@ -241,7 +242,7 @@ export default function Dashboard() {
           <div className="p-6">
             <div className="space-y-4">
               {byRegion.map((reg) => (
-                <div key={reg.regionName} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 hover:bg-muted/50 hover:border-border hover:shadow-sm active:translate-y-0 active:shadow-none">
+                <div tabIndex={0} key={reg.regionName} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 focus:-translate-y-0.5 hover:bg-muted/50 focus:bg-muted/50 hover:border-border focus:border-border hover:shadow-sm focus:shadow-sm active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <span className="font-medium text-foreground">{reg.regionName}</span>
                   <div className="flex items-center gap-4">
                     <span className="font-semibold text-muted-foreground">{reg.count}</span>
@@ -263,7 +264,7 @@ export default function Dashboard() {
           <div className="p-6">
             <div className="space-y-4">
               {byStatus.map((st) => (
-                <div key={st.status} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 hover:bg-muted/50 hover:border-border hover:shadow-sm active:translate-y-0 active:shadow-none">
+                <div tabIndex={0} key={st.status} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 focus:-translate-y-0.5 hover:bg-muted/50 focus:bg-muted/50 hover:border-border focus:border-border hover:shadow-sm focus:shadow-sm active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <span className="font-medium text-foreground">{getStatusLabel(st.status)}</span>
                   <div className="flex items-center gap-4">
                     <span className="font-semibold text-muted-foreground">{st.count}</span>

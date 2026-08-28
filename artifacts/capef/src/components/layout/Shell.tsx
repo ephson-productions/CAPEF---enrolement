@@ -70,14 +70,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 className={`
                   group touch-manipulation flex items-center gap-3 px-3 py-2.5 rounded-md font-medium
                   transition-[background-color,color,transform,box-shadow] duration-500 ease-out
-                  hover:translate-x-1 hover:shadow-sm active:translate-x-0 active:shadow
+                  hover:translate-x-1 hover:shadow-sm focus:translate-x-1 focus:shadow-sm active:translate-x-0 active:shadow
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring
                   ${isActive
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
                     : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                   }
                 `}
               >
-                <item.icon className="h-5 w-5 shrink-0 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-active:translate-y-0" />
+                <item.icon className="h-5 w-5 shrink-0 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0" />
                 {item.name}
               </Link>
             );
@@ -88,7 +89,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <Link
             href="/profile"
             onClick={closeMobileMenu}
-            className="group touch-manipulation flex items-center gap-3 px-3 py-2 mb-2 rounded-md text-sidebar-foreground transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:translate-x-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm active:translate-x-0 active:shadow"
+            className="group touch-manipulation flex items-center gap-3 px-3 py-2 mb-2 rounded-md text-sidebar-foreground transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:translate-x-1 focus:translate-x-1 hover:bg-sidebar-accent focus:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:text-sidebar-accent-foreground hover:shadow-sm focus:shadow-sm active:translate-x-0 active:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <div className="h-8 w-8 rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-bold text-sm shrink-0">
               {user?.name?.charAt(0).toUpperCase() || <User size={16} />}
@@ -101,9 +102,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
-            className="group touch-manipulation w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-destructive-foreground/80 rounded-md transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:translate-x-1 hover:text-destructive-foreground hover:bg-destructive/20 hover:shadow-sm active:translate-x-0 active:shadow"
+            className="group touch-manipulation w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-destructive-foreground/80 rounded-md transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:translate-x-1 focus:translate-x-1 hover:text-destructive-foreground focus:text-destructive-foreground hover:bg-destructive/20 focus:bg-destructive/20 hover:shadow-sm focus:shadow-sm active:translate-x-0 active:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
-            <LogOut className="h-4 w-4 shrink-0 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-active:translate-y-0" />
+            <LogOut className="h-4 w-4 shrink-0 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0" />
             Déconnexion
           </button>
         </div>
@@ -116,9 +117,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center lg:hidden">
             <button
               onClick={toggleMobileMenu}
-              className="group p-2 -ml-2 mr-2 text-muted-foreground transition-[background-color,transform] duration-500 ease-out hover:bg-muted hover:-translate-y-px active:translate-y-0 rounded-md"
+              className="group p-2 -ml-2 mr-2 text-muted-foreground transition-[background-color,transform] duration-500 ease-out hover:bg-muted focus:bg-muted hover:-translate-y-px focus:-translate-y-px active:translate-y-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Menu className="h-6 w-6 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-active:translate-y-0" />
+              <Menu className="h-6 w-6 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0" />
             </button>
             <span className="font-bold text-foreground">CAPEF</span>
           </div>
@@ -153,7 +154,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
               aria-label={isDark ? 'Activer le thème clair' : 'Activer le thème sombre'}
               title={isDark ? 'Passer au thème clair' : 'Passer au thème sombre'}
-              className="inline-flex touch-manipulation h-9 items-center gap-2 rounded-full border border-border bg-card px-3 text-muted-foreground shadow-sm transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:-translate-y-px hover:bg-accent hover:text-accent-foreground hover:shadow-md active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex touch-manipulation h-9 items-center gap-2 rounded-full border border-border bg-card px-3 text-muted-foreground shadow-sm transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:-translate-y-px focus:-translate-y-px hover:bg-accent focus:bg-accent hover:text-accent-foreground focus:text-accent-foreground hover:shadow-md focus:shadow-md active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               <span className="hidden md:inline text-xs font-semibold">{isDark ? 'Clair' : 'Sombre'}</span>
