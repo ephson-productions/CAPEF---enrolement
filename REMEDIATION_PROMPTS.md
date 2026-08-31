@@ -8,7 +8,7 @@ This document contains detailed, self-contained, copy-pasteable engineering prom
 ## TABLE OF CONTENTS
 
 ### PHASE 0: IMMEDIATE CONTAINMENT (P0 BLOCKERS)
-1. [PROMPT REM-DATA-001: Offline Action Queue Transmit & Clear Fix](#prompt-rem-data-001-offline-action-queue-transmit--clear-fix)
+1. [PROMPT REM-DATA-001: Production-Grade Offline Synchronization Protocol](#prompt-rem-data-001-production-grade-offline-synchronization-protocol)
 2. [PROMPT REM-AUTH-001: Remove Implicit First-User Admin Bootstrap](#prompt-rem-auth-001-remove-implicit-first-user-admin-bootstrap)
 3. [PROMPT REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy](#prompt-rem-authz-001-implement-centralized-member-resource-authorization-policy)
 
@@ -39,62 +39,97 @@ This document contains detailed, self-contained, copy-pasteable engineering prom
 
 ## PHASE 0: IMMEDIATE CONTAINMENT (P0 BLOCKERS)
 
-### PROMPT REM-DATA-001: Offline Action Queue Transmit & Clear Fix
+### PROMPT REM-DATA-001: Production-Grade Offline Synchronization Protocol
 
 ```markdown
 # TASK SPECIFICATION: REM-DATA-001
-**Title**: Fix Offline Action Queue Synchronization to Transmit Mutations Before Clearing Local Storage
+**Title**: Implement Production-Grade Offline Synchronization Protocol with Client Operation UUIDs & Server Idempotency
 **Severity**: P0 Blocker
-**Domain**: Offline Engine & Data Integrity
-**Affected Files**: `artifacts/capef/src/lib/offline-sync.tsx`
+**Domain**: Offline Engine, Idempotency & Data Integrity
+**Affected Files**:
+- `artifacts/capef/src/lib/offline-sync.tsx`
+- `lib/db/src/schema/members.ts` (or `users.ts`)
+- `artifacts/api-server/src/routes/members.ts`
 
 ---
 
 ### OBJECTIVE
-Fix a critical data loss bug in `artifacts/capef/src/lib/offline-sync.tsx`. Currently, when `syncNow()` executes upon reconnection, the offline action queue (`capef_offline_actions_queue`) containing field-collected crop/livestock activities and line items is cleared (`localStorage.setItem('capef_offline_actions_queue', JSON.stringify([]))`) WITHOUT ever sending the queued requests to the backend API. Replay each queued action sequentially, sending the HTTP mutation to the backend server, and purge items from local storage ONLY after receiving a successful HTTP response.
+Rework `DATA-001` in `artifacts/capef/src/lib/offline-sync.tsx` and `artifacts/api-server/src/routes/members.ts` to implement a production-grade, durable offline synchronization protocol. Eliminate both silent data loss AND duplicate writes caused by retries after ambiguous network failures. Require immutable client operation IDs (`clientOperationId` UUIDs), server-side idempotency tracking (`processed_operations` table), explicit atomic database transactions, error classification (retryable 5xx/network vs. terminal 400 business errors), and strict acknowledgement-based queue purging.
 
 ---
 
-### BACKGROUND & TECHNICAL CONTEXT
-- In CAPEF Digital Enrolment, field agents enroll members and add agricultural/artisanal activities offline.
-- `enqueueActivityAction` adds action objects to `localStorage.getItem('capef_offline_actions_queue')`.
-- Actions have shapes like:
-  - `{ type: 'create_activity', memberId: number, data: ActivityInput }`
-  - `{ type: 'create_line_item', memberId: number, activityId: number, data: LineItemInput }`
-  - `{ type: 'delete_line_item', memberId: number, activityId: number, itemId: number }`
-- In `offline-sync.tsx:70-80`, `syncNow()` currently contains:
-  ```typescript
-  if (actionsQueue.length > 0) {
-    localStorage.setItem('capef_offline_actions_queue', JSON.stringify([]));
-  }
-  ```
-  This immediately destroys all offline activity and line-item mutations!
+### BACKGROUND & TECHNICAL CONTEXT (CORRECTION 03)
+- In CAPEF Digital Enrolment, field agents record crop/livestock activities and line items offline.
+- Simple `for each item: POST -> delete on HTTP 200` loops are insufficient for production. If an HTTP request reaches the server, commits to PostgreSQL, but the network drops before the client receives the response, retrying the same request creates duplicate activities or line items.
+- In `offline-sync.tsx:70-80`, `syncNow()` currently clears `capef_offline_actions_queue` without transmitting data.
+- **Invariants**:
+  1. No offline CAPEF operation may be deleted from local storage until the server has explicitly acknowledged successful processing or confirmed that the operation was previously processed.
+  2. Replaying the same `clientOperationId` MUST NEVER create duplicate database records.
 
 ---
 
 ### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `artifacts/capef/src/lib/offline-sync.tsx`.
-2. Locate the `syncNow` function inside `OfflineQueueProvider`.
-3. Refactor `syncNow` to handle `actionsQueue` properly:
-   - Iterate through `actionsQueue` sequentially using a `for...of` loop.
-   - For each action item:
-     - If `action.type === 'create_activity'`, call the generated API client or issue a `POST /api/members/${action.memberId}/activities` request with `action.data`.
-     - If `action.type === 'create_line_item'`, issue a `POST /api/members/${action.memberId}/activities/${action.activityId}/line-items` request with `action.data`.
-     - If `action.type === 'delete_line_item'`, issue a `DELETE /api/members/${action.memberId}/activities/${action.activityId}/line-items/${action.itemId}` request.
-   - If an individual request succeeds (HTTP 200/201/204):
-     - Remove that specific item from the local array and update `localStorage.setItem('capef_offline_actions_queue', JSON.stringify(remainingActions))`.
-   - If a request fails due to network error or server 500:
-     - Log the error via `console.error`, retain the remaining actions in `capef_offline_actions_queue`, show an error toast, and break out of the sync loop so retries happen on the next reconnect.
-4. Ensure `updateQueueCount()` accurately sums `capef_offline_queue` and `capef_offline_actions_queue`.
+
+#### 1. Schema & Server Idempotency (`processed_operations` Table)
+1. In `@workspace/db` schema, define `processedOperationsTable`:
+   - `clientOperationId`: `uuid("client_operation_id").primaryKey()`
+   - `userId`: `integer("user_id").notNull().references(() => usersTable.id)`
+   - `operationType`: `text("operation_type").notNull()`
+   - `resourceId`: `integer("resource_id")`
+   - `resultPayload`: `jsonb("result_payload")`
+   - `processedAt`: `timestamp("processed_at").defaultNow().notNull()`
+2. In `artifacts/api-server/src/routes/members.ts`, update activity/line-item creation endpoints:
+   - Accept `clientOperationId` (UUID v4) from request body or `X-Client-Operation-ID` header.
+   - Query `processedOperationsTable` by `clientOperationId`.
+   - **If `clientOperationId` exists**:
+     - Log idempotency match via `logger.info`.
+     - Return the cached `resultPayload` immediately with HTTP 200 OK without re-executing SQL mutations.
+   - **If `clientOperationId` is new**:
+     - Execute the mutation AND insert into `processedOperationsTable` inside the **SAME atomic `db.transaction()`**:
+       ```typescript
+       const result = await db.transaction(async (tx) => {
+         // Insert activity / line item
+         const [record] = await tx.insert(memberActivitiesTable)...;
+         // Record operation idempotency key
+         await tx.insert(processedOperationsTable).values({
+           clientOperationId,
+           userId: appUser.id,
+           operationType: 'create_activity',
+           resourceId: record.id,
+           resultPayload: record,
+         });
+         return record;
+       });
+       return res.status(201).json(result);
+       ```
+
+#### 2. Frontend Queue & Replay Architecture (`offline-sync.tsx`)
+1. In `artifacts/capef/src/lib/offline-sync.tsx`:
+   - Update `enqueueActivityAction` to attach an immutable `clientOperationId: crypto.randomUUID()` to every queued item upon initial entry.
+   - Save item in `localStorage` under `capef_offline_actions_queue`.
+2. Refactor `syncNow()`:
+   - Process `capef_offline_actions_queue` items sequentially using a `for...of` loop.
+   - For each action, pass `clientOperationId` in the request payload.
+   - **On HTTP 200 / 201 Response (Confirmed Server Acknowledgement)**:
+     - Remove the specific operation from `capef_offline_actions_queue` and update local storage.
+   - **On Retryable Network Failure or HTTP 5xx Server Error**:
+     - Do NOT clear the queue! Retain the failed operation (and subsequent operations) in `capef_offline_actions_queue`.
+     - Show warning toast ("Resynchronisation différée due à un problème réseau") and abort the current sync cycle.
+   - **On Terminal Business / Validation Error (HTTP 400 / 422)**:
+     - Move the failing operation from `capef_offline_actions_queue` into `capef_offline_failed_actions` (error log queue) to prevent infinite retry loops.
+     - Show an explicit error toast to the field agent notifying them of the rejected payload.
 
 ---
 
 ### ACCEPTANCE CRITERIA
-- [ ] Field activity/line-item actions queued while offline persist in `localStorage`.
-- [ ] Upon reconnecting, `syncNow()` sequentially transmits each action to the Express backend API.
-- [ ] Items are removed from `capef_offline_actions_queue` ONLY after a successful HTTP response.
-- [ ] If the server returns an error or connection drops mid-sync, remaining actions are preserved for future retry.
-- [ ] `pnpm --filter capef run build` or `pnpm typecheck` compiles cleanly with no TypeScript errors.
+- [ ] Queued offline actions survive page reloads and browser restarts.
+- [ ] Each queued action contains a unique, immutable `clientOperationId` UUID.
+- [ ] Upon reconnecting, `syncNow()` sequentially transmits queued actions with their `clientOperationId`.
+- [ ] Replaying the same request (same `clientOperationId`) after a simulated network timeout returns HTTP 200 with cached result and creates NO duplicate database rows.
+- [ ] Network failures (HTTP 5xx / timeout) retain operations in `capef_offline_actions_queue` for future retry.
+- [ ] Terminal validation errors (HTTP 400) move operations to an error review queue without causing infinite retries.
+- [ ] Operations are deleted from `capef_offline_actions_queue` ONLY after receiving an explicit HTTP 200/201 response.
+- [ ] `pnpm typecheck` and `pnpm --filter capef run build` compile cleanly.
 
 ---
 
@@ -716,11 +751,12 @@ bash scripts/post-merge.sh --dry-run # or inspect script
 - Create `artifacts/api-server/src/__tests__/auth.test.ts`
 - Create `artifacts/api-server/src/__tests__/members.test.ts`
 - Create `artifacts/api-server/src/__tests__/authorization.test.ts`
+- Create `artifacts/api-server/src/__tests__/offline.test.ts`
 
 ---
 
 ### OBJECTIVE
-Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), transactional member creation, and offline sync replay.
+Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), production offline sync replay & idempotency (Correction 03), and transactional member creation.
 
 ---
 
@@ -741,14 +777,21 @@ Introduce an automated integration test suite using **Vitest** and **Supertest**
    - Test that an unauthenticated GET request to `/api/members/badge/:token` receives HTTP 401 Unauthorized (`authorizeBadgeVerification`).
    - Test that Authenticated Agent A scanning Agent B's member badge receives HTTP 200 with full member verification details.
    - Test that an invalid badge token returns HTTP 404 Not Found.
-5. Create `artifacts/api-server/src/__tests__/members.test.ts`:
+5. Create `artifacts/api-server/src/__tests__/offline.test.ts`:
+   - Test offline action survives local storage persistence.
+   - Test replaying operation with `clientOperationId` succeeds.
+   - Test replaying identical `clientOperationId` a second time returns cached HTTP 200 result without creating duplicate database rows.
+   - Test server 500 error response retains operation in local queue for retry.
+   - Test terminal 400 validation error moves operation to error log without infinite retry loop.
+   - Test local queue is cleared ONLY after confirmed HTTP 200/201 server acknowledgement.
+6. Create `artifacts/api-server/src/__tests__/members.test.ts`:
    - Test member creation returns HTTP 201 with generated `CAPEF-{PREFIX}-{id}` member number.
 
 ---
 
 ### ACCEPTANCE CRITERIA
 - [ ] `pnpm test` executes Vitest and passes 100% of integration test cases.
-- [ ] Core auth, member resource authorization, badge verification, member creation, and offline sync routes are protected by automated tests.
+- [ ] Core auth, member resource authorization, badge verification, offline sync & idempotency, and member creation routes are protected by automated tests.
 - [ ] Test suite runs cleanly in CI environment.
 
 ---
