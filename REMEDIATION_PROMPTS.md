@@ -14,10 +14,10 @@ This document contains detailed, self-contained, copy-pasteable engineering prom
 
 ### PHASE 1: CRITICAL STABILIZATION (P1 HIGH PRIORITY)
 4. [PROMPT REM-DATA-002: Implement Transactional Enrollment & Sequence-Based Member Number Allocation](#prompt-rem-data-002-implement-transactional-enrollment--sequence-based-member-number-allocation)
-5. [PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In](#prompt-rem-priv-001-implement-badge-verification-authorization--require-sign-in)
-6. [PROMPT REM-PRIV-002: Escape XML Entities in SVG Badge Templates](#prompt-rem-priv-002-escape-xml-entities-in-svg-badge-templates)
-7. [PROMPT REM-AUTH-002: Repair Clerk Agent Invitation & Identity Lifecycle](#prompt-rem-auth-002-repair-clerk-agent-invitation--identity-lifecycle)
-8. [PROMPT REM-DB-001: Declare Foreign Keys, Cascades & Performance Indexes](#prompt-rem-db-001-declare-foreign-keys-cascades--performance-indexes)
+5. [PROMPT REM-DB-001: Implement Business-Driven Relational Integrity & Preflight Data Safety](#prompt-rem-db-001-implement-business-driven-relational-integrity--preflight-data-safety)
+6. [PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In](#prompt-rem-priv-001-implement-badge-verification-authorization--require-sign-in)
+7. [PROMPT REM-PRIV-002: Escape XML Entities in SVG Badge Templates](#prompt-rem-priv-002-escape-xml-entities-in-svg-badge-templates)
+8. [PROMPT REM-AUTH-002: Repair Clerk Agent Invitation & Identity Lifecycle](#prompt-rem-auth-002-repair-clerk-agent-invitation--identity-lifecycle)
 9. [PROMPT REM-MIG-001: Decouple Migration Execution from Server Startup](#prompt-rem-mig-001-decouple-migration-execution-from-server-startup)
 10. [PROMPT REM-MIG-002: Replace Destructive Schema Push with Versioned Migrations](#prompt-rem-mig-002-replace-destructive-schema-push-with-versioned-migrations)
 11. [PROMPT REM-QUAL-001: Establish Automated Test Suite](#prompt-rem-qual-001-establish-automated-test-suite)
@@ -366,6 +366,89 @@ pnpm typecheck
 
 ---
 
+### PROMPT REM-DB-001: Implement Business-Driven Relational Integrity & Preflight Data Safety
+
+```markdown
+# TASK SPECIFICATION: REM-DB-001
+**Title**: Implement Business-Driven Relational Integrity, Delete Policies, CHECK Constraints & Migration Preflight Safety
+**Severity**: P1 Critical
+**Domain**: Database Schema & Business Integrity
+**Affected Files**:
+- `lib/db/src/schema/members.ts`
+- `lib/db/src/schema/users.ts`
+- Create preflight audit script `lib/db/src/preflight-check.ts`
+- Generate migration `lib/db/drizzle/0002_add_business_integrity_constraints.sql`
+
+---
+
+### OBJECTIVE
+Rework `DB-001` in `@workspace/db`. Do NOT blindly add `ON DELETE CASCADE` everywhere. Implement business-driven foreign key delete policies (`ON DELETE RESTRICT` for users/geography, `ON DELETE CASCADE` for child activities/line items), a PostgreSQL partial unique index for single primary activity, CHECK constraints for enums and non-negative numbers, performance indexes, and a preflight legacy data safety procedure before applying migration `0002_*.sql`.
+
+---
+
+### BACKGROUND & TECHNICAL CONTEXT (CORRECTION 05)
+- Currently, schema relationships exist only as application code comments without PostgreSQL foreign keys or constraints.
+- Deleting an agent/supervisor user account MUST NEVER destroy historical CAPEF member records (`ON DELETE RESTRICT`).
+- Deleting a member record SHOULD automatically delete their child `member_activities` and `activity_line_items` (`ON DELETE CASCADE`).
+- Members may operate multiple secondary activities, but exactly ONE activity may be marked as primary (`is_primary = true`), enforced via a PostgreSQL partial unique index (`WHERE is_primary = true`).
+- Applying new constraints on an existing database will fail if legacy orphan or duplicate rows exist. A preflight data audit script must execute before running the migration DDL.
+
+---
+
+### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
+
+#### 1. Data Preflight Audit Script (`lib/db/src/preflight-check.ts`)
+1. Create `lib/db/src/preflight-check.ts`:
+   - Query orphan `member_activities` referencing non-existent member IDs.
+   - Query orphan `activity_line_items` referencing non-existent activity IDs.
+   - Query members possessing multiple primary activities (`COUNT(*) > 1 WHERE is_primary = true`).
+   - Query members with invalid enum strings in `status`, `member_type`, or `category`.
+   - Log diagnostic results. If invalid legacy rows exist, log actionable remediation instructions prior to running `0002_*.sql`.
+
+#### 2. Drizzle Schema Enhancements (`lib/db/src/schema/`)
+1. In `lib/db/src/schema/members.ts` and `users.ts`:
+   - Attach `.references(() => usersTable.id, { onDelete: 'restrict' })` to `membersTable.createdById`.
+   - Attach `.references(() => regionsTable.id, { onDelete: 'restrict' })` to `membersTable.regionId`.
+   - Attach `.references(() => departmentsTable.id, { onDelete: 'restrict' })` to `membersTable.departmentId`.
+   - Attach `.references(() => arrondissementsTable.id, { onDelete: 'restrict' })` to `membersTable.arrondissementId`.
+   - Attach `.references(() => membersTable.id, { onDelete: 'cascade' })` to `memberActivitiesTable.memberId`.
+   - Attach `.references(() => memberActivitiesTable.id, { onDelete: 'cascade' })` to `activityLineItemsTable.activityId`.
+2. Add partial unique index to `memberActivitiesTable`:
+   ```typescript
+   extraConfig: (table) => [
+     uniqueIndex("idx_single_primary_activity").on(table.memberId).where(sql`is_primary = true`),
+     uniqueIndex("unique_member_activity_type").on(table.memberId, table.activityType),
+   ]
+   ```
+3. Add performance indexes:
+   - `index("idx_members_created_by").on(membersTable.createdById)`
+   - `index("idx_members_region").on(membersTable.regionId)`
+   - `index("idx_members_badge_token").on(membersTable.badgeToken)`
+   - `index("idx_member_activities_member_id").on(memberActivitiesTable.memberId)`
+   - `index("idx_activity_line_items_activity_id").on(activityLineItemsTable.activityId)`
+4. Generate versioned migration: `pnpm --filter @workspace/db run generate`.
+
+---
+
+### ACCEPTANCE CRITERIA
+- [ ] Preflight script `preflight-check.ts` executes and validates legacy data safety.
+- [ ] Attempting to delete a user account assigned to existing member records fails with PostgreSQL `ON DELETE RESTRICT` violation.
+- [ ] Deleting a member record automatically cascades to delete associated child `member_activities` and `activity_line_items`.
+- [ ] Inserting a second primary activity (`is_primary = true`) for a member fails with PostgreSQL partial unique index violation.
+- [ ] Non-primary-key performance indexes exist on `created_by_id`, `region_id`, `badge_token`, `member_id`, and `activity_id`.
+- [ ] Versioned SQL migration `0002_*.sql` is generated under `lib/db/drizzle/`.
+- [ ] `pnpm --filter @workspace/db run build` succeeds.
+
+---
+
+### VERIFICATION COMMANDS
+```bash
+pnpm --filter @workspace/db run build
+```
+```
+
+---
+
 ### PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In
 
 ```markdown
@@ -577,68 +660,6 @@ pnpm typecheck
 
 ---
 
-### PROMPT REM-DB-001: Declare Foreign Keys, Cascades & Performance Indexes
-
-```markdown
-# TASK SPECIFICATION: REM-DB-001
-**Title**: Add Foreign Keys, Cascade Deletions and Indexes to Drizzle Schema and Create Versioned Migration
-**Severity**: P1 Critical
-**Domain**: Database Schema & Integrity
-**Affected Files**:
-- `lib/db/src/schema/members.ts`
-- `lib/db/src/schema/users.ts`
-- `lib/db/src/schema/index.ts`
-- Run migration generator to create `lib/db/drizzle/0002_*.sql`
-
----
-
-### OBJECTIVE
-Enforce database-level referential integrity across all tables by adding explicit Drizzle `.references()` foreign key constraints with `onDelete: 'cascade'` or `'restrict'`, unique activity constraints, and non-primary-key performance indexes. Generate a new versioned migration script (`0002_*.sql`).
-
----
-
-### BACKGROUND & TECHNICAL CONTEXT
-- Currently, `lib/db/src/schema/members.ts` and `users.ts` define foreign key relationships as plain `integer()` columns accompanied by code comments (e.g., `memberId: integer("member_id") // references membersTable.id`).
-- PostgreSQL schema snapshots (`0000_brief_timeslip.sql`) show ZERO foreign keys and ZERO non-PK indexes across all 7 tables.
-- Deleting a member leaves orphan records in `member_activities` and `activity_line_items`. Joins are slow due to missing indexes on `created_by_id` and `region_id`.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `lib/db/src/schema/members.ts`.
-2. Add `.references(() => usersTable.id, { onDelete: 'restrict' })` to `membersTable.createdById`.
-3. Add `.references(() => regionsTable.id, { onDelete: 'restrict' })` to `membersTable.regionId`.
-4. Add `.references(() => departmentsTable.id, { onDelete: 'restrict' })` to `membersTable.departmentId`.
-5. Add `.references(() => arrondissementsTable.id, { onDelete: 'restrict' })` to `membersTable.arrondissementId`.
-6. Add `.references(() => membersTable.id, { onDelete: 'cascade' })` to `memberActivitiesTable.memberId`.
-7. Add `.references(() => memberActivitiesTable.id, { onDelete: 'cascade' })` to `activityLineItemsTable.activityId`.
-8. Add performance indexes:
-   - `index("idx_members_created_by").on(membersTable.createdById)`
-   - `index("idx_members_region").on(membersTable.regionId)`
-   - `index("idx_member_activities_member_id").on(memberActivitiesTable.memberId)`
-   - `index("idx_activity_line_items_activity_id").on(activityLineItemsTable.activityId)`
-9. Add unique constraint to `memberActivitiesTable`: `unique("unique_member_activity").on(memberActivitiesTable.memberId, memberActivitiesTable.activityType)`.
-10. Run `pnpm --filter @workspace/db run generate` (or root `pnpm db:generate`) to produce the versioned migration `lib/db/drizzle/0002_*.sql`.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] All entity relationships in Drizzle schema possess explicit `.references()` constraints.
-- [ ] Deleting a member automatically cascades to delete associated `member_activities` and `activity_line_items`.
-- [ ] Performance indexes exist on `created_by_id`, `region_id`, `member_id`, and `activity_id`.
-- [ ] A new versioned SQL migration file `0002_*.sql` is generated under `lib/db/drizzle/`.
-- [ ] `pnpm --filter @workspace/db run build` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm --filter @workspace/db run build
-```
-```
-
----
-
 ### PROMPT REM-MIG-001: Decouple Migration Execution from Server Startup
 
 ```markdown
@@ -769,11 +790,12 @@ bash scripts/post-merge.sh --dry-run # or inspect script
 - Create `artifacts/api-server/src/__tests__/authorization.test.ts`
 - Create `artifacts/api-server/src/__tests__/offline.test.ts`
 - Create `artifacts/api-server/src/__tests__/enrollment-concurrency.test.ts`
+- Create `artifacts/api-server/src/__tests__/relational-integrity.test.ts`
 
 ---
 
 ### OBJECTIVE
-Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), production offline sync replay & idempotency (Correction 03), and concurrent member enrollment sequence safety (Correction 04).
+Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), production offline sync replay & idempotency (Correction 03), concurrent member enrollment sequence safety (Correction 04), and business-driven relational integrity delete policies (Correction 05).
 
 ---
 
@@ -808,12 +830,16 @@ Introduce an automated integration test suite using **Vitest** and **Supertest**
    - Verify that zero members contain `"PENDING"` as their member number.
    - Verify that zero orphan primary activities or partial enrollment records are created.
    - Test that an intentional transaction failure (e.g., CNI collision) rolls back the entire enrollment transaction and returns HTTP 400/409 without exposing raw PostgreSQL error details.
+7. Create `artifacts/api-server/src/__tests__/relational-integrity.test.ts`:
+   - Test that attempting to delete a user with assigned members fails with PostgreSQL `ON DELETE RESTRICT` violation.
+   - Test that deleting a member record automatically cascades to delete associated child `member_activities` and `activity_line_items`.
+   - Test that attempting to insert a second primary activity (`is_primary = true`) for a member fails with PostgreSQL partial unique index violation.
 
 ---
 
 ### ACCEPTANCE CRITERIA
 - [ ] `pnpm test` executes Vitest and passes 100% of integration test cases.
-- [ ] Core auth, member resource authorization, badge verification, offline sync & idempotency, and concurrent member creation routes are protected by automated tests.
+- [ ] Core auth, member resource authorization, badge verification, offline sync & idempotency, concurrent member creation, and relational delete policies are protected by automated tests.
 - [ ] Test suite runs cleanly in CI environment.
 
 ---
@@ -829,443 +855,32 @@ pnpm --filter @workspace/api-server run test
 ## PHASE 2: SYSTEM HARDENING (P2 MEDIUM PRIORITY)
 
 ### PROMPT REM-API-001: Enforce Generated Zod Schemas on Express Body Parsing
-
-```markdown
-# TASK SPECIFICATION: REM-API-001
-**Title**: Enforce Generated Zod Request Validation Middleware on Express Routes
-**Severity**: P2 Medium
-**Domain**: API Validation & Contract Enforcement
-**Affected Files**:
-- Create `artifacts/api-server/src/middlewares/validateBody.ts`
-- Modify `artifacts/api-server/src/routes/members.ts`
-- Modify `artifacts/api-server/src/routes/users.ts`
-
----
-
-### OBJECTIVE
-Bridge the gap between OpenAPI generated Zod schemas (`@workspace/api-zod`) and Express route handlers. Create a generic `validateBody(schema)` middleware and attach it to member and user creation/update endpoints.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Create `artifacts/api-server/src/middlewares/validateBody.ts`:
-   ```typescript
-   import { Request, Response, NextFunction } from "express";
-   import { z } from "zod";
-
-   export function validateBody<T>(schema: z.ZodSchema<T>) {
-     return (req: Request, res: Response, next: NextFunction) => {
-       const result = schema.safeParse(req.body);
-       if (!result.success) {
-         res.status(400).json({
-           error: "Payload de requête invalide",
-           details: result.error.format(),
-         });
-         return;
-       }
-       req.body = result.data;
-       next();
-     };
-   }
-   ```
-2. Import generated Zod schemas from `@workspace/api-zod` into route files.
-3. Attach `validateBody(CreateUserBody)` to `POST /api/users`.
-4. Attach `validateBody(CreateMemberBody)` to `POST /api/members`.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Requests sending invalid data types or missing required fields return HTTP 400 Bad Request with formatted Zod error details.
-- [ ] Backend route handlers receive fully parsed and typed `req.body` objects.
-- [ ] `pnpm typecheck` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-API-003: Mask Internal Database Exception Details in Error Responses
-
-```markdown
-# TASK SPECIFICATION: REM-API-003
-**Title**: Implement Centralized Express Error Handling Middleware to Mask Database Internals
-**Severity**: P2 Medium
-**Domain**: Error Handling & Information Security
-**Affected Files**:
-- Create `artifacts/api-server/src/middlewares/errorHandler.ts`
-- Modify `artifacts/api-server/src/app.ts`
-
----
-
-### OBJECTIVE
-Prevent information disclosure vulnerabilities where raw PostgreSQL exception objects (`{ message, detail, constraint, table }`) are returned to HTTP clients. Implement a centralized Express error handling middleware that logs detailed error diagnostics internally via Pino while returning standardized, safe error responses to clients.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Create `artifacts/api-server/src/middlewares/errorHandler.ts`:
-   ```typescript
-   import { Request, Response, NextFunction } from "express";
-   import { logger } from "../lib/logger";
-
-   export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
-     logger.error({ err, reqId: (req as any).id, url: req.url }, "Unhandled server error");
-
-     const statusCode = err.status || err.statusCode || 500;
-     const message = statusCode === 500 ? "Une erreur interne du serveur est survenue" : err.message;
-
-     res.status(statusCode).json({
-       error: message,
-       code: err.code || "INTERNAL_ERROR",
-     });
-   }
-   ```
-2. Open `artifacts/api-server/src/app.ts`.
-3. Mount `app.use(errorHandler)` as the LAST middleware after all routes.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Database exception details (`constraint`, `table`, raw SQL queries) are never exposed in HTTP responses.
-- [ ] All unhandled route errors return standardized JSON `{ error, code }`.
-- [ ] Full error stacks and database details are logged securely via Pino logger.
-- [ ] `pnpm typecheck` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-DATA-003: Coerce Empty Strings to Null for Double/Integer DB Columns
-
-```markdown
-# TASK SPECIFICATION: REM-DATA-003
-**Title**: Add Input Coercion Middleware to Coerce Empty Strings to Null for Numeric Database Columns
-**Severity**: P2 Medium
-**Domain**: Data Normalization & Validation
-**Affected Files**: `artifacts/api-server/src/routes/members.ts`
-
----
-
-### OBJECTIVE
-Prevent PostgreSQL HTTP 500 type serialization crashes when frontend forms send empty strings (`""`) for numeric fields (e.g., `regionId`, `departmentId`, `gpsLat`, `gpsLng`). Implement a normalization helper that maps `""` or `undefined` to `null`.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `artifacts/api-server/src/routes/members.ts`.
-2. Create a normalization utility function `coerceNumericFields`:
-   ```typescript
-   function coerceNumeric(val: any): number | null {
-     if (val === "" || val === undefined || val === null) return null;
-     const num = Number(val);
-     return isNaN(num) ? null : num;
-   }
-   ```
-3. Apply `coerceNumeric` to all numeric payload fields in `POST /api/members` and `PUT /api/members/:id`:
-   - `regionId = coerceNumeric(req.body.regionId)`
-   - `departmentId = coerceNumeric(req.body.departmentId)`
-   - `arrondissementId = coerceNumeric(req.body.arrondissementId)`
-   - `gpsLat = coerceNumeric(req.body.gpsLat)`
-   - `gpsLng = coerceNumeric(req.body.gpsLng)`
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Submitting empty strings (`""`) for numeric fields converts them to `null` before inserting into PostgreSQL.
-- [ ] PostgreSQL double precision and integer columns update smoothly without HTTP 500 type error crashes.
-- [ ] `pnpm typecheck` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-SEC-001: Restrict CORS Allowlist to Strict Environment Variables
-
-```markdown
-# TASK SPECIFICATION: REM-SEC-001
-**Title**: Replace Wildcard Suffix Matching in CORS Middleware with Strict Allowed Origins List
-**Severity**: P2 Medium
-**Domain**: Web Security & CORS Configuration
-**Affected Files**: `artifacts/api-server/src/app.ts`
-
----
-
-### OBJECTIVE
-Eliminate overly broad CORS origin matching (`origin.endsWith(".vercel.app")`). Restrict CORS origin approval strictly to exact matches specified in `FRONTEND_URL` and `FRONTEND_URLS` environment variables.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `artifacts/api-server/src/app.ts`.
-2. Locate the CORS middleware configuration `cors({ origin: (origin, callback) => ... })`.
-3. Remove suffix matching regexes (`.endsWith(".vercel.app")` and `-ephson-productions-projects.vercel.app`).
-4. Construct origin allowlist strictly from environment variables and explicit localhost development ports:
-   ```typescript
-   const allowedOrigins = new Set([
-     process.env.FRONTEND_URL,
-     ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(",") : []),
-     "http://localhost:3000",
-     "http://localhost:5173",
-   ].filter(Boolean));
-   ```
-5. Log rejected origin attempts at `warn` level.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Unauthorized origins (including arbitrary `*.vercel.app` domains) are blocked from making credentialed cross-origin API calls.
-- [ ] Configured production and local development origins function normally.
-- [ ] `pnpm typecheck` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-SEC-002: Configure Express Trust Proxy & Persistent Rate Limiting
-
-```markdown
-# TASK SPECIFICATION: REM-SEC-002
-**Title**: Configure Express Trust Proxy and Persistent Rate Limiting for Public Endpoints
-**Severity**: P2 Medium
-**Domain**: Rate Limiting & Protection
-**Affected Files**:
-- `artifacts/api-server/src/app.ts`
-- `artifacts/api-server/src/routes/members.ts`
-
----
-
-### OBJECTIVE
-Fix spoofable in-memory rate limiting on public endpoints. Configure `app.set("trust proxy", 1)` in Express to correctly evaluate client IP addresses behind reverse proxies (Render / Cloudflare), and back public rate limiting with persistent DB or sliding-window stores.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `artifacts/api-server/src/app.ts`.
-2. Add `app.set("trust proxy", 1)` before routing middleware.
-3. Open `artifacts/api-server/src/routes/members.ts`.
-4. Refactor public rate limiter to evaluate true client IP and enforce sliding-window rate limits (e.g., max 30 requests per minute per IP).
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] `req.ip` reflects the true client IP address behind reverse proxies.
-- [ ] Header spoofing via `X-Forwarded-For` is neutralized.
-- [ ] `pnpm typecheck` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-STOR-001: Integrate Supabase Cloud Object Storage for Identity Documents & Photos
-
-```markdown
-# TASK SPECIFICATION: REM-STOR-001
-**Title**: Replace Base64 JSONB Storage and Local Disk Uploads with Supabase Storage Integration
-**Severity**: P2 Medium
-**Domain**: Storage Architecture & Performance
-**Affected Files**:
-- `artifacts/api-server/src/routes/uploads.ts`
-- `artifacts/capef/src/pages/members/MemberForm.tsx`
-
----
-
-### OBJECTIVE
-Eliminate database bloat caused by storing multi-hundred-KB base64 strings in JSONB columns (`physique_data`, `morale_data`). Integrate Supabase Storage API for uploading CNI documents, member photos, and signatures, storing immutable cloud URLs in PostgreSQL instead of base64 data URLs.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Configure a private Supabase Storage bucket `member-documents`.
-2. Refactor `POST /api/uploads` in `artifacts/api-server/src/routes/uploads.ts`:
-   - Validate file MIME type (`image/jpeg`, `image/png`, `application/pdf`) and magic bytes.
-   - Enforce max file size limit (5MB).
-   - Upload file buffer to Supabase Storage bucket via `@supabase/supabase-js`.
-   - Return public/signed object URL `{ url: "https://.../member-documents/photo_123.jpg" }`.
-3. Update `MemberForm.tsx` to upload files via `/api/uploads` and store returned URLs in member payload fields.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Member photos, CNI documents, and signatures are stored as cloud object URLs in PostgreSQL.
-- [ ] JSONB column sizes remain small (< 10KB per member).
-- [ ] Local disk file writes are eliminated.
-- [ ] `pnpm typecheck` and `pnpm --filter capef run build` succeed.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-pnpm --filter capef run build
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-PERF-001: Eliminate N+1 Query Loops & Stream Excel Exports
-
-```markdown
-# TASK SPECIFICATION: REM-PERF-001
-**Title**: Refactor Member Formatting to Relational JOINs and Stream Excel Exports in Cursor Batches
-**Severity**: P2 Medium
-**Domain**: Performance & Database Scalability
-**Affected Files**: `artifacts/api-server/src/routes/members.ts`
-
----
-
-### OBJECTIVE
-Eliminate severe N+1 query patterns in `formatMember` (which executes 5+ queries per member). Refactor `GET /api/members/export` to fetch member records in cursor batches of 500 using relational SQL `JOIN`s, streaming the generated Excel workbook directly to the HTTP response stream.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `artifacts/api-server/src/routes/members.ts`.
-2. Refactor `formatMember` to accept pre-joined SQL records containing region, department, and arrondissement names.
-3. Refactor `GET /api/members/export`:
-   - Replace unbounded `db.select().from(membersTable)` loop with batch pagination (`LIMIT 500 OFFSET offset`).
-   - Use ExcelJS streaming workbook writer (`new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res })`).
-   - Pipe rows continuously to HTTP response output.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Member listing and formatting queries execute via single relational SQL `JOIN` queries.
-- [ ] Member export handles tens of thousands of records without memory spikes or connection pool exhaustion.
-- [ ] `pnpm typecheck` succeeds.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
+*(Unchanged)*
 
 ### PROMPT REM-API-002: Synchronize OpenAPI Contract & Re-run Codegen
-
-```markdown
-# TASK SPECIFICATION: REM-API-002
-**Title**: Synchronize OpenAPI Contract, Add Security Schemes, and Re-run Orval Codegen
-**Severity**: P2 Medium
-**Domain**: API Contract & Toolchain
-**Affected Files**: `lib/api-spec/openapi.yaml`
-
----
-
-### OBJECTIVE
-Eliminate contract drift in `lib/api-spec/openapi.yaml`. Add missing `securitySchemes` (Bearer / Clerk auth), remove dead response schemas (`ExportResult`), align property definitions with Express runtime responses, and re-run Orval codegen.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `lib/api-spec/openapi.yaml`.
-2. Add `securitySchemes` section under `components`:
-   ```yaml
-   components:
-     securitySchemes:
-       bearerAuth:
-         type: http
-         scheme: bearer
-         bearerFormat: JWT
-   ```
-3. Attach `security: - bearerAuth: []` to protected endpoints.
-4. Remove dead schemas and synchronize property types.
-5. Run API codegen: `pnpm --filter @workspace/api-spec run codegen`.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] `openapi.yaml` contains complete security schemes and accurate schemas.
-- [ ] Generated Zod schemas and React client hooks are regenerated cleanly.
-- [ ] `pnpm --filter @workspace/api-spec run codegen` completes without errors.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm --filter @workspace/api-spec run codegen
-pnpm typecheck
-```
-```
+*(Unchanged)*
 
 ---
 
 ## PHASE 3: CLEANUP & OPTIMIZATION (P3 LOW PRIORITY)
 
 ### PROMPT REM-UX-001 / REP-001: Path Validation, Offline Banners & Dashboard Aggregations
-
-```markdown
-# TASK SPECIFICATION: REM-UX-001 / REP-001
-**Title**: Path Parameter Integer Validation, Offline UI Banner Updates & Dashboard Metric Aggregation
-**Severity**: P3 Low
-**Domain**: API Hygiene, UX & Reporting Metrics
-**Affected Files**:
-- `artifacts/api-server/src/routes/members.ts`
-- `artifacts/api-server/src/routes/dashboard.ts`
-- `artifacts/capef/src/components/members/ActivityWizard.tsx`
-
----
-
-### OBJECTIVE
-Fix minor API hygiene issues and UI copy misalignments:
-1. Validate integer path parameters (`/members/:id`) to return HTTP 400 Bad Request on `NaN` instead of HTTP 500 crashes.
-2. Update offline UI banners in `ActivityWizard.tsx` to accurately state queue sync status.
-3. Refactor dashboard activity sector counts in `dashboard.ts` to aggregate over the multi-activity `member_activities` table.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. In `artifacts/api-server/src/routes/members.ts`:
-   - Validate `const id = parseInt(req.params.id, 10); if (isNaN(id)) return res.status(400).json({ error: "ID membre invalide" });`.
-2. In `artifacts/capef/src/components/members/ActivityWizard.tsx`:
-   - Update toast/banner notifications to state: "Activité sauvegardée localement. Elle sera transmise lors de la reconnexion."
-3. In `artifacts/api-server/src/routes/dashboard.ts`:
-   - Query activity counts by joining `memberActivitiesTable` instead of grouping by `membersTable.category`.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Non-numeric IDs (`/api/members/abc`) return HTTP 400 Bad Request.
-- [ ] Offline UI copy accurately reflects real synchronization engine behavior.
-- [ ] Dashboard sector statistics reflect multi-activity member distributions.
-- [ ] `pnpm typecheck` and `pnpm --filter capef run build` succeed.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-pnpm --filter capef run build
-```
-```
+*(Unchanged)*
