@@ -54,9 +54,10 @@ router.post("/auth/provision", requireAuth, async (req, res): Promise<void> => {
       return;
     }
 
-    // Create new user — first user becomes admin, rest become agents
-    const [count] = await db.select().from(usersTable);
-    const isFirstUser = !count;
+    // Create new user — assign admin role ONLY if matching INITIAL_ADMIN_EMAIL env var
+    const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
+    const userEmail = email.trim().toLowerCase();
+    const assignedRole = initialAdminEmail && userEmail === initialAdminEmail ? "admin" : "agent";
 
     const [newUser] = await db
       .insert(usersTable)
@@ -64,9 +65,11 @@ router.post("/auth/provision", requireAuth, async (req, res): Promise<void> => {
         clerkUserId,
         email,
         name,
-        role: isFirstUser ? "admin" : "agent",
+        role: assignedRole,
       })
       .returning();
+
+    logger.info({ email: newUser.email, role: newUser.role }, "Provisioned new user account");
 
     res.json(await formatUser(newUser));
   } catch (error: any) {
