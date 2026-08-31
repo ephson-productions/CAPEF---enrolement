@@ -38,6 +38,20 @@ async function getProcessedOperation(clientOperationId?: string) {
   return existing || null;
 }
 
+function escapeXml(str: string | null | undefined): string {
+  if (!str) return "";
+  return String(str).replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case "&": return "&amp;";
+      case "'": return "&apos;";
+      case '"': return "&quot;";
+      default: return c;
+    }
+  });
+}
+
 function generateMemberNumber(category: string, seqVal: number | string): string {
   const prefix: Record<string, string> = {
     agriculteur: "AGR",
@@ -1343,36 +1357,36 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
 
       <!-- Category Pill Badge -->
       <rect x="50" y="525" width="220" height="42" rx="10" fill="${theme.bg}" stroke="${theme.primary}" stroke-width="1.5" />
-      <text x="160" y="551" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${theme.label}</text>
+      <text x="160" y="551" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${escapeXml(theme.label)}</text>
 
       <!-- User Information list on the right -->
       <!-- Name -->
       <text x="310" y="270" class="label">Nom complet / Full Name</text>
-      <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${name.toUpperCase()}</text>
+      <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${escapeXml(name.toUpperCase())}</text>
 
       <!-- Téléphone / Contacts -->
       <text x="310" y="325" class="label">Téléphone / Contacts</text>
-      <text x="310" y="350" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36">${phone}</text>
+      <text x="310" y="350" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36">${escapeXml(phone)}</text>
 
       <!-- Member number inside a styled banner row -->
       <rect x="310" y="365" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
       <text x="325" y="395" class="label" font-size="12">N° MEMBRE / ID:</text>
-      <text x="460" y="397" class="num-member">${member.memberNumber}</text>
+      <text x="460" y="397" class="num-member">${escapeXml(member.memberNumber)}</text>
 
       <!-- Rest of profile fields -->
       <!-- Location info columns -->
       <g transform="translate(310, 420)">
         <text x="0" y="15" class="label">Région / Region</text>
-        <text x="0" y="40" class="value">${region?.name ?? "-"}</text>
+        <text x="0" y="40" class="value">${escapeXml(region?.name ?? "-")}</text>
 
         <text x="230" y="15" class="label">Département / Division</text>
-        <text x="230" y="40" class="value">${dept?.name ?? "-"}</text>
+        <text x="230" y="40" class="value">${escapeXml(dept?.name ?? "-")}</text>
       </g>
 
       <!-- Arrondissement on its own separate line underneath Region & Department to prevent overlap -->
       <g transform="translate(310, 475)">
         <text x="0" y="15" class="label">Arrondissement / Subdivision</text>
-        <text x="0" y="40" class="value">${arr?.name ?? "-"}</text>
+        <text x="0" y="40" class="value">${escapeXml(arr?.name ?? "-")}</text>
       </g>
 
       <!-- Dates banner footer — No expiration date -->

@@ -54,13 +54,24 @@ router.post("/users", requireAppUser, requireRole("admin"), async (req, res): Pr
     return;
   }
 
-  // The current invitation UI creates a local pending record until Clerk invitation
-  // wiring is available. It is intentionally not used for existing Clerk accounts.
   const zones = normalizeZones(assignedZones);
+
+  let invitationId: string | null = null;
+  try {
+    const invitation = await clerkClient.invitations.createInvitation({
+      emailAddress: email,
+      redirectUrl: `${process.env.FRONTEND_URL || ''}/sign-up`,
+      publicMetadata: { role, regionId: regionId ?? zones[0]?.regionId ?? null, assignedZones: zones },
+    });
+    invitationId = invitation.id;
+  } catch (err: any) {
+    console.error("Failed to create Clerk invitation:", err);
+  }
+
   const [user] = await db
     .insert(usersTable)
     .values({
-      clerkUserId: `pending_${Date.now()}`,
+      clerkUserId: invitationId || `pending_${Date.now()}`,
       email,
       name,
       role,

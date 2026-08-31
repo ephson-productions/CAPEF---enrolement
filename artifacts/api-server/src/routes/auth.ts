@@ -37,17 +37,27 @@ router.post("/auth/provision", requireAuth, async (req, res): Promise<void> => {
       return;
     }
 
-    // Check if already exists
-    const [existing] = await db
+    // Check if already exists by clerkUserId first
+    let [existing] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.clerkUserId, clerkUserId))
       .limit(1);
 
+    if (!existing) {
+      // If not found by clerkUserId, search by email to match pre-invited accounts
+      [existing] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.email, email))
+        .limit(1);
+    }
+
     if (existing) {
+      // Update record with actual clerkUserId while preserving role, regionId, and assignedZones
       const [updated] = await db
         .update(usersTable)
-        .set({ email })
+        .set({ clerkUserId, email })
         .where(eq(usersTable.id, existing.id))
         .returning();
       res.json(await formatUser(updated ?? existing));
