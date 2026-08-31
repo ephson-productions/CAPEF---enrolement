@@ -1,6 +1,7 @@
-import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const membersTable = pgTable("members", {
   id: serial("id").primaryKey(),
@@ -99,3 +100,16 @@ export const insertActivityLineItemSchema = createInsertSchema(activityLineItems
 });
 export type InsertActivityLineItem = z.infer<typeof insertActivityLineItemSchema>;
 export type ActivityLineItem = typeof activityLineItemsTable.$inferSelect;
+
+export const processedOperationsTable = pgTable("processed_operations", {
+  clientOperationId: uuid("client_operation_id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id),
+  operationType: text("operation_type").notNull(),
+  resourceId: integer("resource_id"),
+  resultPayload: jsonb("result_payload"),
+  processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const insertProcessedOperationSchema = createInsertSchema(processedOperationsTable);
+export type InsertProcessedOperation = z.infer<typeof insertProcessedOperationSchema>;
+export type ProcessedOperation = typeof processedOperationsTable.$inferSelect;

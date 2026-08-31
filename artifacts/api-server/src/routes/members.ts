@@ -8,7 +8,8 @@ import {
   arrondissementsTable,
   usersTable,
   memberActivitiesTable,
-  activityLineItemsTable
+  activityLineItemsTable,
+  processedOperationsTable
 } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
 import { representedByWomanCondition } from "../lib/memberFilters";
@@ -18,6 +19,24 @@ import fs from "fs";
 import path from "path";
 
 const router: IRouter = Router();
+
+function getClientOperationId(req: any): string | undefined {
+  const headerId = req.headers["x-client-operation-id"];
+  const bodyId = req.body?.clientOperationId;
+  const rawId = headerId || bodyId;
+  if (!rawId) return undefined;
+  return Array.isArray(rawId) ? rawId[0] : String(rawId);
+}
+
+async function getProcessedOperation(clientOperationId?: string) {
+  if (!clientOperationId) return null;
+  const [existing] = await db
+    .select()
+    .from(processedOperationsTable)
+    .where(eq(processedOperationsTable.clientOperationId, clientOperationId))
+    .limit(1);
+  return existing || null;
+}
 
 function generateMemberNumber(category: string, id: number): string {
   const prefix: Record<string, string> = {
@@ -238,55 +257,81 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 router.post("/members", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
   const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData } = req.body;
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload);
+      return;
+    }
+  }
 
   if (!memberType || !category) {
     res.status(400).json({ error: "memberType et category sont requis" });
     return;
   }
 
-  // Insert with placeholder number; update after getting ID
-  const [member] = await db
-    .insert(membersTable)
-    .values({
-      memberNumber: "PENDING",
-      memberType,
-      category,
-      individualOrOrg: individualOrOrg ?? "individuel",
-      regionId: regionId ?? null,
-      departmentId: departmentId ?? null,
-      arrondissementId: arrondissementId ?? null,
-      village: village ?? null,
-      gpsLat: gpsLat ?? null,
-      gpsLng: gpsLng ?? null,
-      createdById: appUser.id,
-      physiqueData: physiqueData ?? null,
-      moraleData: moraleData ?? null,
-      categoryData: categoryData ?? null,
-      status: "incomplet",
-    })
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    // Insert with placeholder number; update after getting ID
+    const [member] = await tx
+      .insert(membersTable)
+      .values({
+        memberNumber: "PENDING",
+        memberType,
+        category,
+        individualOrOrg: individualOrOrg ?? "individuel",
+        regionId: regionId ?? null,
+        departmentId: departmentId ?? null,
+        arrondissementId: arrondissementId ?? null,
+        village: village ?? null,
+        gpsLat: gpsLat ?? null,
+        gpsLng: gpsLng ?? null,
+        createdById: appUser.id,
+        physiqueData: physiqueData ?? null,
+        moraleData: moraleData ?? null,
+        categoryData: categoryData ?? null,
+        status: "incomplet",
+      })
+      .returning();
 
-  // Update with real member number
-  const memberNumber = generateMemberNumber(category, member.id);
-  const [updated] = await db
-    .update(membersTable)
-    .set({ memberNumber })
-    .where(eq(membersTable.id, member.id))
-    .returning();
+    // Update with real member number
+    const memberNumber = generateMemberNumber(category, member.id);
+    const [updated] = await tx
+      .update(membersTable)
+      .set({ memberNumber })
+      .where(eq(membersTable.id, member.id))
+      .returning();
 
-  // Seed the first activity as primary based on category
-  await db.insert(memberActivitiesTable).values({
-    memberId: updated.id,
-    activityType: category,
-    isPrimary: true,
-    regionId: updated.regionId,
-    departmentId: updated.departmentId,
-    arrondissementId: updated.arrondissementId,
-    village: updated.village,
-    maillons: [],
+    // Seed the first activity as primary based on category
+    await tx.insert(memberActivitiesTable).values({
+      memberId: updated.id,
+      activityType: category,
+      isPrimary: true,
+      regionId: updated.regionId,
+      departmentId: updated.departmentId,
+      arrondissementId: updated.arrondissementId,
+      village: updated.village,
+      maillons: [],
+    });
+
+    const formatted = await formatMember(updated, true);
+
+    if (clientOperationId) {
+      await tx.insert(processedOperationsTable).values({
+        clientOperationId,
+        userId: appUser.id,
+        operationType: "create_member",
+        resourceId: updated.id,
+        resultPayload: formatted,
+      });
+    }
+
+    return formatted;
   });
 
-  res.status(201).json(await formatMember(updated, true));
+  res.status(201).json(result);
 });
 
 // GET /api/members/export
@@ -547,39 +592,78 @@ router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<
 router.post("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(raw, 10);
+  const appUser = (req as any).appUser;
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload);
+      return;
+    }
+  }
 
   if (!activityType) {
     res.status(400).json({ error: "activityType est requis" });
     return;
   }
 
-  // If setting this activity as primary, clear other activities' primary flags for this member
-  if (isPrimary) {
-    await db
-      .update(memberActivitiesTable)
-      .set({ isPrimary: false })
-      .where(eq(memberActivitiesTable.memberId, memberId));
-  }
-
   try {
-    const [activity] = await db
-      .insert(memberActivitiesTable)
-      .values({
-        memberId,
-        activityType,
-        isPrimary: isPrimary ?? false,
-        regionId: regionId ?? null,
-        departmentId: departmentId ?? null,
-        arrondissementId: arrondissementId ?? null,
-        village: village ?? null,
-        maillons: maillons ?? [],
-      })
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      // If setting this activity as primary, clear other activities' primary flags for this member
+      if (isPrimary) {
+        await tx
+          .update(memberActivitiesTable)
+          .set({ isPrimary: false })
+          .where(eq(memberActivitiesTable.memberId, memberId));
+      }
+
+      const [activity] = await tx
+        .insert(memberActivitiesTable)
+        .values({
+          memberId,
+          activityType,
+          isPrimary: isPrimary ?? false,
+          regionId: regionId ?? null,
+          departmentId: departmentId ?? null,
+          arrondissementId: arrondissementId ?? null,
+          village: village ?? null,
+          maillons: maillons ?? [],
+        })
+        .returning();
+
+      const formatted = {
+        id: activity.id,
+        memberId: activity.memberId,
+        activityType: activity.activityType,
+        isPrimary: activity.isPrimary,
+        regionId: activity.regionId ?? null,
+        departmentId: activity.departmentId ?? null,
+        arrondissementId: activity.arrondissementId ?? null,
+        village: activity.village ?? null,
+        maillons: (activity.maillons as string[]) ?? [],
+        createdAt: activity.createdAt.toISOString(),
+        lineItems: [],
+      };
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "create_activity",
+          resourceId: activity.id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
+    });
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.status(201).json(await formatMemberActivity(activity));
+    res.status(201).json(result);
   } catch (error: any) {
     console.error("🚨 POSTGRES EXECUTION ERROR (POST activity):", {
       code: error.code,
@@ -737,6 +821,17 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload);
+      return;
+    }
+  }
 
   const [activity] = await db
     .select()
@@ -752,20 +847,36 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   const normalized = normalizeLineItemPayload(req.body);
 
   try {
-    const [item] = await db
-      .insert(activityLineItemsTable)
-      .values({
-        activityId,
-        ...normalized
-      })
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      const [item] = await tx
+        .insert(activityLineItemsTable)
+        .values({
+          activityId,
+          ...normalized
+        })
+        .returning();
+
+      const formatted = {
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+      };
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "create_line_item",
+          resourceId: item.id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
+    });
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.status(201).json({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-    });
+    res.status(201).json(result);
   } catch (error: any) {
     console.error("🚨 POSTGRES EXECUTION ERROR (POST line-item):", {
       code: error.code,
@@ -849,20 +960,66 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
   const itemId = parseInt(rawItem, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
 
-  const [deleted] = await db
-    .delete(activityLineItemsTable)
-    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-    .returning();
-
-  if (!deleted) {
-    res.status(404).json({ error: "Ligne d'activité introuvable" });
-    return;
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload ?? { success: true });
+      return;
+    }
   }
 
-  await updateMemberStatusIfNeeded(memberId);
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .delete(activityLineItemsTable)
+        .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
+        .returning();
 
-  res.sendStatus(204);
+      if (!deleted) {
+        return null;
+      }
+
+      const payload = { success: true, deletedId: itemId };
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "delete_line_item",
+          resourceId: itemId,
+          resultPayload: payload,
+        });
+      }
+
+      return payload;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Ligne d'activité introuvable" });
+      return;
+    }
+
+    await updateMemberStatusIfNeeded(memberId);
+
+    res.sendStatus(204);
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (DELETE line-item):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Database operation failed",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+    });
+  }
 });
 
 // Admin Status Actions (Phase 3)
