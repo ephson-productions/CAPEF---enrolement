@@ -1,0 +1,1 @@
+- [Codegen et workflows](codegen-and-workflow-recovery.md) — après un changement OpenAPI, régénérer les sorties avant de redémarrer les artefacts et réconcilier les dépendances du workspace.

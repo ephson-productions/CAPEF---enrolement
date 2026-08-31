@@ -33,6 +33,16 @@ export const requireAppUser = async (req: Request, res: Response, next: NextFunc
     return;
   }
 
+  if (user.status === "suspended") {
+    res.status(403).json({ error: "Votre compte est suspendu. Contactez un administrateur." });
+    return;
+  }
+
+  if (user.status === "banned") {
+    res.status(403).json({ error: "Votre compte est banni. Accès refusé." });
+    return;
+  }
+
   (req as any).appUser = user;
   next();
 };

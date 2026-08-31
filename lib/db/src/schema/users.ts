@@ -8,9 +8,11 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   role: text("role").notNull().default("agent"), // admin | supervisor | agent
+  status: text("status").notNull().default("active"), // active | suspended | banned
   regionId: integer("region_id"),
   cniNumber: text("cni_number"),
   cniPhotoUrl: text("cni_photo_url"),
+  profilePhotoUrl: text("profile_photo_url"),
   assignedZones: jsonb("assigned_zones").default([]), // array of { regionId, departmentId?, arrondissementId? }
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

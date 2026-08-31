@@ -25,10 +25,12 @@ export const GetMeResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
@@ -52,10 +54,42 @@ export const ProvisionUserResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
+  "assignedZones": zod.array(zod.object({
+  "regionId": zod.number(),
+  "departmentId": zod.number().nullish(),
+  "arrondissementId": zod.number().nullish()
+})).optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update the authenticated user's editable profile fields
+ */
+export const UpdateMyProfileBody = zod.object({
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish()
+})
+
+export const UpdateMyProfileResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
+  "regionId": zod.number().nullish(),
+  "regionName": zod.string().nullish(),
+  "cniNumber": zod.string().nullish(),
+  "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
@@ -79,10 +113,12 @@ export const ListUsersResponseItem = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
@@ -103,11 +139,13 @@ export const CreateUserBody = zod.object({
   "regionId": zod.number().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
   "arrondissementId": zod.number().nullish()
-})).optional()
+})).optional(),
+  "status": zod.enum(['active', 'suspended', 'banned']).optional()
 })
 
 export const CreateUserResponse = zod.object({
@@ -116,10 +154,12 @@ export const CreateUserResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
@@ -142,10 +182,12 @@ export const GetUserResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
@@ -156,7 +198,7 @@ export const GetUserResponse = zod.object({
 
 
 /**
- * @summary Update a user's role or region (admin only)
+ * @summary Update a user's role, zones, status, or profile data (admin only)
  */
 export const UpdateUserParams = zod.object({
   "id": zod.coerce.number()
@@ -168,11 +210,13 @@ export const UpdateUserBody = zod.object({
   "regionId": zod.number().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),
   "arrondissementId": zod.number().nullish()
-})).optional()
+})).optional(),
+  "status": zod.enum(['active', 'suspended', 'banned']).optional()
 })
 
 export const UpdateUserResponse = zod.object({
@@ -181,10 +225,12 @@ export const UpdateUserResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['admin', 'supervisor', 'agent']),
+  "status": zod.enum(['active', 'suspended', 'banned']),
   "regionId": zod.number().nullish(),
   "regionName": zod.string().nullish(),
   "cniNumber": zod.string().nullish(),
   "cniPhotoUrl": zod.string().nullish(),
+  "profilePhotoUrl": zod.string().nullish(),
   "assignedZones": zod.array(zod.object({
   "regionId": zod.number(),
   "departmentId": zod.number().nullish(),

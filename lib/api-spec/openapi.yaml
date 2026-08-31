@@ -81,6 +81,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/profile:
+    patch:
+      operationId: updateMyProfile
+      tags: [auth]
+      summary: Update the authenticated user's editable profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MyProfileUpdate"
+      responses:
+        "200":
+          description: Updated current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # ─── User Management (Admin) ─────────────────────────────────────────────────
 
   /users:
@@ -164,7 +189,7 @@ paths:
     put:
       operationId: updateUser
       tags: [auth]
-      summary: Update a user's role or region (admin only)
+      summary: Update a user's role, zones, status, or profile data (admin only)
       parameters:
         - in: path
           name: id
@@ -902,7 +927,7 @@ components:
 
     AppUser:
       type: object
-      required: [id, clerkUserId, email, name, role, createdAt]
+      required: [id, clerkUserId, email, name, role, status, createdAt]
       properties:
         id:
           type: integer
@@ -915,6 +940,9 @@ components:
         role:
           type: string
           enum: [admin, supervisor, agent]
+        status:
+          type: string
+          enum: [active, suspended, banned]
         regionId:
           type: ["integer", "null"]
         regionName:
@@ -922,6 +950,8 @@ components:
         cniNumber:
           type: ["string", "null"]
         cniPhotoUrl:
+          type: ["string", "null"]
+        profilePhotoUrl:
           type: ["string", "null"]
         assignedZones:
           type: array
@@ -956,10 +986,25 @@ components:
           type: ["string", "null"]
         cniPhotoUrl:
           type: ["string", "null"]
+        profilePhotoUrl:
+          type: ["string", "null"]
         assignedZones:
           type: array
           items:
             $ref: "#/components/schemas/ZoneAssignment"
+        status:
+          type: string
+          enum: [active, suspended, banned]
+
+    MyProfileUpdate:
+      type: object
+      properties:
+        cniNumber:
+          type: ["string", "null"]
+        cniPhotoUrl:
+          type: ["string", "null"]
+        profilePhotoUrl:
+          type: ["string", "null"]
 
     AppUserUpdate:
       type: object
@@ -975,10 +1020,15 @@ components:
           type: ["string", "null"]
         cniPhotoUrl:
           type: ["string", "null"]
+        profilePhotoUrl:
+          type: ["string", "null"]
         assignedZones:
           type: array
           items:
             $ref: "#/components/schemas/ZoneAssignment"
+        status:
+          type: string
+          enum: [active, suspended, banned]
 
     # ─── Reference Data ──────────────────────────────────────────────────────
 
