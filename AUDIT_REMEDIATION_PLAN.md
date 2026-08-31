@@ -79,11 +79,229 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ## 4. CANONICAL FINDINGS
 
-*(Unchanged)*
+*(Detailed structural inventory of all 23 canonical findings with complete technical context)*
+
+### AUTH-001: Unauthenticated Admin Bootstrap Escalation
+- **Severity**: P0
+- **Domain**: Authentication & Provisioning
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/auth.ts` (lines 90-106)
+- **Description**: In `/api/auth/provision`, the backend executes `const [count] = await db.select().from(usersTable); const isFirstUser = !count;` and assigns `role: isFirstUser ? "admin" : "agent"`.
+- **Root Cause**: Reliance on runtime table row count as an authorization boundary. On a fresh database, truncated table, or environment reset, the very first user who signs up via Clerk automatically receives super-administrator privileges.
+- **Impact**: Privilege escalation and unauthorized administrative takeover of production environment.
+
+### AUTH-002: Broken Agent Invitation & Identity Lifecycle
+- **Severity**: P1
+- **Domain**: Identity Management
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/users.ts` (lines 56-85), `auth.ts`
+- **Description**: Admin user creation inserts an application user record with `clerkUserId: pending_<timestamp>` and executes `console.log(...)` instead of invoking the Clerk Invitation API (`clerkClient.invitations.createInvitation`).
+- **Root Cause**: Disconnection between local database user creation and Clerk identity provisioning. When the invited user subsequently registers on Clerk, `/api/auth/provision` searches for `clerkUserId` (which fails to match `pending_<timestamp>`) and attempts an `INSERT` using their email. This triggers a unique constraint violation (`users_email_unique`) on PostgreSQL, permanently locking the agent out and stripping their assigned role.
+- **Impact**: Complete breakdown of agent/supervisor onboarding.
+
+### AUTHZ-001: IDOR & Missing Resource Authorization on Nested Activity Routes
+- **Severity**: P0
+- **Domain**: Authorization
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 530-868)
+- **Description**: Nested routes such as `POST/GET/DELETE /api/members/:id/activities` and line-item routes attach `requireAppUser` but fail to execute creator or regional scope checks.
+- **Root Cause**: Absence of a centralized member resource authorization middleware (`authorizeMemberResourceAccess`). While member update/delete routes check `createdById` or `regionId`, nested activity and production line-item routes skip member authorization entirely.
+- **Impact**: Any authenticated field agent can view, create, edit, or delete activities and line items for members owned by other agents or regions.
+
+### PRIV-001: Unauthenticated Access to Badge Verification & Missing Auth Boundary
+- **Severity**: P1
+- **Domain**: Authentication & Badge Verification
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 1375-1396), `artifacts/capef/src/App.tsx`
+- **Description**: The badge verification endpoint `GET /api/public/members/badge/:badgeToken` is mounted without authentication middleware (`requireAppUser`). Consequently, unauthenticated callers directly requesting this endpoint can query member data. Per CAPEF business rules, verifying member badges is a global function available to ANY authenticated CAPEF user, but MUST NOT be exposed anonymously.
+- **Root Cause**: Missing `requireAppUser` middleware on the backend badge verification route (`authorizeBadgeVerification`), and lack of authentication enforcement on the frontend `/badge-verify/:token` route.
+- **Impact**: Unauthenticated users scanning QR codes can access detailed member records if queried directly. Requiring authentication ensures only authorized CAPEF agents can inspect member identity profiles.
+
+### PRIV-002: Stored XSS Vector in Generated Badge SVG
+- **Severity**: P1
+- **Domain**: Security & Rendering
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 982-1050), `MemberDetail.tsx` (lines 100-126)
+- **Description**: `POST /api/members/:id/badge` constructs an SVG string by directly interpolating unescaped member attributes (`${member.fullName}`, `${member.phone}`, `${member.village}`). On the frontend, `MemberDetail.tsx` converts the base64 SVG into a Blob URL and opens it via `window.open(objectUrl, "_blank")`.
+- **Root Cause**: Lack of XML entity escaping during SVG string assembly and top-level document rendering.
+- **Impact**: If a member's name or village contains XML markup (e.g., `<script>` or `<svg onload=...>`), the browser executes the payload in the application's origin context.
+
+### DATA-001: Silent Offline Queue Data Loss & Retry Duplicate Write Hazard
+- **Severity**: P0
+- **Domain**: Data Integrity & Offline Engine
+- **Status**: CONFIRMED
+- **File**: `artifacts/capef/src/lib/offline-sync.tsx` (lines 70-80)
+- **Description**: The PWA client exposes `enqueueActivityAction` to queue offline activity and line-item actions in `capef_offline_actions_queue`. However, inside `syncNow()`, the queue is cleared without transmitting data:
+  ```typescript
+  if (actionsQueue.length > 0) {
+    localStorage.setItem('capef_offline_actions_queue', JSON.stringify([]));
+  }
+  ```
+  Furthermore, the queued operations lack client operation IDs (`clientOperationId`) and the backend lacks idempotency tracking (`processed_operations` table), meaning simple retries after network timeouts would create duplicate activities or line items.
+- **Root Cause**: Unfinished offline synchronization implementation lacking durable queue semantics, client operation identifiers, error classification, and server-side idempotency tracking.
+- **Impact**: Field agents collecting crop/livestock activities while offline experience permanent data loss or duplicate production records upon reconnecting.
+
+### DATA-002: Non-Transactional Member Enrollment & Member Number Race Conditions
+- **Severity**: P1
+- **Domain**: Transaction Management & Concurrency
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 251-275)
+- **Description**: Member creation currently executes an unsafe two-step write pattern:
+  1. `INSERT` member record with `memberNumber: "PENDING"`.
+  2. Compute `memberNumber = generateMemberNumber(category, id)`.
+  3. `UPDATE` member record with generated number.
+  4. `INSERT` primary activity in a separate SQL statement outside any transaction.
+- **Root Cause**: Application-level "insert then update" logic without a PostgreSQL sequence or atomic transaction boundary.
+- **Impact**: Concurrent member creation requests crash with HTTP 500 unique constraint violations on `"PENDING"`. Network or process failures midway leave permanently `"PENDING"` members, orphan primary activities, or partial enrollment records.
+
+### DATA-003: Numeric Input Serialization Failures
+- **Severity**: P2
+- **Domain**: Payload Validation
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 262-276, 497-507)
+- **Description**: Member create/update routes do not sanitize empty string values (`""`) for numeric database columns (e.g., `regionId`, `departmentId`, `arrondissementId`, `gpsLat`, `gpsLng`).
+- **Root Cause**: Omission of input coercion middleware on member endpoints.
+- **Impact**: Frontend requests sending `""` for empty form inputs crash PostgreSQL with double precision or integer type errors (HTTP 500).
+
+### DB-001: Absence of Relational Foreign Keys, Delete Policies & Business Constraints
+- **Severity**: P1
+- **Domain**: Database Schema & Business Integrity
+- **Status**: CONFIRMED
+- **File**: `lib/db/src/schema/index.ts`, `lib/db/drizzle/0000_brief_timeslip.sql`
+- **Description**: Across all 7 database tables (`users`, `members`, `member_activities`, `activity_line_items`, `regions`, `departments`, `arrondissements`), there are **zero foreign key constraints**, **zero delete policies**, **zero non-primary-key indexes**, **zero partial unique primary activity constraints**, and **zero CHECK constraints** enforcing business enums or non-negative numeric ranges.
+- **Root Cause**: Schema relies entirely on application discipline without database-level integrity enforcement or preflight data migration checks.
+- **Impact**: Deleting a user can corrupt or destroy historical member records, orphan records accumulate silently, multiple primary activities can be assigned to a member, and invalid enum/numeric values reach SQL storage.
+
+### DB-002: Orphan Activity & Line-Item Accumulation on Member Deletion
+- **Severity**: P2
+- **Domain**: Referential Integrity
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 511-527)
+- **Description**: `DELETE /api/members/:id` deletes the member row from `membersTable` but omits cascading deletion of related rows in `member_activities` and `activity_line_items`.
+- **Root Cause**: Absence of database-level `ON DELETE CASCADE` foreign keys and application-level cascading logic.
+- **Impact**: Orphan activity and line-item records accumulate silently in the database, causing orphaned references in reporting queries.
+
+### MIG-001: Startup Execution of Uncoordinated Migrations & Reference Seeding
+- **Severity**: P1
+- **Domain**: Process Lifecycle & Deployment Safety
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/index.ts` (lines 8-15), `lib/migration.ts`
+- **Description**: Server startup asynchronously triggers `seedDatabaseIfNeeded()` and `migrateExistingMembersToActivities()` during Express boot.
+- **Root Cause**: Coupling database schema and data migration execution directly to application process startup.
+- **Impact**: Multi-instance deployments and serverless cold starts trigger concurrent full-table scans, non-transactional inserts, database lock contention, and server startup delays.
+
+### MIG-002: Destructive Force-Push Schema Execution in Deployment Script
+- **Severity**: P1
+- **Domain**: DevOps & Deployment Safety
+- **Status**: CONFIRMED
+- **File**: `scripts/post-merge.sh` (line 4)
+- **Description**: CI/CD deployment script executes `pnpm --filter db push` (which runs `drizzle-kit push --force`).
+- **Root Cause**: Replacing controlled versioned migration execution (`drizzle-kit migrate`) with direct, force-push schema synchronization.
+- **Impact**: Unreviewed schema changes are forcibly applied to production databases, risking silent column dropping and irreversible data loss.
+
+### API-001: Express Route Handlers Bypass Generated Zod Validation Schemas
+- **Severity**: P2
+- **Domain**: API Contract & Payload Validation
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/*.ts` (except `health.ts`)
+- **Description**: Generated Zod schemas in `@workspace/api-zod` are completely unused by Express route handlers (only `health.ts` imports them).
+- **Root Cause**: Express routes manually destructure raw `req.body` without schema validation middleware.
+- **Impact**: Contract drift, invalid enum values, missing required fields, and unexpected data shapes reach SQL queries unvalidated.
+
+### API-002: OpenAPI Contract Specification Drift & Dead Schemas
+- **Severity**: P2
+- **Domain**: API Contract
+- **Status**: CONFIRMED
+- **File**: `lib/api-spec/openapi.yaml`
+- **Description**: The OpenAPI contract lacks `securitySchemes` definitions, contains dead response schemas (`ExportResult`), and advertises properties on `GetMeResponse` that `/api/auth/me` does not return.
+- **Root Cause**: Unsynchronized manual editing of `openapi.yaml`.
+- **Impact**: Generated client types promise properties that do not exist at runtime, causing TypeScript type misalignments on the frontend.
+
+### API-003: Database Exception Information Disclosure in API Responses
+- **Severity**: P2
+- **Domain**: Error Handling & Diagnostics
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts`, `reference.ts`
+- **Description**: Exception handlers return raw PostgreSQL error objects (`{ message, detail, constraint, table }`) or stringified errors (`{ details: String(error) }`).
+- **Root Cause**: Ad-hoc route-level `try/catch` blocks lacking centralized error masking middleware.
+- **Impact**: Internal database schema details, table names, and constraint identifiers are exposed to API clients.
+
+### API-004: HTTP 500 Unhandled Exceptions on Malformed Integer Path Parameters
+- **Severity**: P3
+- **Domain**: Request Handling
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (line 456)
+- **Description**: Requesting `/api/members/abc` executes `parseInt("abc", 10)` resulting in `NaN`, which is passed directly to SQL queries, causing unhandled 500 errors.
+- **Root Cause**: Missing path parameter integer validation middleware.
+- **Impact**: Unnecessary server exception logging and poor API quality.
+
+### STOR-001: Multi-Hundred-KB Base64 JSONB Bloat & Ephemeral Local File Writes
+- **Severity**: P2
+- **Domain**: Asset Storage Architecture
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/uploads.ts`, `MemberForm.tsx`
+- **Description**: Member photos, CNI documents, and signatures are stored as base64-encoded strings directly inside JSONB columns (`physique_data`, `morale_data`). Concurrently, `/api/uploads` writes files to a local `uploads/` disk directory that is wiped on container restarts.
+- **Root Cause**: Lack of cloud object storage integration (e.g. Supabase Storage / S3).
+- **Impact**: Database bloat (>1MB per member row), slow query serialization, and ephemeral disk space leakage.
+
+### SEC-001: Overly Permissive Wildcard Origin Matching in CORS Middleware
+- **Severity**: P2
+- **Domain**: Web Security & CORS
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/app.ts` (lines 31-63)
+- **Description**: CORS middleware approves origins matching `.endsWith(".vercel.app")` and `.endsWith("-ephson-productions-projects.vercel.app")` with `credentials: true`.
+- **Root Cause**: Permissive origin regex evaluation intended for preview deployments.
+- **Impact**: Any site hosted on Vercel can issue credentialed cross-origin requests to the API server if user session cookies are present.
+
+### SEC-002: In-Memory & Spoofable Public Rate Limiter
+- **Severity**: P2
+- **Domain**: Rate Limiting & Protection
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts` (lines 1346-1373)
+- **Description**: The public rate limiter uses an in-memory `Map`, evaluates `req.ip` without Express `trust proxy` configuration, and resets on process restart.
+- **Root Cause**: Naive in-memory rate limiting implementation.
+- **Impact**: Attackers can bypass rate limits via `X-Forwarded-For` header spoofing or distributed requests across multi-instance deployments.
+
+### PERF-001: Widespread N+1 Query Patterns & Unbounded Export Memory Loading
+- **Severity**: P2
+- **Domain**: Performance & Database Scalability
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/members.ts`, `dashboard.ts`
+- **Description**: `formatMember` executes 5+ sequential database queries per member (region, department, arrondissement, creator, activities, line items). The Excel/CSV export endpoint iterates through all members in memory without pagination or stream batching.
+- **Root Cause**: Iterative row formatting instead of SQL relational `JOIN` queries or batched prefetching.
+- **Impact**: High connection pool starvation, severe latency, and HTTP request timeouts when member records scale beyond a few hundred rows.
+
+### QUAL-001: Complete Absence of Automated Test Suite across Monorepo
+- **Severity**: P1
+- **Domain**: Quality Assurance & Regression Prevention
+- **Status**: CONFIRMED
+- **File**: `package.json` (all workspace packages)
+- **Description**: No unit tests, integration tests, contract tests, or Playwright E2E tests exist anywhere in the repository.
+- **Root Cause**: Testing framework was never initialized.
+- **Impact**: Regressions continuously reach production undetected.
+
+### UX-001: Misleading Offline Synchronization UX Copy
+- **Severity**: P3
+- **Domain**: User Experience
+- **Status**: CONFIRMED
+- **File**: `artifacts/capef/src/components/members/ActivityWizard.tsx`, `offline-sync.tsx`
+- **Description**: UI banners state "Les activités seront automatiquement synchronisées", but offline activity mutations are silently discarded on reconnect.
+- **Root Cause**: Frontend notification copy out of sync with offline engine state.
+- **Impact**: Field operators falsely believe offline data has been safely preserved.
+
+### REP-001: Inaccurate Primary Category Aggregation in Dashboard Metrics
+- **Severity**: P3
+- **Domain**: Reporting & Metrics
+- **Status**: CONFIRMED
+- **File**: `artifacts/api-server/src/routes/dashboard.ts` (line 24)
+- **Description**: Dashboard activity metrics filter over the primary `members.category` column rather than aggregating over the relational `member_activities` table.
+- **Root Cause**: Aggregating member primary classification instead of activity line items.
+- **Impact**: Members operating secondary activities in distinct sectors are omitted from dashboard sector statistics.
 
 ---
 
 ## 5. P0 BLOCKERS
+*(Issues requiring immediate containment before any further code changes)*
 
 1. **DATA-001**: Production-grade offline sync protocol with `clientOperationId` and server idempotency (`offline-sync.tsx`, `processed_operations`).
 2. **AUTH-001**: Unauthenticated admin takeover on empty user table during bootstrap (`auth.ts`).
@@ -106,79 +324,270 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ## 7. P2 HARDENING
 
-*(Unchanged)*
+1. **DATA-003**: Empty string serialization errors on numeric database columns (`members.ts`).
+2. **DB-002**: Accumulated orphan activity/line-item records on member deletion (`members.ts`).
+3. **API-001**: Disconnection between Express handlers and generated Zod schemas (`health.ts` vs routes).
+4. **API-002**: OpenAPI spec drift, missing security schemes, and dead schemas (`openapi.yaml`).
+5. **API-003**: Raw PostgreSQL exception disclosures in API responses (`members.ts`, `reference.ts`).
+6. **STOR-001**: Base64 JSONB bloat and ephemeral local disk file writes (`uploads.ts`).
+7. **SEC-001**: Overly broad wildcard origin matching in CORS middleware (`app.ts`).
+8. **SEC-002**: In-memory, spoofable rate limiting on public endpoints (`members.ts`).
+9. **PERF-001**: Severe N+1 query loops and unbounded memory loading in exports (`members.ts`).
 
 ---
 
 ## 8. P3 CLEANUP
 
-*(Unchanged)*
+1. **API-004**: Malformed integer path parameters causing HTTP 500 exceptions (`members.ts`).
+2. **UX-001**: Misleading UI feedback regarding offline data durability (`ActivityWizard.tsx`).
+3. **REP-001**: Dashboard metric aggregation misalignments (`dashboard.ts`).
 
 ---
 
 ## 9. SECURITY ARCHITECTURE ASSESSMENT
 
-*(Unchanged)*
+### Threat Model & Attack Surface Map
+```
+[ Unauthenticated Attacker ] ──► GET /api/members/badge/:token        ──► Rejected HTTP 401 Unauthorized (PRIV-001)
+                            ──► POST /api/auth/provision (Fresh DB)  ──► Escalates to Admin (AUTH-001)
+                            ──► Spoof X-Forwarded-For               ──► Bypasses Rate Limiter (SEC-002)
+
+[ Low-Privilege Agent A ]   ──► POST /api/members/:memberB_id/activities ──► Rejected HTTP 403 Forbidden (AUTHZ-001)
+                            ──► Inject <script> in Name/Village          ──► Stored XSS via Badge SVG (PRIV-002)
+                            ──► Scan Member B Badge QR Code             ──► Allowed HTTP 200 Full Verification (PRIV-001)
+
+[ Malicious Origin ]        ──► Any *.vercel.app domain                  ──► CSRF via Permissive CORS (SEC-001)
+```
+
+### Detailed Threat Analysis
+- **Unauthenticated Endpoint Surface**: Protected member endpoints are secured by `requireAppUser`, but badge verification (`/api/public/members/badge/:badgeToken`) previously leaked PII to unauthenticated callers. Under Correction 01, `requireAppUser` is attached to `GET /api/members/badge/:badgeToken`, forcing unauthenticated scanners to sign in before inspecting member identity profiles.
+- **Cross-Agent Resource Manipulation Surface**: Low-privilege agents previously could edit or delete activities and line items for members created by other agents. Task `REM-AUTHZ-001` attaches `authorizeMemberResourceAccess`, restricting agent write actions exclusively to members where `createdById === appUser.id`.
+- **Stored Cross-Site Scripting Surface**: Generated SVG badges previously interpolated unescaped member attributes (`${member.fullName}`). Task `REM-PRIV-002` wraps all dynamic text variables in `escapeXml()`, encoding HTML/XML special characters (`<`, `>`, `&`, `'`, `"`) into safe entities.
 
 ---
 
 ## 10. AUTHENTICATION & AUTHORIZATION ASSESSMENT
 
-*(Unchanged)*
+### Comprehensive Authorization Matrix
+
+To eliminate confusion between resource ownership and badge verification, the platform enforces two distinct authorization policies:
+
+| User Role | Member CRUD & Activity Mutations (`authorizeMemberResourceAccess`) | Badge Verification Scanning (`authorizeBadgeVerification`) |
+| :--- | :--- | :--- |
+| **Anonymous / Unauthenticated** | ❌ **DENY** (HTTP 401 Unauthorized) | ❌ **DENY** (HTTP 401 Unauthorized / Redirect to Sign-in) |
+| **Agent A** | ✅ **ALLOW** (Only for members created/owned by Agent A)<br>❌ **DENY** (HTTP 403 for members created by Agent B) | ✅ **ALLOW** (Can verify badges for ANY valid member record in the system) |
+| **Supervisor** | ✅ **ALLOW** (Only for members within supervisor's assigned region/zones)<br>❌ **DENY** (HTTP 403 for members outside region/zones) | ✅ **ALLOW** (Can verify badges for ANY valid member record in the system) |
+| **Admin** | ✅ **ALLOW** (Unrestricted read/write across all members and activities) | ✅ **ALLOW** (Can verify badges for ANY valid member record in the system) |
+
+### Key Auth Remediation Requirements
+1. **Member Resource Policy (`authorizeMemberResourceAccess`)**: Implement a declarative authorization middleware for member editing, activities, line items, and status changes:
+   - `admin`: Full read/write across all records.
+   - `supervisor`: Read/write restricted to members within `user.regionId` or `user.assignedZones`.
+   - `agent`: Read/write restricted to members created by `user.id` (`createdById == user.id`).
+2. **Badge Verification Policy (`authorizeBadgeVerification`)**: Implement middleware for badge QR verification (`GET /api/members/badge/:badgeToken`):
+   - Requires valid CAPEF authentication (`requireAppUser`).
+   - Does NOT enforce creator ownership or regional bounds.
+   - Returns full member verification profile (`formatMember(member, true)`) for official field inspection.
+3. **Unified Agent Provisioning**: Replace the `pending_<ts>` hack in `POST /api/users` with an explicit Clerk Invitation call via `@clerk/express` / Clerk SDK, storing the returned `invitation.id`. On user sign-in, correlate by invitation or email in an atomic transaction.
 
 ---
 
 ## 11. DATABASE & DATA INTEGRITY ASSESSMENT (CORRECTION 04 & 05)
 
-*(Unchanged)*
+### Relational Integrity & Sequence Enrollment Architecture
+
+#### 1. Complete Relationship & Delete Policy Matrix
+
+| Parent Table | Child Table | Foreign Key Column | Delete Policy | Business Rationale / Invariant |
+| :--- | :--- | :--- | :--- | :--- |
+| `users` | `members` | `members.created_by_id` | **`ON DELETE RESTRICT`** | **CRITICAL**: Deleting an agent/supervisor user account MUST NEVER destroy historical citizen enrollment records. |
+| `regions` | `members` | `members.region_id` | **`ON DELETE RESTRICT`** | Geographic regions are permanent administrative boundaries; deleting a region must be blocked if members reference it. |
+| `departments` | `members` | `members.department_id` | **`ON DELETE RESTRICT`** | Department references are administrative boundaries; deletion blocked if members exist. |
+| `arrondissements` | `members` | `members.arrondissement_id` | **`ON DELETE RESTRICT`** | Arrondissement references are administrative boundaries; deletion blocked if members exist. |
+| `members` | `member_activities` | `member_activities.member_id` | **`ON DELETE CASCADE`** | Activities are strict child entities of a member. Deleting a member removes their associated activities. |
+| `member_activities` | `activity_line_items` | `activity_line_items.activity_id` | **`ON DELETE CASCADE`** | Line items (crops/livestock/crafts) are child entities of an activity. Deleting an activity removes its line items. |
+| `users` | `processed_operations` | `processed_operations.user_id` | **`ON DELETE RESTRICT`** | Audit logs for offline idempotency tracking must be preserved for compliance. |
+
+#### 2. Sequence Enrollment & Transaction Architecture
+
+```sql
+-- TARGET SCHEMA (STABLE, CONSTRAINED & SEQUENCE-BACKED)
+CREATE SEQUENCE seq_member_number START WITH 1 INCREMENT BY 1;
+
+CREATE TABLE members (
+  id SERIAL PRIMARY KEY,
+  member_number VARCHAR(32) NOT NULL UNIQUE,
+  created_by_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  region_id INTEGER REFERENCES regions(id) ON DELETE RESTRICT
+);
+```
+
+```
+[ POST /api/members ]
+         │
+         ▼
+[ Open db.transaction(async (tx) => ...) ]
+         │
+         ▼
+[ Fetch Next Sequence Value ] ──► SELECT nextval('seq_member_number'); (e.g., 42)
+         │
+         ▼
+[ Format Member Number ]      ──► CAPEF-AGR-000042
+         │
+         ▼
+[ tx.insert(membersTable) ]   ──► Insert Member Row with Final member_number (NO "PENDING")
+         │
+         ▼
+[ tx.insert(activitiesTable) ]──► Insert Primary Activity Row inside tx
+         │
+         ▼
+[ tx.insert(lineItemsTable) ] ──► Insert Initial Line Items inside tx
+         │
+  ┌──────┴──────┐
+  ▼             ▼
+[ Success ]   [ Exception / Constraint Conflict ]
+  │             │
+  ▼             ▼
+[ COMMIT ]    [ ROLLBACK EVERYTHING ]
+```
 
 ---
 
 ## 12. API / OPENAPI / ZOD ASSESSMENT
 
-*(Unchanged)*
+### Contract Enforcement Pipeline
+The repository currently breaks the contract chain at the Express boundary:
+
+```
+OpenAPI (openapi.yaml) ──► Orval Codegen ──► Generated Zod (@workspace/api-zod)
+                                                        │
+                                                        ▼ (CURRENTLY BROKEN: UNUSED BY BACKEND)
+                                            Express Routes (Raw req.body Destructuring)
+```
+
+**Remediation**: Implement a generic validation middleware `validateBody(schema)`:
+```typescript
+export function validateBody<T>(schema: z.ZodSchema<T>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400).json({ error: "Payload de requête invalide", details: result.error.format() });
+      return;
+    }
+    req.body = result.data;
+    next();
+  };
+}
+```
 
 ---
 
 ## 13. OFFLINE ARCHITECTURE ASSESSMENT (CORRECTION 03)
 
-*(Unchanged)*
+### Production-Grade Offline Synchronization Protocol
+
+```
+[ Field Agent Offline Entry ] ──► [ Persist Operation Locally (clientOperationId UUID) ]
+                                            │
+                                            ▼
+[ Network Connection Available ] ──► [ Transmit Operation with clientOperationId ]
+                                            │
+                                            ▼
+                               [ Server Receives Request ]
+                                            │
+                             ┌──────────────┴──────────────┐
+                             ▼                             ▼
+                 [ Already Processed? ]           [ New Operation ]
+                             │                             │
+                             ├─ YES ───────────────────────┼─► [ Execute Atomic db.transaction ]
+                             │                             │   - Insert Activity / Line Item
+                             │                             │   - Record clientOperationId in processed_operations
+                             ▼                             │   - Commit Transaction
+                 [ Return Cached Result ] ◄────────────────┘
+                             │
+                             ▼
+                 [ Server Returns HTTP 200/201 ] ──► [ Remove Operation from Local Queue ]
+```
+
+### Protocol Rules & Invariants
+1. **Durable Local Queueing**: Every queued offline action MUST possess an immutable `clientOperationId` (UUID v4) generated at the moment of offline entry.
+2. **Never Clear Before Confirmed Server Acknowledgement**: An operation is removed from local storage ONLY after receiving an explicit HTTP 200/201 response containing `clientOperationId` acknowledgement.
+3. **Server-Side Idempotency (`processed_operations` Table)**: Replaying an operation with an existing `clientOperationId` returns the previously committed result payload with HTTP 200 OK without creating duplicate database rows.
+4. **Error Classification**: Network failures/timeouts (HTTP 5xx) retain operations in queue for retry. Terminal validation errors (HTTP 400) move operations to an error review log without infinite retry loops.
 
 ---
 
 ## 14. UPLOAD / STORAGE ASSESSMENT
 
-*(Unchanged)*
+### Base64 Bloat vs. Private Cloud Storage
+- **Current Defect**: Member photos, CNI documents, and signatures are stored as multi-hundred-KB base64 strings directly inside JSONB columns (`physique_data`, `morale_data`), causing database rows to exceed 1MB. Ephemeral local disk writes (`/uploads`) are wiped on container restart.
+- **Target Architecture**: Integrate Supabase Storage API (`member-documents` bucket):
+  1. Frontend uploads files via `/api/uploads`.
+  2. Server validates MIME type (`image/jpeg`, `image/png`, `application/pdf`), checks magic bytes, and caps file size at 5MB.
+  3. Server uploads file buffer to Supabase Storage and returns an immutable cloud URL (`https://.../member-documents/photo_123.jpg`).
+  4. Only the cloud URL string is saved in PostgreSQL database columns.
 
 ---
 
 ## 15. FRONTEND ASSESSMENT
 
-*(Unchanged)*
+### Form Validation & State Mutation Alignment
+- `MemberForm.tsx` implements strict Zod client validation, which is good, but the backend accepts loose payloads.
+- **Mutation Invalidation**: The frontend mutation hooks in `ActivityWizard.tsx` and `MemberNew.tsx` must invalidate `['listMembers']` and `['getMember', id]` query keys upon successful submission to prevent stale UI states.
+- **Badge Viewing**: Remove unsafe `window.open(objectUrl, "_blank")` calls for SVG badges. Render badges inside a controlled HTML canvas or sanitized embedded `<svg>` component with strict Content Security Policy (CSP).
 
 ---
 
 ## 16. PRODUCTION / DEPLOYMENT ASSESSMENT
 
-*(Unchanged)*
+### Runtime Isolation & Database Migration Decoupling
+- **Current Defect**: Application startup (`index.ts`) executes database seeding and legacy migration logic asynchronously during boot, causing race conditions in multi-instance or serverless environments.
+- **Target Deployment Standard**:
+  1. **Build Time**: Compile TypeScript artifacts (`pnpm build`).
+  2. **Release Phase / Pre-Deploy**: Run explicit, versioned schema migrations via `pnpm --filter @workspace/db run migrate` using `DIRECT_URL`.
+  3. **Runtime Phase**: Launch Express application server (`node dist/index.mjs`) using `DATABASE_URL` transaction pooler without executing data migrations or seeds.
 
 ---
 
 ## 17. PERFORMANCE ASSESSMENT
 
-*(Unchanged)*
+### N+1 Elimination & Streaming Exports
+- **Query Optimization**: Replace iterative per-member lookups in `formatMember` with relational SQL joins:
+  ```sql
+  SELECT m.*, r.name as region_name, d.name as department_name, a.name as arrondissement_name
+  FROM members m
+  LEFT JOIN regions r ON m.region_id = r.id
+  LEFT JOIN departments d ON m.department_id = d.id
+  LEFT JOIN arrondissements a ON m.arrondissement_id = a.id
+  WHERE m.id = $1;
+  ```
+- **Export Streaming**: Refactor `GET /api/members/export` to fetch records in batches of 500 using cursor pagination, streaming the Excel workbook directly to the response output stream to prevent Node.js heap memory exhaustion.
 
 ---
 
 ## 18. TESTING & CI ASSESSMENT
 
-*(Unchanged)*
+### Required Minimum Test Coverage Matrix
+
+| Test Suite | Framework | Target Files | Key Scenarios Covered |
+| :--- | :--- | :--- | :--- |
+| **Auth Integration** | Vitest / Supertest | `routes/auth.ts`, `routes/users.ts` | Bootstrap admin escalation prevention, Clerk invitation link, role preservation. |
+| **Member Resource Authorization**| Vitest / Supertest | `routes/members.ts` | Cross-agent member modification blocked (HTTP 403), supervisor region scope isolation. |
+| **Badge Verification Auth** | Vitest / Supertest | `routes/members.ts`, `App.tsx` | Rejection of unauthenticated badge requests (HTTP 401); successful full profile verification for ANY authenticated agent (HTTP 200). |
+| **Offline Sync & Idempotency**| Vitest / Supertest | `offline-sync.tsx`, `routes/members.ts` | Action survives reload; retry on network failure retains queue; replaying same `clientOperationId` creates NO duplicate records. |
+| **Relational Integrity & Deletes**| Vitest / Supertest | `lib/db/src/schema/`, `routes/users.ts` | Attempting to delete a user with members fails with `ON DELETE RESTRICT`; deleting a member cascades to delete activities/line items; adding second primary activity fails partial unique constraint. |
+| **Concurrent Member Enrollment**| Vitest / Supertest | `routes/members.ts` | **10 concurrent member creation requests** -> 10 successful valid members, 10 unique `memberNumber`s, 0 `"PENDING"` members, 0 orphan primary activities. |
 
 ---
 
 ## 19. CROSS-LAYER ROOT CAUSES
 
-*(Unchanged)*
+Systemic architectural issues identified across the codebase:
+1. **Absence of Server-Side Validation Boundary**: Trusting raw request bodies and relying exclusively on client-side form validation.
+2. **Database Integrity Delegated to Application Code**: Failing to define foreign keys, cascades, and unique constraints in PostgreSQL.
+3. **Decoupled Identity Lifecycle**: Disconnecting Clerk authentication events from local user role and record creation.
+4. **Unsafe Database Schema Evolution**: Using `drizzle-kit push --force` instead of versioned, reviewed migration scripts.
+5. **Incomplete Offline Protocol**: Implementing client-side queueing without server replay handlers or atomic acknowledgement logic.
 
 ---
 
@@ -192,7 +601,7 @@ The following ordered plan details the exact remediation sequence required to ac
 | **2** | **AUTH-001** | **P0** | First user becomes admin automatically. | `!count` check in JIT provision. | Seed initial admin via CLI or ENV bootstrap (`INITIAL_ADMIN_EMAIL`); reject implicit escalation. | None | `artifacts/api-server/src/routes/auth.ts` | `pnpm typecheck` |
 | **3** | **AUTHZ-001** | **P0** | IDOR on nested activities/line items. | Missing resource ownership check. | Create `authorizeMemberResourceAccess` middleware checking `createdById` / `regionId`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
 | **4** | **DATA-002** | **P1** | Non-transactional member creation & "PENDING" race. | Two-step write pattern. | Allocate `seq_member_number` sequence value and insert Member + Primary Activity + Line Items in single atomic `db.transaction()`. | DB-001 | `artifacts/api-server/src/routes/members.ts`, `lib/db/src/schema/members.ts` | `pnpm typecheck` |
-| **5** | **DB-001** | **P1** | Zero foreign keys & constraints in schema. | Omitted `.references()` in Drizzle. | Create Drizzle migration `0002_*.sql` with `RESTRICT` for users/geography, `CASCADE` for child activities/line items, partial unique index for single primary activity, CHECK constraints & preflight data checks. | None | `lib/db/src/schema/*.ts`, `lib/db/drizzle/` | `pnpm --filter @workspace/db run build` |
+| **5** | **DB-001** | **P1** | Zero foreign keys & constraints in schema. | Omitted `.references()` in Drizzle. | Create Drizzle migration `0002_*.sql` with `RESTRICT` for users/geography, `CASCADE` for child activities/line items, partial unique index for primary activity, CHECK constraints & preflight data checks. | None | `lib/db/src/schema/*.ts`, `lib/db/drizzle/` | `pnpm --filter @workspace/db run build` |
 | **6** | **PRIV-001** | **P1** | Unauthenticated badge verification. | Missing `requireAppUser` middleware. | Require `requireAppUser` on badge verification route (`authorizeBadgeVerification`); redirect unauthenticated scanners to sign in before returning full member details. | None | `artifacts/api-server/src/routes/members.ts`, `artifacts/capef/src/App.tsx` | `pnpm typecheck` |
 | **7** | **PRIV-002** | **P1** | Stored XSS in badge SVG. | Raw string interpolation in SVG. | Escape XML entities in string fields (`he.encode` / XML escape helper). | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
 | **8** | **AUTH-002** | **P1** | Broken Clerk agent invitation. | Fake `pending_<ts>` Clerk ID used. | Integrate `@clerk/express` `createInvitation`; link `clerkUserId` dynamically on webhook/provision. | AUTH-001 | `artifacts/api-server/src/routes/users.ts`, `auth.ts` | `pnpm typecheck` |
@@ -213,13 +622,361 @@ The following ordered plan details the exact remediation sequence required to ac
 
 ## 21. DEPENDENCY GRAPH
 
-*(Unchanged)*
+```
+[ AUTH-001: Bootstrap Admin ] ────────► [ AUTH-002: Clerk Invitation ]
+                                                    │
+[ DB-001: Relational Integrity ] ─────► [ MIG-001: Standalone Migrate ] ──► [ MIG-002: Safe Merge Script ]
+  (FKs, RESTRICT/CASCADE,               │
+   Partial Unique, CHECKs)              │
+          │                             │
+          ▼                             │
+[ DATA-002: Transactional Enrollment ]  │
+  (seq_member_number & Atomic Tx)       │
+          │                             │
+          ▼                             ▼
+[ AUTHZ-001: Resource Auth Policy ] ──► [ QUAL-001: Test Suite ]
+  (authorizeMemberResourceAccess)                   │
+                                                    │
+[ PRIV-001: Badge Verification Auth ] ──────────────┤
+  (authorizeBadgeVerification)                      │
+                                                    │
+[ DATA-001: Production Offline Sync ] ──────────────┤
+  (clientOperationId & Idempotency)                 │
+                                                    │
+[ API-001: Generated Zod Validation ] ──────────────┼──► [ API-003: Error Masking ]
+                                                    │
+[ STOR-001: Supabase Cloud Storage ] ───────────────┘
+```
 
 ---
 
 ## 22. EXECUTION PLAN FOR JULES/CLAUDE
 
-*(Unchanged)*
+### Task REM-DATA-001: Implement Production-Grade Offline Synchronization Protocol
+- **Objective**: Prevent offline data loss AND duplicate writes by implementing durable local queueing with immutable `clientOperationId` UUIDs and server-side idempotency tracking (`processed_operations` table).
+- **Files to Modify**:
+  - `artifacts/capef/src/lib/offline-sync.tsx`
+  - `lib/db/src/schema/members.ts` (or `users.ts`)
+  - `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Add `processed_operations` table schema in `@workspace/db`:
+     `clientOperationId` (UUID PK), `userId` (FK), `operationType` (string), `resultPayload` (JSONB), `processedAt` (timestamp).
+  2. Update `offline-sync.tsx`:
+     - When an action is queued, attach `clientOperationId: crypto.randomUUID()`.
+     - In `syncNow()`, iterate through `capef_offline_actions_queue` sequentially.
+     - Send `clientOperationId` in body or header (`X-Client-Operation-ID`).
+     - NEVER clear `capef_offline_actions_queue` before receiving server confirmation.
+     - On network disconnect or HTTP 5xx: retain item in queue for retry.
+     - On HTTP 400 terminal business error: move item to `capef_offline_failed_actions` log.
+     - On HTTP 200/201: remove item from queue.
+  3. Update `artifacts/api-server/src/routes/members.ts`:
+     - Check `processed_operations` by `clientOperationId`.
+     - If found, return cached `resultPayload` (HTTP 200 OK) without re-executing mutation.
+     - If new, execute mutation and record `clientOperationId` inside the SAME `db.transaction()`.
+- **Acceptance Criteria**:
+  - Offline action survives page reloads and browser restarts.
+  - Reconnect sequentially replays queued operations.
+  - Retrying an ambiguous request (same `clientOperationId`) creates NO duplicate database rows.
+  - Network failures (HTTP 5xx) retain operations in queue.
+  - Terminal validation errors (HTTP 400) move to error log without infinite retry loops.
+  - Local queue items are purged ONLY after explicit server HTTP 200/201 confirmation.
+
+### Task REM-AUTH-001: Remove Implicit First-User Admin Bootstrap
+- **Objective**: Eliminate administrative privilege escalation on empty user tables.
+- **Files to Modify**: `artifacts/api-server/src/routes/auth.ts`
+- **Instructions**:
+  1. In `POST /api/auth/provision`, remove `const isFirstUser = !count;`.
+  2. Read `process.env.INITIAL_ADMIN_EMAIL`.
+  3. Assign `role: "admin"` **only** if `email === process.env.INITIAL_ADMIN_EMAIL`; default all other provisioned users to `"agent"`.
+- **Acceptance Criteria**: Registering a new Clerk account on an empty `users` table assigns `role: "agent"` unless the email matches `INITIAL_ADMIN_EMAIL`.
+
+### Task REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy
+- **Objective**: Block IDOR vulnerabilities on member CRUD, activities, line items, and status changes.
+- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`, create `artifacts/api-server/src/middlewares/authorizeMemberResource.ts`
+- **Instructions**:
+  1. Create middleware `authorizeMemberResourceAccess(action: 'read' | 'write')`.
+  2. Fetch member `createdById` and `regionId`.
+  3. Allow access if `user.role === 'admin'`, OR if `user.role === 'supervisor'` and `member.regionId === user.regionId` (or in `assignedZones`), OR if `user.role === 'agent'` and `member.createdById === user.id`.
+  4. Return HTTP 403 Forbidden if authorization fails. Attach to all member CRUD and nested `/members/:id/activities` routes.
+- **Acceptance Criteria**: Agent A attempting to modify or add activities to a member created by Agent B receives HTTP 403 Forbidden.
+
+### Task REM-DATA-002: Implement Transactional Enrollment & Sequence-Based Member Number Allocation
+- **Objective**: Eliminate non-transactional `"PENDING"` updates and race conditions during member creation by introducing a PostgreSQL sequence (`seq_member_number`) and wrapping enrollment inside an atomic `db.transaction()`.
+- **Files to Modify**:
+  - `lib/db/src/schema/members.ts`
+  - `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Add PostgreSQL sequence in `@workspace/db` schema:
+     `export const seqMemberNumber = pgSequence("seq_member_number", { startWith: 1, increment: 1 });`
+  2. In `POST /api/members`, wrap member creation, number formatting, primary activity seeding, and initial line items inside `db.transaction(async (tx) => { ... })`:
+     ```typescript
+     const newMember = await db.transaction(async (tx) => {
+       // 1. Fetch next sequence value atomically from PostgreSQL
+       const [{ seqVal }] = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
+       const memberNumber = `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
+
+       // 2. Insert member with final, guaranteed unique memberNumber
+       const [inserted] = await tx.insert(membersTable).values({
+         ...memberValues,
+         memberNumber,
+       }).returning();
+
+       // 3. Insert primary activity inside SAME transaction tx
+       const [primaryActivity] = await tx.insert(memberActivitiesTable).values({
+         memberId: inserted.id,
+         activityType: category,
+         isPrimary: true,
+         ...
+       }).returning();
+
+       // 4. Insert initial line items if present inside tx
+       if (initialLineItems?.length) {
+         await tx.insert(activityLineItemsTable).values(
+           initialLineItems.map(item => ({ ...item, activityId: primaryActivity.id }))
+         );
+       }
+
+       return inserted;
+     });
+     ```
+  3. Wrap error handling to return HTTP 400 Bad Request or HTTP 409 Conflict for business/unique conflicts without exposing raw SQL error stacks.
+- **Acceptance Criteria**:
+  - Member creation, sequence allocation, primary activity insertion, and initial line-item writes execute in ONE atomic transaction.
+  - No `"PENDING"` placeholder strings are ever inserted into the database.
+  - 10 concurrent member creation requests succeed cleanly, generating 10 unique sequential member numbers with 0 unique constraint crashes.
+  - Failed transactions execute complete rollbacks leaving 0 orphan members or primary activities.
+
+### Task REM-DB-001: Implement Business-Driven Relational Integrity & Migration Preflight Safety
+- **Objective**: Add business-driven foreign key delete policies (`ON DELETE RESTRICT` for users/geography, `ON DELETE CASCADE` for child activities/line items), partial unique index for single primary activity, CHECK constraints, and preflight legacy data safety checks.
+- **Files to Modify**:
+  - `lib/db/src/schema/members.ts`
+  - `lib/db/src/schema/users.ts`
+  - Create preflight audit script `lib/db/src/preflight-check.ts`
+  - Generate migration `lib/db/drizzle/0002_add_business_integrity_constraints.sql`
+- **Instructions**:
+  1. Create preflight script `lib/db/src/preflight-check.ts`:
+     - Query and report orphan `member_activities` (referencing non-existent member IDs).
+     - Query and report members with multiple primary activities (`is_primary = true`).
+     - Query and report invalid status or category enum strings.
+  2. In `lib/db/src/schema/members.ts`:
+     - Attach `.references(() => usersTable.id, { onDelete: 'restrict' })` to `createdById` (deleting user MUST NOT delete members).
+     - Attach `.references(() => regionsTable.id, { onDelete: 'restrict' })` to `regionId`.
+     - Attach `.references(() => departmentsTable.id, { onDelete: 'restrict' })` to `departmentId`.
+     - Attach `.references(() => arrondissementsTable.id, { onDelete: 'restrict' })` to `arrondissementId`.
+     - Attach `.references(() => membersTable.id, { onDelete: 'cascade' })` to `memberActivitiesTable.memberId`.
+     - Attach `.references(() => memberActivitiesTable.id, { onDelete: 'cascade' })` to `activityLineItemsTable.activityId`.
+     - Add partial unique index for single primary activity:
+       `extraConfig: (table) => [ uniqueIndex("idx_single_primary_activity").on(table.memberId).where(sql`is_primary = true`) ]`
+     - Add CHECK constraints for non-negative numbers: `superficie_ha >= 0`, `production_quantity >= 0`, `production_fcfa >= 0`.
+  3. Generate migration `0002_*.sql` via `pnpm --filter @workspace/db run generate`.
+- **Acceptance Criteria**:
+  - Preflight script identifies any legacy orphan or duplicate rows prior to migration.
+  - Deleting a user account with assigned members is blocked (`ON DELETE RESTRICT`).
+  - Deleting a member cascades to delete associated activities and line items (`ON DELETE CASCADE`).
+  - Attempting to insert a second primary activity for a member fails with PostgreSQL unique constraint violation.
+  - Negative values for surface area or production quantities are rejected by CHECK constraints.
+  - `pnpm --filter @workspace/db run build` succeeds.
+
+### Task REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In
+- **Objective**: Ensure ANY authenticated CAPEF user/agent can scan/verify ANY member badge (returning full member verification profile), while rejecting unauthenticated scans with HTTP 401 / sign-in redirect.
+- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`, `artifacts/capef/src/App.tsx`
+- **Instructions**:
+  1. Refactor `/api/members/badge/:badgeToken` route to attach `requireAppUser` middleware (`authorizeBadgeVerification`).
+  2. Do NOT check creator ownership (`createdById`) or regional bounds for badge verification. Allow ANY valid authenticated CAPEF agent to verify ANY member badge.
+  3. When an authenticated agent queries `/api/members/badge/:badgeToken`, execute `formatMember(member, true)` and return the full member verification profile.
+  4. Reject unauthenticated badge queries with HTTP 401 Unauthorized.
+  5. Update frontend `App.tsx` routing so `/badge-verify/:token` requires authentication; if an unauthenticated user scans the QR code, redirect them to sign in first. Once signed in, render the full `BadgeVerify` page.
+- **Acceptance Criteria**:
+  - Anonymous badge API request -> HTTP 401 Unauthorized.
+  - Unauthenticated browser scanning QR code -> Redirects to sign-in page.
+  - Authenticated agent scanning own member's badge -> HTTP 200 with full member profile.
+  - Authenticated agent scanning another agent's member badge -> HTTP 200 with full member profile.
+  - Authenticated supervisor scanning any badge -> HTTP 200 with full member profile.
+  - Authenticated admin scanning any badge -> HTTP 200 with full member profile.
+  - Invalid/non-existing badge token -> HTTP 404 Not Found.
+
+### Task REM-PRIV-002: Escape XML Entities in SVG Badge Templates
+- **Objective**: Neutralize stored XSS vectors in generated SVG badge markup.
+- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Create an XML entity escaping utility function:
+     ```typescript
+     function escapeXml(str: string): string {
+       return str.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c] || c));
+     }
+     ```
+  2. Wrap all interpolated member fields (`fullName`, `phone`, `village`, `category`) in `escapeXml()` before SVG string assembly.
+- **Acceptance Criteria**: Injecting `<script>alert(1)</script>` into a member's name renders safe literal XML text without executing JavaScript.
+
+### Task REM-AUTH-002: Repair Clerk Agent Invitation & Identity Lifecycle
+- **Objective**: Fix the broken user onboarding workflow in `POST /api/users`. Replace the mock `clerkUserId: pending_<timestamp>` implementation with a real Clerk Invitation creation call using `@clerk/express` / Clerk SDK. Update `/api/auth/provision` so that when invited agents register and log in for the first time, their Clerk user ID is dynamically linked to their pre-created database user record without email collision errors.
+- **Files to Modify**:
+  - `artifacts/api-server/src/routes/users.ts`
+  - `artifacts/api-server/src/routes/auth.ts`
+- **Instructions**:
+  1. Open `artifacts/api-server/src/routes/users.ts`.
+  2. Import `clerkClient` from `@clerk/express`.
+  3. In `POST /api/users`, issue a real Clerk invitation:
+     ```typescript
+     let invitationId: string | null = null;
+     try {
+       const invitation = await clerkClient.invitations.createInvitation({
+         emailAddress: email,
+         redirectUrl: `${process.env.FRONTEND_URL || ''}/sign-up`,
+         publicMetadata: { role, regionId: regionId ?? null, assignedZones: assignedZones ?? [] },
+       });
+       invitationId = invitation.id;
+     } catch (err) {
+       logger.error({ err, email }, "Failed to create Clerk invitation");
+     }
+     ```
+     Insert into `usersTable` with `clerkUserId: invitationId || pending_${Date.now()}`.
+  4. Open `artifacts/api-server/src/routes/auth.ts`.
+  5. In `POST /api/auth/provision`:
+     - First search by `clerkUserId`.
+     - If not found by `clerkUserId`, search by `email` (`where(eq(usersTable.email, email))`).
+     - If found by `email` with a `pending_` or invitation ID in `clerkUserId`, update the existing record: set `clerkUserId = actualClerkUserId` and preserve pre-assigned `role`, `regionId`, and `assignedZones`.
+- **Acceptance Criteria**:
+  - Creating an agent via `POST /api/users` issues a real Clerk invitation email.
+  - On first sign-in, `/api/auth/provision` matches pre-created user by email and updates `clerkUserId`.
+  - Zero unique email constraint violations (`users_email_unique`) occur on first sign-in.
+
+### Task REM-MIG-001: Decouple Migration Execution from Server Startup
+- **Objective**: Prevent deployment race conditions and cold-start latency by removing asynchronous database migrations and seeding from Express server process boot in `artifacts/api-server/src/index.ts`.
+- **Files to Modify**:
+  - `artifacts/api-server/src/index.ts`
+  - Create `lib/db/src/standalone-migrate.ts`
+- **Instructions**:
+  1. Open `artifacts/api-server/src/index.ts`.
+  2. Remove calls to `seedDatabaseIfNeeded()` and `migrateExistingMembersToActivities()`.
+  3. Ensure `index.ts` focuses strictly on starting the HTTP server: `app.listen(PORT, ...)`.
+  4. Create a standalone CLI script `lib/db/src/standalone-migrate.ts` in `@workspace/db` containing versioned migration execution (`migrate(db, { migrationsFolder: '...' })`) and reference seeding.
+  5. Add script to `package.json`: `"db:migrate": "node dist/standalone-migrate.js"`.
+- **Acceptance Criteria**:
+  - Launching `node dist/index.mjs` starts listening on `PORT` immediately without querying or mutating existing table structures.
+  - Database migrations are triggered explicitly via `pnpm db:migrate` during release phase.
+
+### Task REM-MIG-002: Replace Destructive Schema Push with Versioned Migrations
+- **Objective**: Fix the deployment script `scripts/post-merge.sh`. Replace `pnpm --filter db push` (`drizzle-kit push --force`) with controlled, versioned migration execution (`pnpm --filter @workspace/db run migrate`).
+- **Files to Modify**: `scripts/post-merge.sh`
+- **Instructions**:
+  1. Open `scripts/post-merge.sh`.
+  2. Replace `pnpm --filter db push` with `pnpm --filter @workspace/db run migrate`.
+- **Acceptance Criteria**:
+  - `scripts/post-merge.sh` executes versioned migrations via `pnpm --filter @workspace/db run migrate`.
+  - `drizzle-kit push --force` is no longer called in deployment scripts.
+
+### Task REM-QUAL-001: Establish Automated Integration Test Suite
+- **Objective**: Introduce an automated integration test suite using **Vitest** and **Supertest** enforcing the 9 CAPEF Production Quality Gates specified in Correction 06.
+- **Files to Modify**:
+  - Root `package.json`
+  - `artifacts/api-server/package.json`
+  - Create `artifacts/api-server/src/__tests__/auth.test.ts`
+  - Create `artifacts/api-server/src/__tests__/members.test.ts`
+  - Create `artifacts/api-server/src/__tests__/authorization.test.ts`
+  - Create `artifacts/api-server/src/__tests__/offline.test.ts`
+  - Create `artifacts/api-server/src/__tests__/enrollment-concurrency.test.ts`
+  - Create `artifacts/api-server/src/__tests__/relational-integrity.test.ts`
+- **Instructions**:
+  1. Install testing dependencies in `artifacts/api-server`: `pnpm --filter @workspace/api-server add -D vitest supertest @types/supertest`.
+  2. Add test script to `package.json`: `"test": "vitest run"`.
+  3. Create test files covering auth, resource authorization, badge verification auth, offline sync & idempotency, enrollment concurrency, and relational integrity delete policies.
+- **Acceptance Criteria**:
+  - `pnpm test` executes Vitest and passes 100% of integration test cases.
+
+### Task REM-API-001: Enforce Generated Zod Schemas on Express Body Parsing
+- **Objective**: Bridge the gap between OpenAPI generated Zod schemas (`@workspace/api-zod`) and Express route handlers using a generic `validateBody(schema)` middleware.
+- **Files to Modify**:
+  - Create `artifacts/api-server/src/middlewares/validateBody.ts`
+  - Modify `artifacts/api-server/src/routes/members.ts`
+  - Modify `artifacts/api-server/src/routes/users.ts`
+- **Instructions**:
+  1. Implement `validateBody<T>(schema: z.ZodSchema<T>)` middleware.
+  2. Attach `validateBody(CreateUserBody)` to `POST /api/users` and `validateBody(CreateMemberBody)` to `POST /api/members`.
+- **Acceptance Criteria**:
+  - Invalid request bodies return HTTP 400 Bad Request with formatted Zod error details.
+
+### Task REM-API-003: Mask Internal Database Exception Details in Error Responses
+- **Objective**: Implement a centralized Express error handling middleware that logs detailed diagnostics internally via Pino while returning standardized, safe `{ error, code }` responses to clients.
+- **Files to Modify**:
+  - Create `artifacts/api-server/src/middlewares/errorHandler.ts`
+  - Modify `artifacts/api-server/src/app.ts`
+- **Instructions**:
+  1. Implement `errorHandler(err, req, res, next)` middleware masking internal SQL details.
+  2. Mount `app.use(errorHandler)` as the LAST middleware in `app.ts`.
+- **Acceptance Criteria**:
+  - Raw PostgreSQL exception details (`constraint`, `table`, SQL queries) are never exposed in HTTP responses.
+
+### Task REM-DATA-003: Coerce Empty Strings to Null for Double/Integer DB Columns
+- **Objective**: Prevent PostgreSQL HTTP 500 type serialization crashes when frontend forms send empty strings (`""`) for numeric fields (`regionId`, `departmentId`, `gpsLat`, `gpsLng`).
+- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Implement `coerceNumeric(val)` helper mapping `""`, `undefined`, or `null` to `null`.
+  2. Apply `coerceNumeric` to all numeric payload fields in member create/update endpoints.
+- **Acceptance Criteria**:
+  - Submitting `""` for numeric fields converts them to `null` before SQL insertion without 500 crashes.
+
+### Task REM-SEC-001: Restrict CORS Allowlist to Strict Environment Variables
+- **Objective**: Replace wildcard origin matching (`.endsWith(".vercel.app")`) in CORS middleware with strict origin checking based on `FRONTEND_URL` and `FRONTEND_URLS`.
+- **Files to Modify**: `artifacts/api-server/src/app.ts`
+- **Instructions**:
+  1. Remove suffix regex matching from CORS configuration.
+  2. Construct `allowedOrigins` Set strictly from `FRONTEND_URL`, `FRONTEND_URLS`, and explicit local dev ports (`http://localhost:3000`, `http://localhost:5173`).
+- **Acceptance Criteria**:
+  - Unauthorized origins are blocked from making credentialed cross-origin API calls.
+
+### Task REM-SEC-002: Configure Express Trust Proxy & Persistent Rate Limiting
+- **Objective**: Fix spoofable in-memory rate limiting on public endpoints by configuring `app.set("trust proxy", 1)` and backing public rate limiting with persistent DB or sliding-window stores.
+- **Files to Modify**:
+  - `artifacts/api-server/src/app.ts`
+  - `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Add `app.set("trust proxy", 1)` in `app.ts`.
+  2. Refactor rate limiter to evaluate true client IP.
+- **Acceptance Criteria**:
+  - `req.ip` reflects true client IP behind reverse proxies; header spoofing via `X-Forwarded-For` is neutralized.
+
+### Task REM-STOR-001: Integrate Supabase Cloud Object Storage for Identity Documents & Photos
+- **Objective**: Eliminate base64 JSONB bloat and local ephemeral disk writes by uploading photos, CNI documents, and signatures to Supabase Storage (`member-documents` bucket).
+- **Files to Modify**:
+  - `artifacts/api-server/src/routes/uploads.ts`
+  - `artifacts/capef/src/pages/members/MemberForm.tsx`
+- **Instructions**:
+  1. Refactor `POST /api/uploads` to upload file buffers to Supabase Storage via `@supabase/supabase-js`.
+  2. Return immutable cloud URLs and store cloud URL strings in PostgreSQL JSONB fields.
+- **Acceptance Criteria**:
+  - Member photos and documents stored as cloud URLs; JSONB column sizes remain small (<10KB).
+
+### Task REM-PERF-001: Eliminate N+1 Query Loops & Stream Excel Exports
+- **Objective**: Eliminate severe N+1 query patterns in `formatMember` using relational SQL `JOIN`s and refactor `GET /api/members/export` to stream Excel workbooks in cursor batches of 500.
+- **Files to Modify**: `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Refactor `formatMember` to accept pre-joined SQL records.
+  2. Implement cursor batching and pipe ExcelJS streaming workbook writer (`ExcelJS.stream.xlsx.WorkbookWriter`) directly to HTTP response stream.
+- **Acceptance Criteria**:
+  - Member list queries execute via single relational SQL `JOIN`s; export handles large datasets without memory spikes.
+
+### Task REM-API-002: Synchronize OpenAPI Contract & Re-run Codegen
+- **Objective**: Eliminate contract drift in `lib/api-spec/openapi.yaml`. Add missing `securitySchemes`, remove dead response schemas (`ExportResult`), align property definitions, and re-run Orval codegen.
+- **Files to Modify**: `lib/api-spec/openapi.yaml`
+- **Instructions**:
+  1. Add `securitySchemes` (Bearer / JWT) to `openapi.yaml`.
+  2. Run `pnpm --filter @workspace/api-spec run codegen`.
+- **Acceptance Criteria**:
+  - OpenAPI spec contains complete security schemes and accurate schemas; Orval codegen completes cleanly.
+
+### Task REM-UX-001 / REP-001: Path Validation, Offline Banners & Dashboard Aggregations
+- **Objective**: Validate integer path parameters (`/members/:id`) to return HTTP 400 on `NaN`, update toast notifications in `ActivityWizard.tsx`, and aggregate dashboard sector metrics over `member_activities`.
+- **Files to Modify**:
+  - `artifacts/api-server/src/routes/members.ts`
+  - `artifacts/api-server/src/routes/dashboard.ts`
+  - `artifacts/capef/src/components/members/ActivityWizard.tsx`
+- **Instructions**:
+  1. Validate `req.params.id` integer parsing.
+  2. Update toast notification copy in `ActivityWizard.tsx`.
+  3. Query activity counts by joining `memberActivitiesTable` in `dashboard.ts`.
+- **Acceptance Criteria**:
+  - Malformed path IDs return HTTP 400; dashboard statistics reflect multi-activity member distributions.
 
 ---
 
@@ -289,7 +1046,7 @@ A remediation item or phase is **NOT** considered complete merely because TypeSc
 
 ### 7. MIGRATION GATE
 - Express process startup (`artifacts/api-server/src/index.ts`) decoupled from database migrations and reference seeding.
-- Migrations executed explicitly via versioned CLI scripts (`pnpm db:migrate`) using `DIRECT_URL`.
+- Migrations executed via standalone CLI scripts (`pnpm db:migrate`) using `DIRECT_URL`.
 
 ### 8. TEST GATE
 - Minimum Vitest + Supertest integration regression suite passing 100%:
