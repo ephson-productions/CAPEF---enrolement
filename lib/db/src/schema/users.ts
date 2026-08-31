@@ -2,6 +2,8 @@ import { pgTable, serial, text, integer, timestamp, jsonb } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+import { regionsTable } from "./regions";
+
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   clerkUserId: text("clerk_user_id").notNull().unique(),
@@ -9,7 +11,7 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   role: text("role").notNull().default("agent"), // admin | supervisor | agent
   status: text("status").notNull().default("active"), // active | suspended | banned
-  regionId: integer("region_id"),
+  regionId: integer("region_id").references(() => regionsTable.id, { onDelete: "restrict" }),
   cniNumber: text("cni_number"),
   cniPhotoUrl: text("cni_photo_url"),
   profilePhotoUrl: text("profile_photo_url"),

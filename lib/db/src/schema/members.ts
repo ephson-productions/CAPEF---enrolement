@@ -1,7 +1,11 @@
-import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid, pgSequence } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid, pgSequence, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
+import { regionsTable } from "./regions";
+import { departmentsTable } from "./departments";
+import { arrondissementsTable } from "./arrondissements";
 
 export const seqMemberNumber = pgSequence("seq_member_number", { startWith: 1, increment: 1 });
 
@@ -11,13 +15,13 @@ export const membersTable = pgTable("members", {
   memberType: text("member_type").notNull(), // physique | morale
   category: text("category").notNull(), // agriculteur | pecheur | eleveur | forestier | artisan
   individualOrOrg: text("individual_or_org").notNull().default("individuel"), // individuel | organisation
-  regionId: integer("region_id"),
-  departmentId: integer("department_id"),
-  arrondissementId: integer("arrondissement_id"),
+  regionId: integer("region_id").references(() => regionsTable.id, { onDelete: "restrict" }),
+  departmentId: integer("department_id").references(() => departmentsTable.id, { onDelete: "restrict" }),
+  arrondissementId: integer("arrondissement_id").references(() => arrondissementsTable.id, { onDelete: "restrict" }),
   village: text("village"),
   gpsLat: doublePrecision("gps_lat"),
   gpsLng: doublePrecision("gps_lng"),
-  createdById: integer("created_by_id").notNull(),
+  createdById: integer("created_by_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
   // JSONB columns for flexible nested data
   physiqueData: jsonb("physique_data"),
   moraleData: jsonb("morale_data"),
@@ -28,24 +32,32 @@ export const membersTable = pgTable("members", {
   status: text("status").notNull().default("incomplet"), // incomplet | en_attente | valide | desactive | bloque
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  idxMembersCreatedBy: index("idx_members_created_by").on(table.createdById),
+  idxMembersRegion: index("idx_members_region").on(table.regionId),
+  idxMembersBadgeToken: index("idx_members_badge_token").on(table.badgeToken),
+}));
 
 export const memberActivitiesTable = pgTable("member_activities", {
   id: serial("id").primaryKey(),
-  memberId: integer("member_id").notNull(), // references membersTable.id
+  memberId: integer("member_id").notNull().references(() => membersTable.id, { onDelete: "cascade" }),
   activityType: text("activity_type").notNull(), // agriculteur | pecheur | eleveur | forestier | artisan
   isPrimary: boolean("is_primary").notNull().default(false),
-  regionId: integer("region_id"),
-  departmentId: integer("department_id"),
-  arrondissementId: integer("arrondissement_id"),
+  regionId: integer("region_id").references(() => regionsTable.id, { onDelete: "restrict" }),
+  departmentId: integer("department_id").references(() => departmentsTable.id, { onDelete: "restrict" }),
+  arrondissementId: integer("arrondissement_id").references(() => arrondissementsTable.id, { onDelete: "restrict" }),
   village: text("village"),
   maillons: jsonb("maillons").default([]), // array of strings
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  idxSinglePrimaryActivity: uniqueIndex("idx_single_primary_activity").on(table.memberId).where(sql`is_primary = true`),
+  uniqueMemberActivityType: uniqueIndex("unique_member_activity_type").on(table.memberId, table.activityType),
+  idxMemberActivitiesMemberId: index("idx_member_activities_member_id").on(table.memberId),
+}));
 
 export const activityLineItemsTable = pgTable("activity_line_items", {
   id: serial("id").primaryKey(),
-  activityId: integer("activity_id").notNull(), // references memberActivitiesTable.id
+  activityId: integer("activity_id").notNull().references(() => memberActivitiesTable.id, { onDelete: "cascade" }),
   // Common fields (e.g. agriculture, pêche, élevage, forestier, artisan)
   // Agriculture
   parcelleGroupId: text("parcelle_group_id"),
@@ -78,7 +90,9 @@ export const activityLineItemsTable = pgTable("activity_line_items", {
   rawMaterials: text("raw_materials"), // raw materials
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  idxActivityLineItemsActivityId: index("idx_activity_line_items_activity_id").on(table.activityId),
+}));
 
 export const insertMemberSchema = createInsertSchema(membersTable).omit({
   id: true,

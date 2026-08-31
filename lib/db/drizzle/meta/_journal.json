@@ -15,6 +15,13 @@
       "when": 1785721272680,
       "tag": "0001_messy_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788180797017,
+      "tag": "0002_fuzzy_wildside",
+      "breakpoints": true
     }
   ]
 }

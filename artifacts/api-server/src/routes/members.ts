@@ -1560,9 +1560,10 @@ const publicRateLimiter = (req: any, res: any, next: any) => {
   }
 };
 
-// GET /api/public/members/badge/:badgeToken
-router.get("/public/members/badge/:badgeToken", publicRateLimiter, async (req, res): Promise<void> => {
-  const token = req.params.badgeToken;
+// GET /api/members/badge/:badgeToken - Require authentication (requireAppUser)
+router.get("/members/badge/:badgeToken", requireAppUser, async (req, res): Promise<void> => {
+  const rawToken = req.params.badgeToken;
+  const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
   if (!token) {
     res.status(404).json({ error: "Token requis" });
     return;
@@ -1575,11 +1576,11 @@ router.get("/public/members/badge/:badgeToken", publicRateLimiter, async (req, r
     .limit(1);
 
   if (!member) {
-    res.status(404).json({ error: "Membre introuvable" });
+    res.status(404).json({ error: "Badge invalide ou introuvable" });
     return;
   }
 
-  // Return full member record using the standard formatMember helper
+  // Return complete member verification profile to any authenticated CAPEF user
   res.json(await formatMember(member, true));
 });
 
