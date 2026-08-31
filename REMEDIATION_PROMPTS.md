@@ -43,34 +43,50 @@ This document contains detailed, self-contained, copy-pasteable engineering prom
 
 ```markdown
 # TASK SPECIFICATION: REM-DATA-001
-**Title**: Implement Production-Grade Offline Synchronization Protocol with Client Operation UUIDs & Server Idempotency
+**Title**: Implement Production-Grade Offline Synchronization Protocol with Storage Repository & Server Idempotency
 **Severity**: P0 Blocker
 **Domain**: Offline Engine, Idempotency & Data Integrity
 **Affected Files**:
 - `artifacts/capef/src/lib/offline-sync.tsx`
+- Create `artifacts/capef/src/lib/offline-repository.ts`
 - `lib/db/src/schema/members.ts` (or `users.ts`)
 - `artifacts/api-server/src/routes/members.ts`
 
 ---
 
 ### OBJECTIVE
-Rework `DATA-001` in `artifacts/capef/src/lib/offline-sync.tsx` and `artifacts/api-server/src/routes/members.ts` to implement a production-grade, durable offline synchronization protocol. Eliminate both silent data loss AND duplicate writes caused by retries after ambiguous network failures. Require immutable client operation IDs (`clientOperationId` UUIDs), server-side idempotency tracking (`processed_operations` table), explicit atomic database transactions, error classification (retryable 5xx/network vs. terminal 400 business errors), and strict acknowledgement-based queue purging.
+Rework `DATA-001` in `artifacts/capef/src/lib/offline-sync.tsx` and `artifacts/api-server/src/routes/members.ts` to implement a production-grade, durable offline synchronization protocol. Eliminate both silent data loss AND duplicate writes caused by retries after ambiguous network failures. Require an abstract `OfflineQueueRepository` storage interface (preparing for IndexedDB migration), structured item records (`id`, `clientOperationId`, `operationType`, `payload`, `createdAt`, `retryCount`, `status`, `lastError`), server-side idempotency tracking (`processed_operations` table), explicit atomic database transactions, error classification (retryable 5xx/network vs. terminal 400 business errors), and strict acknowledgement-based queue purging.
 
 ---
 
-### BACKGROUND & TECHNICAL CONTEXT (CORRECTION 03)
+### BACKGROUND & TECHNICAL CONTEXT (CORRECTION 03 & 07)
 - In CAPEF Digital Enrolment, field agents record crop/livestock activities and line items offline.
+- Direct `localStorage` calls scattered across components make storage migration impossible and risk item data corruption.
 - Simple `for each item: POST -> delete on HTTP 200` loops are insufficient for production. If an HTTP request reaches the server, commits to PostgreSQL, but the network drops before the client receives the response, retrying the same request creates duplicate activities or line items.
 - In `offline-sync.tsx:70-80`, `syncNow()` currently clears `capef_offline_actions_queue` without transmitting data.
 - **Invariants**:
-  1. No offline CAPEF operation may be deleted from local storage until the server has explicitly acknowledged successful processing or confirmed that the operation was previously processed.
-  2. Replaying the same `clientOperationId` MUST NEVER create duplicate database records.
+  1. All offline storage operations must be encapsulated behind `IOfflineQueueRepository` interface.
+  2. No offline CAPEF operation may be deleted from storage until the server has explicitly acknowledged successful processing or confirmed that the operation was previously processed.
+  3. Replaying the same `clientOperationId` MUST NEVER create duplicate database records.
 
 ---
 
 ### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
 
-#### 1. Schema & Server Idempotency (`processed_operations` Table)
+#### 1. Repository Abstraction Layer (`offline-repository.ts`)
+1. Create `artifacts/capef/src/lib/offline-repository.ts`:
+   - Define `OfflineQueueItem` interface:
+     `id` (string UUID), `clientOperationId` (string UUID), `operationType` ('create_activity' | 'create_line_item' | 'delete_line_item' | 'create_member'), `payload` (any), `createdAt` (ISO string), `retryCount` (number), `status` ('pending' | 'processing' | 'failed' | 'completed'), `lastError` (string | null).
+   - Define `IOfflineQueueRepository` interface:
+     - `enqueue<T>(type: string, payload: T): Promise<OfflineQueueItem<T>>`
+     - `getAll(): Promise<OfflineQueueItem[]>`
+     - `getPending(): Promise<OfflineQueueItem[]>`
+     - `updateStatus(id: string, status: string, error?: string): Promise<void>`
+     - `incrementRetry(id: string, error: string): Promise<void>`
+     - `remove(id: string): Promise<void>`
+   - Implement `LocalStorageQueueRepository` conforming to `IOfflineQueueRepository` (preparing clean swap to `IndexedDBQueueRepository`).
+
+#### 2. Schema & Server Idempotency (`processed_operations` Table)
 1. In `@workspace/db` schema, define `processedOperationsTable`:
    - `clientOperationId`: `uuid("client_operation_id").primaryKey()`
    - `userId`: `integer("user_id").notNull().references(() => usersTable.id)`
@@ -103,32 +119,35 @@ Rework `DATA-001` in `artifacts/capef/src/lib/offline-sync.tsx` and `artifacts/a
        return res.status(201).json(result);
        ```
 
-#### 2. Frontend Queue & Replay Architecture (`offline-sync.tsx`)
+#### 3. Frontend Queue & Replay Architecture (`offline-sync.tsx`)
 1. In `artifacts/capef/src/lib/offline-sync.tsx`:
-   - Update `enqueueActivityAction` to attach an immutable `clientOperationId: crypto.randomUUID()` to every queued item upon initial entry.
-   - Save item in `localStorage` under `capef_offline_actions_queue`.
+   - Refactor `OfflineQueueProvider` to instantiate and consume `OfflineQueueRepository`.
+   - Update `enqueueActivityAction` to call `repository.enqueue(...)`, generating immutable `id` and `clientOperationId` UUIDs.
 2. Refactor `syncNow()`:
-   - Process `capef_offline_actions_queue` items sequentially using a `for...of` loop.
+   - Retrieve pending items via `repository.getPending()`.
+   - Process items sequentially using a `for...of` loop.
    - For each action, pass `clientOperationId` in the request payload.
    - **On HTTP 200 / 201 Response (Confirmed Server Acknowledgement)**:
-     - Remove the specific operation from `capef_offline_actions_queue` and update local storage.
+     - Call `repository.remove(item.id)`.
    - **On Retryable Network Failure or HTTP 5xx Server Error**:
-     - Do NOT clear the queue! Retain the failed operation (and subsequent operations) in `capef_offline_actions_queue`.
+     - Do NOT remove item! Call `repository.incrementRetry(item.id, error.message)`.
      - Show warning toast ("Resynchronisation différée due à un problème réseau") and abort the current sync cycle.
    - **On Terminal Business / Validation Error (HTTP 400 / 422)**:
-     - Move the failing operation from `capef_offline_actions_queue` into `capef_offline_failed_actions` (error log queue) to prevent infinite retry loops.
+     - Call `repository.updateStatus(item.id, 'failed', error.message)` to mark item as failed without infinite retries.
      - Show an explicit error toast to the field agent notifying them of the rejected payload.
 
 ---
 
 ### ACCEPTANCE CRITERIA
-- [ ] Queued offline actions survive page reloads and browser restarts.
-- [ ] Each queued action contains a unique, immutable `clientOperationId` UUID.
+- [ ] Offline storage operations are encapsulated behind `OfflineQueueRepository` interface.
+- [ ] Direct `localStorage` calls in components are eliminated.
+- [ ] Queued offline actions survive page reloads and browser restarts in structured repository storage.
+- [ ] Each queued action contains a unique, immutable `clientOperationId` UUID and metadata (`retryCount`, `status`, `lastError`).
 - [ ] Upon reconnecting, `syncNow()` sequentially transmits queued actions with their `clientOperationId`.
 - [ ] Replaying the same request (same `clientOperationId`) after a simulated network timeout returns HTTP 200 with cached result and creates NO duplicate database rows.
-- [ ] Network failures (HTTP 5xx / timeout) retain operations in `capef_offline_actions_queue` for future retry.
-- [ ] Terminal validation errors (HTTP 400) move operations to an error review queue without causing infinite retries.
-- [ ] Operations are deleted from `capef_offline_actions_queue` ONLY after receiving an explicit HTTP 200/201 response.
+- [ ] Network failures (HTTP 5xx / timeout) retain operations in repository storage for retry.
+- [ ] Terminal validation errors (HTTP 400) update item status to `'failed'` without causing infinite retries.
+- [ ] Operations are deleted from repository storage ONLY after receiving an explicit HTTP 200/201 response.
 - [ ] `pnpm typecheck` and `pnpm --filter capef run build` compile cleanly.
 
 ---
@@ -615,39 +634,35 @@ Fix the broken user onboarding workflow in `POST /api/users`. Replace the mock `
 
 ### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
 1. Open `artifacts/api-server/src/routes/users.ts`.
-2. Import `clerkClient` from `@clerk/express` (or initialize `createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })`).
-3. In `POST /api/users`:
-   - Issue a real Clerk invitation:
-     ```typescript
-     let invitationId: string | null = null;
-     try {
-       const invitation = await clerkClient.invitations.createInvitation({
-         emailAddress: email,
-         redirectUrl: `${process.env.FRONTEND_URL || ''}/sign-up`,
-         publicMetadata: { role, regionId: regionId ?? null, assignedZones: assignedZones ?? [] },
-       });
-       invitationId = invitation.id;
-     } catch (err) {
-       logger.error({ err, email }, "Failed to create Clerk invitation");
-     }
-     ```
-   - Insert into `usersTable` with `clerkUserId: invitationId || pending_${Date.now()}`.
+2. Import `clerkClient` from `@clerk/express`.
+3. In `POST /api/users`, issue a real Clerk invitation:
+   ```typescript
+   let invitationId: string | null = null;
+   try {
+     const invitation = await clerkClient.invitations.createInvitation({
+       emailAddress: email,
+       redirectUrl: `${process.env.FRONTEND_URL || ''}/sign-up`,
+       publicMetadata: { role, regionId: regionId ?? null, assignedZones: assignedZones ?? [] },
+     });
+     invitationId = invitation.id;
+   } catch (err) {
+     logger.error({ err, email }, "Failed to create Clerk invitation");
+   }
+   ```
+   Insert into `usersTable` with `clerkUserId: invitationId || pending_${Date.now()}`.
 4. Open `artifacts/api-server/src/routes/auth.ts`.
 5. In `POST /api/auth/provision`:
    - First search by `clerkUserId`.
    - If not found by `clerkUserId`, search by `email` (`where(eq(usersTable.email, email))`).
-   - If found by `email` with a `pending_` or invitation ID in `clerkUserId`:
-     - Update the existing record: set `clerkUserId = actualClerkUserId` and preserve the pre-assigned `role`, `regionId`, and `assignedZones`!
-     - Return the updated user record.
-   - If not found by `email`, insert new user record with default `agent` role.
+   - If found by `email` with a `pending_` or invitation ID in `clerkUserId`, update the existing record: set `clerkUserId = actualClerkUserId` and preserve pre-assigned `role`, `regionId`, and `assignedZones`.
 
 ---
 
 ### ACCEPTANCE CRITERIA
 - [ ] Creating an agent via `POST /api/users` issues a real Clerk invitation email.
-- [ ] On first sign-in, `/api/auth/provision` matches the existing pre-created user by email and updates `clerkUserId`.
-- [ ] No unique email constraint violations (`users_email_unique`) occur on first sign-in.
-- [ ] The role (`agent` or `supervisor`) and regional assignments set by the admin are preserved.
+- [ ] On first sign-in, `/api/auth/provision` matches pre-created user by email and updates `clerkUserId`.
+- [ ] Zero unique email constraint violations (`users_email_unique`) occur on first sign-in.
+- [ ] Pre-assigned roles and regional scopes are preserved upon first login.
 - [ ] `pnpm typecheck` compiles cleanly.
 
 ---
@@ -687,21 +702,14 @@ Remove uncoordinated database migrations (`migrateExistingMembersToActivities()`
 ### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
 1. Open `artifacts/api-server/src/index.ts`.
 2. Remove calls to `seedDatabaseIfNeeded()` and `migrateExistingMembersToActivities()`.
-3. Ensure `index.ts` focuses strictly on starting the HTTP server:
-   ```typescript
-   app.listen(PORT, () => {
-     logger.info(`API Server running on port ${PORT}`);
-   });
-   ```
-4. Create a standalone CLI script `lib/db/src/standalone-migrate.ts` in `@workspace/db`:
-   - Include versioned migration execution (`migrate(db, { migrationsFolder: '...' })`).
-   - Include idempotent reference seeding (`seedRegions()`).
+3. Ensure `index.ts` focuses strictly on starting the HTTP server: `app.listen(PORT, ...)`.
+4. Create a standalone CLI script `lib/db/src/standalone-migrate.ts` in `@workspace/db` containing versioned migration execution (`migrate(db, { migrationsFolder: '...' })`) and reference seeding.
 5. Add script to `package.json`: `"db:migrate": "node dist/standalone-migrate.js"`.
 
 ---
 
 ### ACCEPTANCE CRITERIA
-- [ ] Launching `node dist/index.mjs` starts listening on `PORT` immediately without running full table migrations or reference seeding.
+- [ ] Launching `node dist/index.mjs` starts listening on `PORT` immediately without querying or mutating existing table structures.
 - [ ] Multi-instance deployments start cleanly without database lock contention.
 - [ ] Database migrations are triggered explicitly via `pnpm db:migrate` during deployment release phase.
 - [ ] `pnpm typecheck` succeeds.
@@ -775,7 +783,7 @@ bash scripts/post-merge.sh --dry-run # or inspect script
 
 ---
 
-### PROMPT REM-QUAL-001: Establish Automated Test Suite (Aligned with Quality Gates)
+### PROMPT REM-QUAL-001: Establish Automated Test Suite
 
 ```markdown
 # TASK SPECIFICATION: REM-QUAL-001
@@ -912,7 +920,7 @@ pnpm typecheck
 ---
 
 ### OBJECTIVE
-Prevent information disclosure vulnerabilities where raw PostgreSQL exception objects (`{ message, detail, constraint, table }`) are returned to HTTP clients. Implement a centralized Express error handling middleware that logs detailed error diagnostics internally via Pino while returning standardized, safe error responses to clients.
+Prevent information disclosure vulnerabilities where raw PostgreSQL exception objects (`{ message, detail, constraint, table }`) are returned to HTTP clients. Implement a centralized Express error handling middleware that logs detailed error diagnostics internally via Pino while returning standardized, safe `{ error, code }` responses to clients.
 
 ---
 
@@ -1167,7 +1175,7 @@ Eliminate severe N+1 query patterns in `formatMember` (which executes 5+ queries
 ---
 
 ### ACCEPTANCE CRITERIA
-- [ ] Member listing and formatting queries execute via single relational SQL `JOIN` queries.
+- [ ] Member listing and formatting queries execute via single relational SQL `JOIN`s.
 - [ ] Member export handles tens of thousands of records without memory spikes or connection pool exhaustion.
 - [ ] `pnpm typecheck` succeeds.
 

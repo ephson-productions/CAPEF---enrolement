@@ -7,13 +7,13 @@
 
 The **CAPEF Digital Enrolment Platform** is a full-stack, mobile-first Progressive Web Application (PWA) designed to digitize enrollment, identification, and agricultural/artisanal activity tracking for members of the *Chambre d'Agriculture, de la Pêche, de l'Élevage et de la Forêt (CAPEF)* in Cameroon.
 
-A thorough, cross-layer, evidence-based audit was performed on the `ephson-productions/CAPEF---enrolement` repository. This evaluation reconciled two prior independent security/engineering audits (DeepSeek and Codex) against direct inspection of the codebase, incorporating Correction 01 (Authorization Separation), Correction 03 (Production-Grade Offline Synchronization Protocol), Correction 04 (Transactional Member Enrollment), Correction 05 (Business-Driven Relational Integrity), and Correction 06 (Production-Grade Definition of Done & Quality Gates).
+A thorough, cross-layer, evidence-based audit was performed on the `ephson-productions/CAPEF---enrolement` repository. This evaluation reconciled two prior independent security/engineering audits (DeepSeek and Codex) against direct inspection of the codebase, incorporating Correction 01 (Authorization Separation), Correction 03 (Production-Grade Offline Synchronization Protocol), Correction 04 (Transactional Member Enrollment), Correction 05 (Business-Driven Relational Integrity), Correction 06 (Production-Grade Definition of Done & Quality Gates), and Correction 07 (Durable Offline Storage Architecture & Repository Pattern).
 
 ### Key Finding & Verdict
 While the codebase exhibits strong architectural intentions—utilizing a modern stack (Node.js/Express 5, Drizzle ORM, Supabase/PostgreSQL, OpenAPI 3.0, Orval codegen, React, TanStack Query, Clerk authentication, and Vite PWA)—**the platform in its current state is unready for production and insecure.**
 
 Critical structural vulnerabilities and architectural gaps were confirmed:
-1. **P0 Data Loss & Retry Risk**: The offline action queue (`capef_offline_actions_queue`) for field-collected activity and line-item operations is silently discarded on reconnection without server transmission (`offline-sync.tsx`), lacking client operation IDs (`clientOperationId`) and server-side idempotency tracking to prevent data loss or duplicate writes.
+1. **P0 Data Loss & Retry Risk**: The offline action queue (`capef_offline_actions_queue`) for field-collected activity and line-item operations is silently discarded on reconnection without server transmission (`offline-sync.tsx`), lacking client operation IDs (`clientOperationId`), an abstract `OfflineQueueRepository` storage boundary (preparing for IndexedDB migration), structured item metadata (`id`, `clientOperationId`, `operationType`, `payload`, `createdAt`, `retryCount`, `status`, `lastError`), and server-side idempotency tracking (`processed_operations`).
 2. **P0 Privilege Escalation**: Fresh or truncated database states automatically grant `admin` privileges to the first user provisioned via Clerk (`auth.ts`).
 3. **P0 IDOR & Missing Resource Authorization**: Nested member activity and line-item endpoints fail to verify creator ownership or regional assignment scopes (`members.ts`).
 4. **P1 Unauthenticated Badge Access & Missing Auth Boundary**: The badge verification endpoint (`/api/public/members/badge/:badgeToken`) returns full member detail records without requiring authentication (`members.ts`).
@@ -38,7 +38,7 @@ The audit was conducted using a zero-trust, static inspection process across all
 3. **Trace Analysis**: Multi-layer tracing was executed for critical flows:
    - *Identity & Onboarding*: Clerk Webhook / Provisioning → App User Creation → Role Assignment → Session Authorization.
    - *Member Enrollment*: Frontend Form → Zod Schema → API Endpoint → Database-Native Sequence Number Allocation (`seq_member_number`) → Atomic `db.transaction()` (Member + Primary Activity + Line Items) → Commit / Rollback.
-   - *Offline Workflow*: Form Capture → LocalStorage Durable Queue → clientOperationId Generation → Network Reconnection → Idempotent Server Replay → Server Acknowledgement → Local Queue Purge.
+   - *Offline Workflow*: Form Capture → OfflineQueueRepository Abstraction Layer → clientOperationId Generation → Local Storage / IndexedDB Persistence → Network Reconnection → Idempotent Server Replay → Server Acknowledgement → Queue Item Purge.
    - *Badge Generation & Verification*: Member Fetch → SVG String Formatting → Base64 Object URL → Authenticated Token Verification Route (`requireAppUser`).
    - *Database Evolution*: Drizzle Schema → Preflight Legacy Data Audit → Migration Files (`0002_*.sql`) → `drizzle.config.ts` → Deployment Scripts (`post-merge.sh`).
 4. **Limitations**: Dynamic execution (e.g., `pnpm test`, `pnpm typecheck`) was restricted to static analysis because `node_modules` was not pre-installed in the environment, and installing dependencies would modify the repository state.
@@ -56,7 +56,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 | **AUTHZ-001** | F07 | CAP-01 | `artifacts/api-server/src/routes/members.ts:530-868` | **CONFIRMED** | **P0** | Nested member activity and line-item routes enforce `requireAppUser` but omit member ownership/regional checks (`authorizeMemberResourceAccess`). |
 | **PRIV-001** | F05 | CAP-02 | `artifacts/api-server/src/routes/members.ts:1375-1396` | **CONFIRMED** | **P1** | Badge verification endpoint lacks `requireAppUser` middleware, allowing unauthenticated callers to query member data (`authorizeBadgeVerification`). |
 | **PRIV-002** | F06 | — | `artifacts/api-server/src/routes/members.ts:982-1050`, `MemberDetail.tsx:100-126` | **CONFIRMED** | **P1** | Badge SVG string templates interpolate raw user fields; frontend opens `blob:` object URL in top-level browser context. |
-| **DATA-001** | F01 | CAP-07 | `artifacts/capef/src/lib/offline-sync.tsx:70-80` | **CONFIRMED** | **P0** | `syncNow()` resets `capef_offline_actions_queue` to `[]` without transmitting mutations, lacking `clientOperationId` and server-side idempotency tracking (`processed_operations`), risking silent data loss and duplicate writes. |
+| **DATA-001** | F01 | CAP-07 | `artifacts/capef/src/lib/offline-sync.tsx:70-80` | **CONFIRMED** | **P0** | `syncNow()` resets `capef_offline_actions_queue` to `[]` without transmitting mutations. Lacks `OfflineQueueRepository` abstraction layer preparing IndexedDB migration, structured item metadata (`clientOperationId`, `retryCount`, `status`, `lastError`), and server-side idempotency tracking (`processed_operations`), risking silent data loss and duplicate writes. |
 | **DATA-002** | F09 | CAP-05 | `artifacts/api-server/src/routes/members.ts:251-275` | **CONFIRMED** | **P1** | Member creation inserts `"PENDING"` then updates, causing concurrency unique crashes and orphan rows. Must use database-native sequence allocation (`seq_member_number`) inside a single atomic transaction. |
 | **DATA-003** | F16 | CAP-04 | `artifacts/api-server/src/routes/members.ts:262-276, 497-507` | **CONFIRMED** | **P2** | Member create/update routes pass empty strings (`""`) to double/integer columns instead of coercing to `null`. |
 | **DB-001** | F04 | CAP-05 | `lib/db/src/schema/index.ts`, `lib/db/drizzle/0000_brief_timeslip.sql` | **CONFIRMED** | **P1** | Zero foreign keys, zero non-PK indexes, zero unique activity constraints, and zero CHECK constraints across PostgreSQL schema. Must implement business-driven relational integrity with preflight data safety. |
@@ -137,8 +137,8 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
     localStorage.setItem('capef_offline_actions_queue', JSON.stringify([]));
   }
   ```
-  Furthermore, the queued operations lack client operation IDs (`clientOperationId`) and the backend lacks idempotency tracking (`processed_operations` table), meaning simple retries after network timeouts would create duplicate activities or line items.
-- **Root Cause**: Unfinished offline synchronization implementation lacking durable queue semantics, client operation identifiers, error classification, and server-side idempotency tracking.
+  Furthermore, raw `localStorage` calls are scattered directly across components instead of being abstracted behind an `OfflineQueueRepository` interface, lacking structured item metadata (`id`, `clientOperationId`, `operationType`, `payload`, `createdAt`, `retryCount`, `status`, `lastError`), preparing for IndexedDB migration, and missing server-side idempotency tracking (`processed_operations`).
+- **Root Cause**: Unfinished offline synchronization implementation lacking durable queue repository abstraction, client operation identifiers, error classification, and server-side idempotency tracking.
 - **Impact**: Field agents collecting crop/livestock activities while offline experience permanent data loss or duplicate production records upon reconnecting.
 
 ### DATA-002: Non-Transactional Member Enrollment & Member Number Race Conditions
@@ -303,7 +303,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 ## 5. P0 BLOCKERS
 *(Issues requiring immediate containment before any further code changes)*
 
-1. **DATA-001**: Production-grade offline sync protocol with `clientOperationId` and server idempotency (`offline-sync.tsx`, `processed_operations`).
+1. **DATA-001**: Production-grade offline sync protocol with `OfflineQueueRepository` abstraction layer (preparing for IndexedDB migration), structured item record schema (`id`, `clientOperationId`, `operationType`, `payload`, `createdAt`, `retryCount`, `status`, `lastError`), and server idempotency (`offline-sync.tsx`, `processed_operations`).
 2. **AUTH-001**: Unauthenticated admin takeover on empty user table during bootstrap (`auth.ts`).
 3. **AUTHZ-001**: Broken member resource authorization / IDOR across nested activity and line-item routes (`members.ts`).
 
@@ -453,25 +453,50 @@ CREATE TABLE members (
 
 ---
 
-## 12. API / OPENAPI / ZOD ASSESSMENT
+## 12. API / OPENAPI / ZOD ASSESSMENT (CORRECTION O & P)
 
-### Contract Enforcement Pipeline
-The repository currently breaks the contract chain at the Express boundary:
+### 12.1 OpenAPI / Orval Strict Codegen Pipeline (Correction O)
+The project utilizes OpenAPI 3.0 (`lib/api-spec/openapi.yaml`) as the single canonical source of truth for API contracts. Orval automatically generates:
+1. Server/Validation Zod schemas in `lib/api-zod/src/generated/` (`@workspace/api-zod`).
+2. React Query hooks and client fetchers in `lib/api-client-react/src/generated/` (`@workspace/api-client-react`).
+
+#### Strict Generation Rules:
+- **`INTERDIT` (STRICTLY FORBIDDEN)**: Manually modifying any file inside `lib/api-zod/src/generated/` or `lib/api-client-react/src/generated/`. Direct edits to generated artifacts will be overwritten during build/CI codegen steps and introduce silent contract drift.
+- **`OBLIGATOIRE` (MANDATORY WORKFLOW)**: Any API request/response shape change, new endpoint, path parameter modification, query filter, or enum update MUST be made directly in `lib/api-spec/openapi.yaml`. After updating `openapi.yaml`, run:
+  ```bash
+  pnpm --filter @workspace/api-spec run codegen
+  ```
+  Then commit both `openapi.yaml` and the newly generated code in `@workspace/api-zod` / `@workspace/api-client-react`.
 
 ```
-OpenAPI (openapi.yaml) ──► Orval Codegen ──► Generated Zod (@workspace/api-zod)
-                                                        │
-                                                        ▼ (CURRENTLY BROKEN: UNUSED BY BACKEND)
-                                            Express Routes (Raw req.body Destructuring)
+OpenAPI (lib/api-spec/openapi.yaml) ──► pnpm --filter @workspace/api-spec run codegen
+                                                            │
+                                  ┌─────────────────────────┴────────────────────────┐
+                                  ▼                                                  ▼
+                     Generated Zod Schemas                            Generated React Client
+                 (lib/api-zod/src/generated/)                   (lib/api-client-react/src/generated/)
+                                  │                                                  │
+                                  ▼                                                  ▼
+                      Express Validation Middleware                        TanStack Query / React Forms
+                     (validateBody(schema))
 ```
 
-**Remediation**: Implement a generic validation middleware `validateBody(schema)`:
+### 12.2 Generic Express Validation Middleware
+To bridge OpenAPI Zod schemas with Express 5 backend routes, all mutation routes must apply a generic request validation middleware `validateBody(schema)`:
+
 ```typescript
+import { Request, Response, NextFunction } from "express";
+import { z } from "zod";
+
 export function validateBody<T>(schema: z.ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      res.status(400).json({ error: "Payload de requête invalide", details: result.error.format() });
+      res.status(400).json({
+        error: "Payload de requête invalide",
+        code: "VALIDATION_ERROR",
+        details: result.error.format(),
+      });
       return;
     }
     req.body = result.data;
@@ -480,40 +505,89 @@ export function validateBody<T>(schema: z.ZodSchema<T>) {
 }
 ```
 
----
+### 12.3 Comprehensive API Validation & Authorization Coverage Matrix (Correction P)
+The following matrix defines the contract enforcement, validation middleware, authentication, and authorization policies across all backend API endpoints:
 
-## 13. OFFLINE ARCHITECTURE ASSESSMENT (CORRECTION 03)
+| Endpoint Path | HTTP Method | OpenAPI Schema | Zod Validator Middleware | Auth Required | Authz Policy Middleware | Success Code | Error Codes |
+| :--- | :---: | :--- | :--- | :---: | :--- | :---: | :--- |
+| `/api/auth/me` | GET | `GetMe` | None (Query) | Yes | `requireAppUser` | 200 | 401, 500 |
+| `/api/auth/provision` | POST | `ProvisionUserBody` | `validateBody(ProvisionUserBodySchema)` | Yes | `requireAppUser` | 200 | 400, 401, 500 |
+| `/api/users` | GET | `ListUsers` | None (Query params validated) | Yes | `requireAppUser` + `requireRole('admin', 'supervisor')` | 200 | 401, 403, 500 |
+| `/api/users` | POST | `CreateUserBody` | `validateBody(CreateUserBodySchema)` | Yes | `requireAppUser` + `requireRole('admin')` | 201 | 400, 401, 403, 409, 500 |
+| `/api/users/:id` | PUT | `UpdateUserBody` | `validateBody(UpdateUserBodySchema)` | Yes | `requireAppUser` + `requireRole('admin')` | 200 | 400, 401, 403, 404, 500 |
+| `/api/members` | GET | `ListMembers` | None (Query params validated) | Yes | `requireAppUser` (Filtered by agent createdById / supervisor region) | 200 | 401, 500 |
+| `/api/members` | POST | `CreateMemberBody` | `validateBody(CreateMemberBodySchema)` | Yes | `requireAppUser` | 201 | 400, 401, 409, 500 |
+| `/api/members/:id` | GET | `GetMember` | None (Path param validated) | Yes | `requireAppUser` + `authorizeMemberResourceAccess('read')` | 200 | 401, 403, 404, 500 |
+| `/api/members/:id` | PUT | `UpdateMemberBody` | `validateBody(UpdateMemberBodySchema)` | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 200 | 400, 401, 403, 404, 500 |
+| `/api/members/:id` | DELETE | `DeleteMember` | None (Path param validated) | Yes | `requireAppUser` + `authorizeMemberResourceAccess('delete')` | 200 | 401, 403, 404, 409, 500 |
+| `/api/members/:id/status` | PUT | `UpdateMemberStatus` | `validateBody(UpdateMemberStatusSchema)` | Yes | `requireAppUser` + `requireRole('admin', 'supervisor')` + `authorizeMemberResourceAccess('write')` | 200 | 400, 401, 403, 404, 500 |
+| `/api/members/:id/activities` | GET | `ListMemberActivities` | None (Path param validated) | Yes | `requireAppUser` + `authorizeMemberResourceAccess('read')` | 200 | 401, 403, 404, 500 |
+| `/api/members/:id/activities` | POST | `CreateActivityBody` | `validateBody(CreateActivityBodySchema)` | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 201 | 400, 401, 403, 404, 409, 500 |
+| `/api/members/:id/activities/:activityId` | PUT | `UpdateActivityBody` | `validateBody(UpdateActivityBodySchema)` | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 200 | 400, 401, 403, 404, 500 |
+| `/api/members/:id/activities/:activityId` | DELETE | `DeleteActivity` | None (Path params validated) | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 200 | 401, 403, 404, 500 |
+| `/api/members/:id/activities/:activityId/line-items` | POST | `CreateLineItemBody` | `validateBody(CreateLineItemBodySchema)` | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 201 | 400, 401, 403, 404, 500 |
+| `/api/members/:id/activities/:activityId/line-items/:lineItemId` | PUT | `UpdateLineItemBody` | `validateBody(UpdateLineItemBodySchema)` | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 200 | 400, 401, 403, 404, 500 |
+| `/api/members/:id/activities/:activityId/line-items/:lineItemId` | DELETE | `DeleteLineItem` | None (Path params validated) | Yes | `requireAppUser` + `authorizeMemberResourceAccess('write')` | 200 | 401, 403, 404, 500 |
+| `/api/members/:id/badge` | POST | `GenerateBadge` | None (Path param validated) | Yes | `requireAppUser` + `authorizeMemberResourceAccess('read')` | 200 | 401, 403, 404, 500 |
+| `/api/public/members/badge/:badgeToken` | GET | `GetPublicBadge` | None (Token path param validated) | **Yes (Correction 01)** | `requireAppUser` + `authorizeBadgeVerification` | 200 | 401, 404, 429, 500 |
+| `/api/members/export` | GET | `ExportMembers` | None (Query params validated) | Yes | `requireAppUser` + `requireRole('admin', 'supervisor')` | 200 | 401, 403, 500 |
+| `/api/dashboard/stats` | GET | `GetDashboardStats` | None | Yes | `requireAppUser` | 200 | 401, 500 |
+| `/api/uploads` | POST | `UploadFileBody` | `validateBody(UploadFileBodySchema)` | Yes | `requireAppUser` | 201 | 400, 401, 413, 500 |
+| `/api/reference/*` | GET | `GetReferenceData` | None | Yes | `requireAppUser` | 200 | 401, 500 |
 
-### Production-Grade Offline Synchronization Protocol
+
+## 13. OFFLINE ARCHITECTURE ASSESSMENT (CORRECTION 03 & 07)
+
+### Production-Grade Offline Synchronization & Durable Storage Architecture
+
+To prevent raw `localStorage.setItem` and `localStorage.getItem` calls from being scattered directly across frontend components, the offline engine MUST encapsulate storage operations behind an abstract **`OfflineQueueRepository`** interface. This abstraction allows immediate usage of local storage while seamlessly preparing the system for an IndexedDB storage provider migration without breaking application UI logic.
 
 ```
-[ Field Agent Offline Entry ] ──► [ Persist Operation Locally (clientOperationId UUID) ]
-                                            │
-                                            ▼
-[ Network Connection Available ] ──► [ Transmit Operation with clientOperationId ]
-                                            │
-                                            ▼
-                               [ Server Receives Request ]
-                                            │
-                             ┌──────────────┴──────────────┐
-                             ▼                             ▼
-                 [ Already Processed? ]           [ New Operation ]
-                             │                             │
-                             ├─ YES ───────────────────────┼─► [ Execute Atomic db.transaction ]
-                             │                             │   - Insert Activity / Line Item
-                             │                             │   - Record clientOperationId in processed_operations
-                             ▼                             │   - Commit Transaction
-                 [ Return Cached Result ] ◄────────────────┘
-                             │
-                             ▼
-                 [ Server Returns HTTP 200/201 ] ──► [ Remove Operation from Local Queue ]
+[ Frontend Component / Activity Wizard ]
+                  │
+                  ▼
+      [ OfflineQueueProvider ]
+                  │
+                  ▼
+     [ OfflineQueueRepository ] (Interface)
+        │                       │
+        ▼                       ▼
+[ LocalStorageProvider ] ──► [ IndexedDBProvider ] (Target Migration)
 ```
 
-### Protocol Rules & Invariants
-1. **Durable Local Queueing**: Every queued offline action MUST possess an immutable `clientOperationId` (UUID v4) generated at the moment of offline entry.
-2. **Never Clear Before Confirmed Server Acknowledgement**: An operation is removed from local storage ONLY after receiving an explicit HTTP 200/201 response containing `clientOperationId` acknowledgement.
-3. **Server-Side Idempotency (`processed_operations` Table)**: Replaying an operation with an existing `clientOperationId` returns the previously committed result payload with HTTP 200 OK without creating duplicate database rows.
-4. **Error Classification**: Network failures/timeouts (HTTP 5xx) retain operations in queue for retry. Terminal validation errors (HTTP 400) move operations to an error review log without infinite retry loops.
+#### 1. Structured Offline Queue Item Record Schema
+Every queued offline operation MUST be stored with the following structured metadata schema:
+
+```typescript
+export interface OfflineQueueItem<T = any> {
+  id: string;                  // Unique queue record ID (UUID v4)
+  clientOperationId: string;   // Immutable idempotency key (UUID v4)
+  operationType: 'create_activity' | 'create_line_item' | 'delete_line_item' | 'create_member';
+  payload: T;                  // Action data payload
+  createdAt: string;           // ISO timestamp of offline entry
+  retryCount: number;          // Number of sync retry attempts made
+  status: 'pending' | 'processing' | 'failed' | 'completed';
+  lastError?: string | null;   // Exception diagnostic string from last failure
+}
+```
+
+#### 2. Abstract Repository Interface
+```typescript
+export interface IOfflineQueueRepository {
+  enqueue<T>(operationType: string, payload: T): Promise<OfflineQueueItem<T>>;
+  getAll(): Promise<OfflineQueueItem[]>;
+  getPending(): Promise<OfflineQueueItem[]>;
+  updateStatus(id: string, status: OfflineQueueItem['status'], error?: string): Promise<void>;
+  incrementRetry(id: string, error: string): Promise<void>;
+  remove(id: string): Promise<void>;
+  clearCompleted(): Promise<void>;
+}
+```
+
+#### 3. Protocol Rules & Server Idempotency
+1. **Never Clear Before Confirmed Server Acknowledgement**: An operation item is removed from `OfflineQueueRepository` ONLY after receiving an explicit HTTP 200/201 response containing `clientOperationId` acknowledgement or confirmation that the item was previously processed.
+2. **Server-Side Idempotency (`processed_operations` Table)**: Replaying an operation with an existing `clientOperationId` returns the previously committed result payload with HTTP 200 OK without creating duplicate database rows.
+3. **Error Classification**: Network failures/timeouts (HTTP 5xx) increment `retryCount` and retain operations in queue for retry. Terminal validation errors (HTTP 400) set `status: 'failed'` and record `lastError` to prevent infinite retry loops.
 
 ---
 
@@ -597,7 +671,7 @@ The following ordered plan details the exact remediation sequence required to ac
 
 | Order | Canonical ID | Severity | Problem | Root Cause | Architectural Fix | Dependencies | Affected Files | Verification Command |
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1** | **DATA-001** | **P0** | Silent offline queue data loss & duplicate write risk. | Queue cleared without transmission; no idempotency. | Attach immutable `clientOperationId`; track server `processed_operations`; purge local items only on HTTP 200/201. | None | `artifacts/capef/src/lib/offline-sync.tsx`, `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
+| **1** | **DATA-001** | **P0** | Silent offline queue data loss & duplicate write risk. | Queue cleared without transmission; raw localStorage scattered. | Encapsulate storage behind `OfflineQueueRepository` (preparing IndexedDB migration); store structured items (`clientOperationId`, `retryCount`, `status`, `lastError`); track server `processed_operations`; purge local items ONLY on HTTP 200/201. | None | `artifacts/capef/src/lib/offline-sync.tsx`, `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
 | **2** | **AUTH-001** | **P0** | First user becomes admin automatically. | `!count` check in JIT provision. | Seed initial admin via CLI or ENV bootstrap (`INITIAL_ADMIN_EMAIL`); reject implicit escalation. | None | `artifacts/api-server/src/routes/auth.ts` | `pnpm typecheck` |
 | **3** | **AUTHZ-001** | **P0** | IDOR on nested activities/line items. | Missing resource ownership check. | Create `authorizeMemberResourceAccess` middleware checking `createdById` / `regionId`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
 | **4** | **DATA-002** | **P1** | Non-transactional member creation & "PENDING" race. | Two-step write pattern. | Allocate `seq_member_number` sequence value and insert Member + Primary Activity + Line Items in single atomic `db.transaction()`. | DB-001 | `artifacts/api-server/src/routes/members.ts`, `lib/db/src/schema/members.ts` | `pnpm typecheck` |
@@ -641,7 +715,8 @@ The following ordered plan details the exact remediation sequence required to ac
   (authorizeBadgeVerification)                      │
                                                     │
 [ DATA-001: Production Offline Sync ] ──────────────┤
-  (clientOperationId & Idempotency)                 │
+  (clientOperationId, Repository Pattern            │
+   & Idempotency)                                   │
                                                     │
 [ API-001: Generated Zod Validation ] ──────────────┼──► [ API-003: Error Masking ]
                                                     │
@@ -652,34 +727,30 @@ The following ordered plan details the exact remediation sequence required to ac
 
 ## 22. EXECUTION PLAN FOR JULES/CLAUDE
 
-### Task REM-DATA-001: Implement Production-Grade Offline Synchronization Protocol
-- **Objective**: Prevent offline data loss AND duplicate writes by implementing durable local queueing with immutable `clientOperationId` UUIDs and server-side idempotency tracking (`processed_operations` table).
+### Task REM-DATA-001: Implement Production-Grade Offline Synchronization Protocol & Storage Repository
+- **Objective**: Prevent offline data loss AND duplicate writes by implementing an `OfflineQueueRepository` storage abstraction layer (preparing for IndexedDB migration) with structured item records (`id`, `clientOperationId`, `operationType`, `payload`, `createdAt`, `retryCount`, `status`, `lastError`) and server-side idempotency tracking (`processed_operations` table).
 - **Files to Modify**:
   - `artifacts/capef/src/lib/offline-sync.tsx`
+  - Create `artifacts/capef/src/lib/offline-repository.ts`
   - `lib/db/src/schema/members.ts` (or `users.ts`)
   - `artifacts/api-server/src/routes/members.ts`
 - **Instructions**:
-  1. Add `processed_operations` table schema in `@workspace/db`:
-     `clientOperationId` (UUID PK), `userId` (FK), `operationType` (string), `resultPayload` (JSONB), `processedAt` (timestamp).
-  2. Update `offline-sync.tsx`:
-     - When an action is queued, attach `clientOperationId: crypto.randomUUID()`.
-     - In `syncNow()`, iterate through `capef_offline_actions_queue` sequentially.
-     - Send `clientOperationId` in body or header (`X-Client-Operation-ID`).
-     - NEVER clear `capef_offline_actions_queue` before receiving server confirmation.
-     - On network disconnect or HTTP 5xx: retain item in queue for retry.
-     - On HTTP 400 terminal business error: move item to `capef_offline_failed_actions` log.
-     - On HTTP 200/201: remove item from queue.
-  3. Update `artifacts/api-server/src/routes/members.ts`:
-     - Check `processed_operations` by `clientOperationId`.
-     - If found, return cached `resultPayload` (HTTP 200 OK) without re-executing mutation.
-     - If new, execute mutation and record `clientOperationId` inside the SAME `db.transaction()`.
+  1. Define `OfflineQueueItem` interface and `IOfflineQueueRepository` contract in `offline-repository.ts`.
+  2. Implement `LocalStorageQueueRepository` conforming to `IOfflineQueueRepository` (preparing clean swap to `IndexedDBQueueRepository`).
+  3. Add `processed_operations` table schema in `@workspace/db`: `clientOperationId` (UUID PK), `userId` (FK), `operationType`, `resultPayload`, `processedAt`.
+  4. Update `offline-sync.tsx` to consume `OfflineQueueRepository` rather than direct raw `localStorage.setItem` calls.
+  5. In `syncNow()`, iterate pending items sequentially, passing `clientOperationId` in payload.
+  6. Remove items from repository ONLY upon confirmed server HTTP 200/201 response.
+  7. On HTTP 400 terminal validation error, mark item `status: 'failed'` and record `lastError` to avoid infinite retry loops.
+  8. In `artifacts/api-server/src/routes/members.ts`, check `processed_operations` by `clientOperationId`. If found, return cached `resultPayload` immediately (HTTP 200 OK). If new, execute mutation and record `clientOperationId` inside the SAME `db.transaction()`.
 - **Acceptance Criteria**:
-  - Offline action survives page reloads and browser restarts.
+  - Offline action survives page reloads and browser restarts in structured repository storage.
+  - Direct `localStorage` calls in components are encapsulated behind `OfflineQueueRepository`.
   - Reconnect sequentially replays queued operations.
   - Retrying an ambiguous request (same `clientOperationId`) creates NO duplicate database rows.
-  - Network failures (HTTP 5xx) retain operations in queue.
-  - Terminal validation errors (HTTP 400) move to error log without infinite retry loops.
-  - Local queue items are purged ONLY after explicit server HTTP 200/201 confirmation.
+  - Network failures (HTTP 5xx) retain operations in queue for retry.
+  - Terminal validation errors (HTTP 400) update item status to `'failed'` without infinite retries.
+  - Queue items are purged ONLY after explicit server HTTP 200/201 confirmation.
 
 ### Task REM-AUTH-001: Remove Implicit First-User Admin Bootstrap
 - **Objective**: Eliminate administrative privilege escalation on empty user tables.
@@ -847,11 +918,10 @@ The following ordered plan details the exact remediation sequence required to ac
   - `artifacts/api-server/src/index.ts`
   - Create `lib/db/src/standalone-migrate.ts`
 - **Instructions**:
-  1. Open `artifacts/api-server/src/index.ts`.
-  2. Remove calls to `seedDatabaseIfNeeded()` and `migrateExistingMembersToActivities()`.
-  3. Ensure `index.ts` focuses strictly on starting the HTTP server: `app.listen(PORT, ...)`.
-  4. Create a standalone CLI script `lib/db/src/standalone-migrate.ts` in `@workspace/db` containing versioned migration execution (`migrate(db, { migrationsFolder: '...' })`) and reference seeding.
-  5. Add script to `package.json`: `"db:migrate": "node dist/standalone-migrate.js"`.
+  1. Remove calls to `seedDatabaseIfNeeded()` and `migrateExistingMembersToActivities()` from `artifacts/api-server/src/index.ts`.
+  2. Ensure `index.ts` focuses strictly on starting the HTTP server: `app.listen(PORT, ...)`.
+  3. Create a standalone CLI script `lib/db/src/standalone-migrate.ts` in `@workspace/db` containing versioned migration execution (`migrate(db, { migrationsFolder: '...' })`) and reference seeding.
+  4. Add script to `package.json`: `"db:migrate": "node dist/standalone-migrate.js"`.
 - **Acceptance Criteria**:
   - Launching `node dist/index.mjs` starts listening on `PORT` immediately without querying or mutating existing table structures.
   - Database migrations are triggered explicitly via `pnpm db:migrate` during release phase.
@@ -982,9 +1052,56 @@ The following ordered plan details the exact remediation sequence required to ac
 
 ## 23. DEFINITION OF DONE (CORRECTION 06)
 
-A remediation item or phase is **NOT** considered complete merely because TypeScript compiles or code looks visually correct. CAPEF production readiness is governed by 9 strict, testable quality gates:
+A remediation item or phase is **NOT** considered complete merely because TypeScript compiles or code looks visually correct. CAPEF production readiness is governed by strict, testable quality gates, code quality & implementation rules, and pre-remediation workspace verification commands.
 
-### 1. SECURITY GATE
+### 23.1 General Implementation Rules for Jules / Claude Developer Agents
+
+#### `INTERDIT` (STRICTLY FORBIDDEN):
+1. **NO direct edits to generated files**: Editing anything inside `lib/api-zod/src/generated/` or `lib/api-client-react/src/generated/` is strictly prohibited. All contract changes MUST be made in `lib/api-spec/openapi.yaml` and regenerated using `pnpm --filter @workspace/api-spec run codegen`.
+2. **NO manual type overrides or escape hatches**: Using `as any`, `@ts-ignore`, `@ts-expect-error`, or `any` type annotations to suppress TypeScript compiler errors is strictly forbidden.
+3. **NO non-transactional member creation**: Never insert `memberNumber: "PENDING"` or execute multi-step member/activity/line-item creations outside a single `db.transaction()` block.
+4. **NO unvalidated backend request bodies**: Routes MUST NOT raw-destructure `req.body` without passing through the generic `validateBody(schema)` Zod validation middleware.
+5. **NO destructive migration commands**: Using `drizzle-kit push --force` or unversioned schema pushes in scripts or CI/CD pipelines is strictly prohibited.
+6. **NO anonymous badge verification access**: Unauthenticated access to `/api/public/members/badge/:badgeToken` is forbidden. The route MUST enforce `requireAppUser`.
+7. **NO leaking raw PostgreSQL exception details**: Internal database fields (`error.detail`, `error.constraint`, table names, raw SQL queries) MUST NOT be sent in HTTP error responses.
+8. **NO silent queue clearing**: Offline operation queues MUST NEVER be purged without server acknowledgement or explicit terminal error classification.
+
+#### `OBLIGATOIRE` (MANDATORY REQUIREMENTS):
+1. **OpenAPI-driven contract updates**: Modify `openapi.yaml` first, then run `pnpm --filter @workspace/api-spec run codegen` for any API contract changes.
+2. **Strict Zod request parsing**: Apply `validateBody(schema)` using generated Zod schemas on all POST, PUT, and PATCH endpoints.
+3. **Centralized authorization policies**: Use `authorizeMemberResourceAccess` for resource-level authorization and `authorizeBadgeVerification` for badge scanning.
+4. **Atomic write operations**: Wrap multi-entity writes in a single PostgreSQL `db.transaction()`.
+5. **Durable offline operation protocol**: Assign immutable `clientOperationId` UUIDs and track processed operations in `processed_operations` for server-side idempotency.
+6. **Private Object Storage for identity media**: Store CNI, photo, and signature documents in private Supabase Storage buckets, saving immutable cloud URLs in database columns.
+7. **Versioned migrations & preflight data safety checks**: Write deterministic SQL migrations (`0002_*.sql`) and run `preflight-check.ts` prior to applying schema modifications.
+
+### 23.2 Pre-Remediation & Workspace Verification Commands
+Before submitting any task or phase, developer agents MUST execute and pass the following workspace verification pipeline:
+
+```bash
+# 1. Install workspace dependencies
+pnpm install
+
+# 2. Verify TypeScript types across all workspace packages
+pnpm typecheck
+
+# 3. Build database package
+pnpm --filter @workspace/db run build
+
+# 4. Regenerate API contracts from OpenAPI spec and verify codegen cleanliness
+pnpm --filter @workspace/api-spec run codegen
+
+# 5. Execute complete monorepo build
+pnpm build
+
+# 6. Verify git diff for forbidden patterns
+git diff --check
+rg 'as any|@ts-ignore|@ts-expect-error|pending_' --glob '!lib/api-client-react/src/generated/**' --glob '!lib/api-zod/src/generated/**'
+```
+
+### 23.3 Production Quality Gates
+
+#### 1. SECURITY GATE
 - **Authentication**:
   - Unauthenticated request to protected API endpoint -> HTTP 401 Unauthorized.
   - Authenticated Clerk identity correctly maps to an application user (`appUser`).
@@ -1001,7 +1118,7 @@ A remediation item or phase is **NOT** considered complete merely because TypeSc
   - Authenticated admin scanning any badge -> HTTP 200 + full member verification profile.
   - Invalid/non-existing badge token -> HTTP 404 Not Found.
 
-### 2. DATA INTEGRITY GATE
+#### 2. DATA INTEGRITY GATE
 - Member creation executed as ONE atomic transaction (`db.transaction()`):
   - Sequence member number allocation (`seq_member_number`) + base Member row + primary Activity row + initial Line Items commit or rollback together.
 - Under **10 concurrent member creation requests**:
@@ -1012,15 +1129,17 @@ A remediation item or phase is **NOT** considered complete merely because TypeSc
   - **0 orphan line items.**
   - **0 duplicate member numbers.**
 
-### 3. OFFLINE DATA GATE
+#### 3. OFFLINE DATA GATE
+- `OfflineQueueRepository` abstraction layer encapsulates storage operations (preparing for IndexedDB provider migration).
+- Structured item metadata schema (`id`, `clientOperationId`, `operationType`, `payload`, `createdAt`, `retryCount`, `status`, `lastError`) stored.
 - Every offline operation is assigned an immutable `clientOperationId` UUID.
-- Offline operations survive page reloads and browser restarts in local storage.
+- Offline operations survive page reloads and browser restarts.
 - Reconnecting sequentially replays queued operations.
 - Operations are deleted from local storage ONLY after confirmed server HTTP 200/201 acknowledgement or terminal validation error response.
 - Network failures (HTTP 5xx / timeout) retain operations in local storage for retry.
 - Replaying the same `clientOperationId` multiple times returns cached result with HTTP 200 and creates NO duplicate database records.
 
-### 4. DATABASE GATE
+#### 4. DATABASE GATE
 - All foreign keys declared in Drizzle schema with explicit business delete policies:
   - `users` -> `members` (`ON DELETE RESTRICT` to preserve historical member records).
   - `regions`/`departments`/`arrondissements` -> `members` (`ON DELETE RESTRICT`).
@@ -1031,24 +1150,24 @@ A remediation item or phase is **NOT** considered complete merely because TypeSc
 - Preflight legacy data audit script (`preflight-check.ts`) executes and passes before running migration `0002_*.sql`.
 - Destructive `drizzle-kit push --force` permanently removed from deployment scripts.
 
-### 5. API CONTRACT GATE
+#### 5. API CONTRACT GATE
 - Contract pipeline enforced: `OpenAPI -> Orval -> Zod -> Express validation middleware`.
 - Request bodies, params, and queries parsed and validated by generated Zod schemas before reaching route logic.
 - All API responses return documented status codes with stable `{ error, code }` payloads.
 - Raw PostgreSQL exception details (`constraint`, `table`, SQL queries) are masked from clients.
 - Generated code directories (`lib/api-zod/src/generated/`, `lib/api-client-react/src/generated/`) are NEVER manually modified.
 
-### 6. STORAGE GATE
+#### 6. STORAGE GATE
 - Member identity photos, CNI documents, and signatures uploaded to private Supabase Object Storage (`member-documents` bucket).
 - Only immutable cloud URLs (`https://.../bucket/path.jpg`) stored in database columns (JSONB bloat eliminated).
 - MIME types and magic bytes validated; max file size capped (5MB).
 - Local ephemeral disk file writes (`/uploads`) eliminated.
 
-### 7. MIGRATION GATE
+#### 7. MIGRATION GATE
 - Express process startup (`artifacts/api-server/src/index.ts`) decoupled from database migrations and reference seeding.
 - Migrations executed via standalone CLI scripts (`pnpm db:migrate`) using `DIRECT_URL`.
 
-### 8. TEST GATE
+#### 8. TEST GATE
 - Minimum Vitest + Supertest integration regression suite passing 100%:
   - [ ] `Agent A -> Member B activity mutation -> 403`
   - [ ] `Agent A -> Member B line item mutation -> 403`
@@ -1061,7 +1180,7 @@ A remediation item or phase is **NOT** considered complete merely because TypeSc
   - [ ] `Deleting user account with members -> 400/409 RESTRICT error`
   - [ ] `Deleting member -> CASCADE deletes activities & line items`
 
-### 9. DEPLOYMENT GATE
+#### 9. DEPLOYMENT GATE
 - Build & Verification pipeline executes cleanly without errors:
   - `pnpm install`
   - `pnpm typecheck`
@@ -1071,7 +1190,6 @@ A remediation item or phase is **NOT** considered complete merely because TypeSc
 - Environment variables audited for production targets (Render, Supabase, Clerk).
 - CORS allowlist restricted to exact configured origin URLs.
 
----
 
 ## 24. FINAL DEVELOPMENT DECISION
 
