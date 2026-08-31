@@ -63,8 +63,8 @@ function generateMemberNumber(category: string, seqVal: number | string): string
   return `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
 }
 
-async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect) {
-  const lineItems = await db
+async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect, executor: any = db) {
+  const lineItems = await executor
     .select()
     .from(activityLineItemsTable)
     .where(eq(activityLineItemsTable.activityId, activity.id));
@@ -80,24 +80,24 @@ async function formatMemberActivity(activity: typeof memberActivitiesTable.$infe
     village: activity.village ?? null,
     maillons: (activity.maillons as string[]) ?? [],
     createdAt: activity.createdAt.toISOString(),
-    lineItems: lineItems.map(item => ({
+    lineItems: lineItems.map((item: any) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
     })),
   };
 }
 
-async function formatMember(m: typeof membersTable.$inferSelect, includeDetail = false) {
+async function formatMember(m: typeof membersTable.$inferSelect, includeDetail = false, executor: any = db) {
   const [region] = m.regionId
-    ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
+    ? await executor.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
     : [null];
   const [dept] = m.departmentId
-    ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
+    ? await executor.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
     : [null];
   const [arr] = m.arrondissementId
-    ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
+    ? await executor.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
     : [null];
-  const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+  const [creator] = await executor.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
 
   const physique = m.physiqueData as any;
   const morale = m.moraleData as any;
@@ -121,13 +121,13 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
   if (!includeDetail) return base;
 
   // Retrieve activities & line items for details
-  const activities = await db
+  const activities = await executor
     .select()
     .from(memberActivitiesTable)
     .where(eq(memberActivitiesTable.memberId, m.id));
 
   const formattedActivities = await Promise.all(
-    activities.map(act => formatMemberActivity(act))
+    activities.map(act => formatMemberActivity(act, executor))
   );
 
   return {
@@ -289,8 +289,7 @@ router.post("/members", requireAppUser, async (req, res): Promise<void> => {
 
   try {
     const result = await db.transaction(async (tx) => {
-      // Create sequence if not exists on postgres instance, then fetch nextval
-      await tx.execute(sql`CREATE SEQUENCE IF NOT EXISTS seq_member_number START WITH 1 INCREMENT BY 1`);
+      // Fetch nextval from seq_member_number
       const seqResult: any = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
       const rawSeqVal = seqResult.rows?.[0]?.seqVal ?? seqResult?.[0]?.seqVal;
       const seqVal = parseInt(String(rawSeqVal), 10);
@@ -344,7 +343,7 @@ router.post("/members", requireAppUser, async (req, res): Promise<void> => {
         );
       }
 
-      const formatted = await formatMember(inserted, true);
+      const formatted = await formatMember(inserted, true, tx);
 
       if (clientOperationId) {
         await tx.insert(processedOperationsTable).values({
@@ -639,6 +638,18 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(raw, 10);
   const appUser = (req as any).appUser;
+
+  // Authorization check: Agents can only mutate their own members
+  const [targetMember] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
+  if (!targetMember) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
   const clientOperationId = getClientOperationId(req);
 
@@ -868,6 +879,18 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
   const appUser = (req as any).appUser;
+
+  // Authorization check: Agents can only mutate line items of their own members
+  const [targetMember] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
+  if (!targetMember) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
   const clientOperationId = getClientOperationId(req);
 
   if (clientOperationId) {
