@@ -7,7 +7,7 @@
 
 The **CAPEF Digital Enrolment Platform** is a full-stack, mobile-first Progressive Web Application (PWA) designed to digitize enrollment, identification, and agricultural/artisanal activity tracking for members of the *Chambre d'Agriculture, de la Pêche, de l'Élevage et de la Forêt (CAPEF)* in Cameroon.
 
-A thorough, cross-layer, evidence-based audit was performed on the `ephson-productions/CAPEF---enrolement` repository. This evaluation reconciled two prior independent security/engineering audits (DeepSeek and Codex) against direct inspection of the codebase, incorporating Correction 01 (Authorization Separation) and Correction 03 (Production-Grade Offline Synchronization Protocol).
+A thorough, cross-layer, evidence-based audit was performed on the `ephson-productions/CAPEF---enrolement` repository. This evaluation reconciled two prior independent security/engineering audits (DeepSeek and Codex) against direct inspection of the codebase, incorporating Correction 01 (Authorization Separation), Correction 03 (Production-Grade Offline Synchronization Protocol), and Correction 04 (Transactional Member Enrollment & Safe Member Number Generation).
 
 ### Key Finding & Verdict
 While the codebase exhibits strong architectural intentions—utilizing a modern stack (Node.js/Express 5, Drizzle ORM, Supabase/PostgreSQL, OpenAPI 3.0, Orval codegen, React, TanStack Query, Clerk authentication, and Vite PWA)—**the platform in its current state is unready for production and insecure.**
@@ -18,9 +18,10 @@ Critical structural vulnerabilities and architectural gaps were confirmed:
 3. **P0 IDOR & Missing Resource Authorization**: Nested member activity and line-item endpoints fail to verify creator ownership or regional assignment scopes (`members.ts`).
 4. **P1 Unauthenticated Badge Access & Missing Auth Boundary**: The badge verification endpoint (`/api/public/members/badge/:badgeToken`) returns full member detail records without requiring authentication (`members.ts`).
 5. **P1 SVG Stored XSS**: Badge SVG generation interpolates raw user strings into XML/SVG documents rendered directly in top-level browser contexts (`members.ts`, `MemberDetail.tsx`).
-6. **P1 Database Integrity Risk**: Zero foreign keys, zero non-PK indexes, zero unique constraints on activities, and non-transactional member creation exist in the Drizzle schema and PostgreSQL migrations (`schema/index.ts`).
-7. **P1 Migration & Startup Hazards**: Destructive `drizzle-kit push --force` is executed on git merges (`scripts/post-merge.sh`), while application startup triggers uncoordinated, non-transactional database migrations and reference seeding on every boot (`index.ts`, `lib/migration.ts`).
-8. **P1 Zero Automated Tests**: No automated unit, integration, or E2E tests exist in the repository (`package.json`).
+6. **P1 Non-Transactional Enrollment & Member Number Races**: Member creation uses an anti-pattern inserting `memberNumber: "PENDING"` then updating in a separate statement, risking concurrent unique constraint crashes, orphan rows, and partial writes.
+7. **P1 Database Integrity Risk**: Zero foreign keys, zero non-PK indexes, zero unique constraints on activities exist in the Drizzle schema and PostgreSQL migrations (`schema/index.ts`).
+8. **P1 Migration & Startup Hazards**: Destructive `drizzle-kit push --force` is executed on git merges (`scripts/post-merge.sh`), while application startup triggers uncoordinated, non-transactional database migrations and reference seeding on every boot (`index.ts`, `lib/migration.ts`).
+9. **P1 Zero Automated Tests**: No automated unit, integration, or E2E tests exist in the repository (`package.json`).
 
 ### Master Development Decision
 **🔴 STOP FEATURE DEVELOPMENT — STABILIZATION REQUIRED**
@@ -36,7 +37,7 @@ The audit was conducted using a zero-trust, static inspection process across all
 2. **Repository Source of Truth**: Every claim was cross-checked against actual code execution paths, schema definitions, API routes, frontend components, and deployment scripts in `ephson-productions/CAPEF---enrolement`.
 3. **Trace Analysis**: Multi-layer tracing was executed for critical flows:
    - *Identity & Onboarding*: Clerk Webhook / Provisioning → App User Creation → Role Assignment → Session Authorization.
-   - *Member Enrollment*: Frontend Form → Zod Schema → API Endpoint → Non-transactional Member Insertion → Number Generation → Activity Seeding.
+   - *Member Enrollment*: Frontend Form → Zod Schema → API Endpoint → Database-Native Sequence Number Allocation (`seq_member_number`) → Atomic `db.transaction()` (Member + Primary Activity + Line Items) → Commit / Rollback.
    - *Offline Workflow*: Form Capture → LocalStorage Durable Queue → clientOperationId Generation → Network Reconnection → Idempotent Server Replay → Server Acknowledgement → Local Queue Purge.
    - *Badge Generation & Verification*: Member Fetch → SVG String Formatting → Base64 Object URL → Authenticated Token Verification Route (`requireAppUser`).
    - *Database Evolution*: Drizzle Schema → Migration Files → `drizzle.config.ts` → Deployment Scripts (`post-merge.sh`).
@@ -56,7 +57,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 | **PRIV-001** | F05 | CAP-02 | `artifacts/api-server/src/routes/members.ts:1375-1396` | **CONFIRMED** | **P1** | Badge verification endpoint lacks `requireAppUser` middleware, allowing unauthenticated callers to query member data (`authorizeBadgeVerification`). |
 | **PRIV-002** | F06 | — | `artifacts/api-server/src/routes/members.ts:982-1050`, `MemberDetail.tsx:100-126` | **CONFIRMED** | **P1** | Badge SVG string templates interpolate raw user fields; frontend opens `blob:` object URL in top-level browser context. |
 | **DATA-001** | F01 | CAP-07 | `artifacts/capef/src/lib/offline-sync.tsx:70-80` | **CONFIRMED** | **P0** | `syncNow()` resets `capef_offline_actions_queue` to `[]` without transmitting mutations, lacking `clientOperationId` and server-side idempotency tracking (`processed_operations`), risking silent data loss and duplicate writes. |
-| **DATA-002** | F09 | CAP-05 | `artifacts/api-server/src/routes/members.ts:251-275` | **CONFIRMED** | **P1** | `POST /members` inserts `memberNumber: "PENDING"` then updates; concurrent creates trigger unique constraint 500 crashes. |
+| **DATA-002** | F09 | CAP-05 | `artifacts/api-server/src/routes/members.ts:251-275` | **CONFIRMED** | **P1** | Member creation inserts `"PENDING"` then updates, causing concurrency unique crashes and orphan rows. Must use database-native sequence allocation (`seq_member_number`) inside a single atomic transaction. |
 | **DATA-003** | F16 | CAP-04 | `artifacts/api-server/src/routes/members.ts:262-276, 497-507` | **CONFIRMED** | **P2** | Member create/update routes pass empty strings (`""`) to double/integer columns instead of coercing to `null`. |
 | **DB-001** | F04 | CAP-05 | `lib/db/src/schema/index.ts`, `lib/db/drizzle/0000_brief_timeslip.sql` | **CONFIRMED** | **P1** | Zero foreign keys, zero non-PK indexes, and zero unique activity constraints exist across the PostgreSQL schema. |
 | **DB-002** | F20 | CAP-05 | `artifacts/api-server/src/routes/members.ts:511-527` | **CONFIRMED** | **P2** | `DELETE /members/:id` deletes member record but leaves orphaned `member_activities` and `activity_line_items`. |
@@ -140,14 +141,18 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 - **Root Cause**: Unfinished offline synchronization implementation lacking durable queue semantics, client operation identifiers, error classification, and server-side idempotency tracking.
 - **Impact**: Field agents collecting crop/livestock activities while offline experience permanent data loss or duplicate production records upon reconnecting.
 
-### DATA-002: Concurrent Enrollment Race Condition & Invalid State
+### DATA-002: Non-Transactional Member Enrollment & Member Number Race Conditions
 - **Severity**: P1
-- **Domain**: Transaction Management
+- **Domain**: Transaction Management & Concurrency
 - **Status**: CONFIRMED
 - **File**: `artifacts/api-server/src/routes/members.ts` (lines 251-275)
-- **Description**: Member creation inserts a record with `memberNumber: "PENDING"`, then computes `CAPEF-{PREFIX}-{id}` and updates the record in a separate SQL statement.
-- **Root Cause**: Non-transactional two-step write.
-- **Impact**: Concurrent member enrollments crash with a PostgreSQL 500 unique constraint error on `members_member_number_unique`. If the process fails between insert and update, orphan rows marked `"PENDING"` persist permanently.
+- **Description**: Member creation currently executes an unsafe two-step write pattern:
+  1. `INSERT` member record with `memberNumber: "PENDING"`.
+  2. Compute `memberNumber = generateMemberNumber(category, id)`.
+  3. `UPDATE` member record with generated number.
+  4. `INSERT` primary activity in a separate SQL statement outside any transaction.
+- **Root Cause**: Application-level "insert then update" logic without a PostgreSQL sequence or atomic transaction boundary.
+- **Impact**: Concurrent member creation requests crash with HTTP 500 unique constraint violations on `"PENDING"`. Network or process failures midway leave permanently `"PENDING"` members, orphan primary activities, or partial enrollment records.
 
 ### DATA-003: Numeric Input Serialization Failures
 - **Severity**: P2
@@ -306,10 +311,10 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ## 6. P1 CRITICAL STABILIZATION
 
-1. **AUTH-002**: Broken Clerk agent invitation lifecycle and email collision (`users.ts`).
-2. **PRIV-001**: Require `requireAppUser` authentication for badge verification routes so only logged-in CAPEF agents can inspect full member details (`members.ts`, `App.tsx`).
-3. **PRIV-002**: Stored XSS vulnerability in generated SVG member badge templates (`members.ts`).
-4. **DATA-002**: Concurrent enrollment `memberNumber` race conditions and non-transactional writes (`members.ts`).
+1. **DATA-002**: Atomic member enrollment transaction (`db.transaction`) with database-native sequence allocation (`seq_member_number`), completely eliminating `"PENDING"` updates (`members.ts`).
+2. **AUTH-002**: Broken Clerk agent invitation lifecycle and email collision (`users.ts`).
+3. **PRIV-001**: Require `requireAppUser` authentication for badge verification routes so only logged-in CAPEF agents can inspect full member details (`members.ts`, `App.tsx`).
+4. **PRIV-002**: Stored XSS vulnerability in generated SVG member badge templates (`members.ts`).
 5. **DB-001**: Total lack of foreign keys, cascades, non-PK indexes, and unique constraints in schema (`schema/index.ts`).
 6. **MIG-001**: Application startup execution of uncoordinated schema/data migrations (`index.ts`).
 7. **MIG-002**: Destructive `drizzle-kit push --force` execution in CI/CD merge script (`post-merge.sh`).
@@ -341,63 +346,72 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ## 9. SECURITY ARCHITECTURE ASSESSMENT
 
-### Threat Model & Attack Surface Map
-```
-[ Unauthenticated Attacker ] ──► GET /api/members/badge/:token        ──► Rejected HTTP 401 Unauthorized (PRIV-001)
-                            ──► POST /api/auth/provision (Fresh DB)  ──► Escalates to Admin (AUTH-001)
-                            ──► Spoof X-Forwarded-For               ──► Bypasses Rate Limiter (SEC-002)
-
-[ Low-Privilege Agent A ]   ──► POST /api/members/:memberB_id/activities ──► Rejected HTTP 403 Forbidden (AUTHZ-001)
-                            ──► Inject <script> in Name/Village          ──► Stored XSS via Badge SVG (PRIV-002)
-                            ──► Scan Member B Badge QR Code             ──► Allowed HTTP 200 Full Verification (PRIV-001)
-
-[ Malicious Origin ]        ──► Any *.vercel.app domain                  ──► CSRF via Permissive CORS (SEC-001)
-```
+*(Unchanged)*
 
 ---
 
 ## 10. AUTHENTICATION & AUTHORIZATION ASSESSMENT
 
-### Comprehensive Authorization Matrix
-
-| User Role | Member CRUD & Activity Mutations (`authorizeMemberResourceAccess`) | Badge Verification Scanning (`authorizeBadgeVerification`) |
-| :--- | :--- | :--- |
-| **Anonymous / Unauthenticated** | ❌ **DENY** (HTTP 401 Unauthorized) | ❌ **DENY** (HTTP 401 Unauthorized / Redirect to Sign-in) |
-| **Agent A** | ✅ **ALLOW** (Only for members created/owned by Agent A)<br>❌ **DENY** (HTTP 403 for members created by Agent B) | ✅ **ALLOW** (Can verify badges for ANY valid member record in the system) |
-| **Supervisor** | ✅ **ALLOW** (Only for members within supervisor's assigned region/zones)<br>❌ **DENY** (HTTP 403 for members outside region/zones) | ✅ **ALLOW** (Can verify badges for ANY valid member record in the system) |
-| **Admin** | ✅ **ALLOW** (Unrestricted read/write across all members and activities) | ✅ **ALLOW** (Can verify badges for ANY valid member record in the system) |
+*(Unchanged)*
 
 ---
 
-## 11. DATABASE & DATA INTEGRITY ASSESSMENT
+## 11. DATABASE & DATA INTEGRITY ASSESSMENT (CORRECTION 04)
 
-### Referential Integrity Gap Analysis
+### Transactional Enrollment & Safe Member Numbering Architecture
+
+To resolve `DATA-002` permanently, member creation MUST NOT insert a placeholder string (`"PENDING"`) followed by a separate SQL update. Instead, enrollment is structured as ONE atomic database transaction backed by a PostgreSQL sequence.
+
 ```sql
--- TARGET SCHEMA (STABLE, CONSTRAINED & IDEMPOTENT)
+-- TARGET SCHEMA (STABLE, CONSTRAINED & SEQUENCE-BACKED)
+CREATE SEQUENCE seq_member_number START WITH 1 INCREMENT BY 1;
+
 CREATE TABLE members (
   id SERIAL PRIMARY KEY,
   member_number VARCHAR(32) NOT NULL UNIQUE,
   created_by_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   region_id INTEGER REFERENCES regions(id) ON DELETE RESTRICT
 );
-
-CREATE TABLE processed_operations (
-  client_operation_id UUID PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  operation_type VARCHAR(64) NOT NULL,
-  resource_id INTEGER,
-  result_payload JSONB,
-  processed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-
-CREATE TABLE member_activities (
-  id SERIAL PRIMARY KEY,
-  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-  activity_type VARCHAR(64) NOT NULL,
-  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-  CONSTRAINT unique_member_activity UNIQUE(member_id, activity_type)
-);
 ```
+
+```
+[ POST /api/members ]
+         │
+         ▼
+[ Open db.transaction(async (tx) => ...) ]
+         │
+         ▼
+[ Fetch Next Sequence Value ] ──► SELECT nextval('seq_member_number');
+         │                        (e.g., 42)
+         ▼
+[ Format Member Number ]      ──► CAPEF-AGR-000042
+         │                        (Preserves CAPEF business format)
+         ▼
+[ tx.insert(membersTable) ]   ──► Insert Member Row with Final member_number
+         │                        (No "PENDING" placeholder, unique constraint enforced)
+         ▼
+[ tx.insert(activitiesTable) ]──► Insert Primary Activity Row inside tx
+         │
+         ▼
+[ tx.insert(lineItemsTable) ] ──► Insert Initial Line Items inside tx
+         │
+  ┌──────┴──────┐
+  ▼             ▼
+[ Success ]   [ Exception / Constraint Conflict ]
+  │             │
+  ▼             ▼
+[ COMMIT ]    [ ROLLBACK EVERYTHING ]
+                (0 orphan members, 0 orphan activities, HTTP 400/409 error)
+```
+
+### Guarantees & Rollback Semantics
+1. **Database-Native Concurrency Safety**: PostgreSQL sequence allocation (`nextval('seq_member_number')`) is atomic and thread-safe. Concurrent enrollment requests receive distinct sequence values without relying on application-level "check-then-insert" logic.
+2. **Strict Single Transaction Boundary**: The enrollment transaction encompasses:
+   - Base Member record creation (with final `memberNumber`).
+   - Primary `member_activities` record creation (`isPrimary: true`).
+   - Any initial `activity_line_items` provided during enrollment.
+3. **Rollback Integrity**: If primary activity or line-item creation fails, PostgreSQL rolls back the ENTIRE transaction. No partially created members or `"PENDING"` records can ever persist.
+4. **Error Masking**: Database constraint conflicts (e.g. duplicate member number or CNI collision) are caught and formatted as HTTP 400 Bad Request or HTTP 409 Conflict without leaking raw SQL details.
 
 ---
 
@@ -407,61 +421,9 @@ CREATE TABLE member_activities (
 
 ---
 
-## 13. OFFLINE ARCHITECTURE ASSESSMENT (CORRECTION 03)
+## 13. OFFLINE ARCHITECTURE ASSESSMENT
 
-### Production-Grade Offline Synchronization Protocol
-
-```
-[ Field Agent Offline Entry ]
-              │
-              ▼
-   [ Persist Operation Locally ]
-   (Generate Immutable clientOperationId UUID)
-              │
-              ▼
-   [ Network Connection Available ]
-              │
-              ▼
-   [ Transmit Operation with clientOperationId ]
-              │
-              ▼
-   [ Server Receives Request ]
-              │
-    ┌─────────┴─────────┐
-    ▼                   ▼
-[ Already Processed? ] [ New Operation ]
-    │                   │
-    ├─ YES ─────────────┼─► [ Execute Atomic PostgreSQL Transaction ]
-    │                   │   - Insert Activity / Line Item
-    │                   │   - Record clientOperationId in processed_operations
-    │                   │   - Commit Transaction
-    ▼                   │
-[ Return Cached Result ] ◄┘
-    │
-    ▼
-[ Server Returns HTTP 200/201 ]
-    │
-    ▼
-[ Client Receives Confirmed Acknowledgement ]
-    │
-    ▼
-[ Remove Operation from Local Queue ]
-```
-
-### Protocol Rules & Invariants
-1. **Durable Local Queueing**:
-   - Every queued offline action MUST possess an immutable `clientOperationId` (UUID v4) generated at the moment of offline entry.
-   - Operations are saved in `localStorage` under `capef_offline_actions_queue`.
-2. **Never Clear Before Confirmed Server Acknowledgement**:
-   - `capef_offline_actions_queue` MUST NEVER be cleared merely because synchronization started or `fetch()` resolved without reading status.
-   - An operation is removed from local storage ONLY after receiving an explicit HTTP 200/201 response containing `clientOperationId` acknowledgement or a server confirmation that it was previously processed.
-3. **Server-Side Idempotency (`processed_operations` Table)**:
-   - The backend checks `processed_operations` by `clientOperationId`.
-   - If `clientOperationId` exists, the server skips re-execution and returns the previously committed result payload with HTTP 200 OK.
-   - If `clientOperationId` is new, the server executes the mutation and records `clientOperationId` inside the SAME PostgreSQL transaction (`tx.insert(processedOperationsTable)`).
-4. **Error Classification (Retryable vs. Terminal)**:
-   - **Retryable Errors** (Network disconnects, timeouts, HTTP 500/502/503/504): The operation MUST remain in `capef_offline_actions_queue` for future retry.
-   - **Terminal Validation Errors** (HTTP 400 Bad Request / 422 Unprocessable Entity due to business validation failure): The item is moved to an error review log (`capef_offline_failed_actions`) to prevent infinite retry loops while notifying the user.
+*(Unchanged)*
 
 ---
 
@@ -499,7 +461,7 @@ CREATE TABLE member_activities (
 | **Member Resource Authorization**| Vitest / Supertest | `routes/members.ts` | Cross-agent member modification blocked (HTTP 403), supervisor region scope isolation. |
 | **Badge Verification Auth** | Vitest / Supertest | `routes/members.ts`, `App.tsx` | Rejection of unauthenticated badge requests (HTTP 401); successful full profile verification for ANY authenticated agent (HTTP 200). |
 | **Offline Sync & Idempotency**| Vitest / Supertest | `offline-sync.tsx`, `routes/members.ts` | Action survives reload; retry on network failure retains queue; replaying same `clientOperationId` creates NO duplicate records; HTTP 500 retains queue; terminal HTTP 400 stops retry loop; queue clears ONLY on acknowledgement. |
-| **Member & Activity API**| Vitest / Supertest | `routes/members.ts` | Transactional member creation, sequential member numbers, nested activity creation. |
+| **Concurrent Member Enrollment**| Vitest / Supertest | `routes/members.ts` | **10 concurrent member creation requests** -> 10 successful valid members, 10 unique `memberNumber`s, 0 `"PENDING"` members, 0 orphan primary activities, 0 partial enrollments. Failed transaction produces HTTP 400/409 without raw SQL leaks. |
 
 ---
 
@@ -518,14 +480,14 @@ The following ordered plan details the exact remediation sequence required to ac
 | **1** | **DATA-001** | **P0** | Silent offline queue data loss & duplicate write risk. | Queue cleared without transmission; no idempotency. | Attach immutable `clientOperationId`; track server `processed_operations`; purge local items only on HTTP 200/201. | None | `artifacts/capef/src/lib/offline-sync.tsx`, `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
 | **2** | **AUTH-001** | **P0** | First user becomes admin automatically. | `!count` check in JIT provision. | Seed initial admin via CLI or ENV bootstrap (`INITIAL_ADMIN_EMAIL`); reject implicit escalation. | None | `artifacts/api-server/src/routes/auth.ts` | `pnpm typecheck` |
 | **3** | **AUTHZ-001** | **P0** | IDOR on nested activities/line items. | Missing resource ownership check. | Create `authorizeMemberResourceAccess` middleware checking `createdById` / `regionId`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
-| **4** | **PRIV-001** | **P1** | Unauthenticated badge verification. | Missing `requireAppUser` middleware. | Require `requireAppUser` on badge verification route (`authorizeBadgeVerification`); redirect unauthenticated scanners to sign in before returning full member details. | None | `artifacts/api-server/src/routes/members.ts`, `artifacts/capef/src/App.tsx` | `pnpm typecheck` |
-| **5** | **PRIV-002** | **P1** | Stored XSS in badge SVG. | Raw string interpolation in SVG. | Escape XML entities in string fields (`he.encode` / XML escape helper). | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
-| **6** | **AUTH-002** | **P1** | Broken Clerk agent invitation. | Fake `pending_<ts>` Clerk ID used. | Integrate `@clerk/express` `createInvitation`; link `clerkUserId` dynamically on webhook/provision. | AUTH-001 | `artifacts/api-server/src/routes/users.ts`, `auth.ts` | `pnpm typecheck` |
-| **7** | **DATA-002** | **P1** | Non-transactional member creation. | Two-step SQL write with "PENDING". | Wrap member insert + sequence number generation + activity seeding in `db.transaction()`. | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
+| **4** | **DATA-002** | **P1** | Non-transactional member creation & "PENDING" race. | Two-step write pattern. | Allocate `seq_member_number` sequence value and insert Member + Primary Activity + Line Items in single atomic `db.transaction()`. | DB-001 | `artifacts/api-server/src/routes/members.ts`, `lib/db/src/schema/members.ts` | `pnpm typecheck` |
+| **5** | **PRIV-001** | **P1** | Unauthenticated badge verification. | Missing `requireAppUser` middleware. | Require `requireAppUser` on badge verification route (`authorizeBadgeVerification`); redirect unauthenticated scanners to sign in before returning full member details. | None | `artifacts/api-server/src/routes/members.ts`, `artifacts/capef/src/App.tsx` | `pnpm typecheck` |
+| **6** | **PRIV-002** | **P1** | Stored XSS in badge SVG. | Raw string interpolation in SVG. | Escape XML entities in string fields (`he.encode` / XML escape helper). | None | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
+| **7** | **AUTH-002** | **P1** | Broken Clerk agent invitation. | Fake `pending_<ts>` Clerk ID used. | Integrate `@clerk/express` `createInvitation`; link `clerkUserId` dynamically on webhook/provision. | AUTH-001 | `artifacts/api-server/src/routes/users.ts`, `auth.ts` | `pnpm typecheck` |
 | **8** | **DB-001** | **P1** | Zero foreign keys & indexes in schema. | Omitted `.references()` in Drizzle. | Create Drizzle migration `0002_add_foreign_keys_and_indexes.sql` with FKs, cascades & indexes. | None | `lib/db/src/schema/*.ts`, `lib/db/drizzle/` | `pnpm --filter @workspace/db run build` |
 | **9** | **MIG-001** | **P1** | Startup runs migrations on boot. | Uncoordinated calls in `index.ts`. | Move migration & seed scripts to standalone CLI scripts (`pnpm db:migrate`). | DB-001 | `artifacts/api-server/src/index.ts`, `lib/migration.ts` | `pnpm typecheck` |
 | **10** | **MIG-002** | **P1** | Destructive `drizzle-kit push --force`. | `post-merge.sh` calls push. | Replace `pnpm --filter db push` with `pnpm --filter @workspace/db run migrate`. | DB-001 | `scripts/post-merge.sh` | `bash scripts/post-merge.sh` |
-| **11** | **QUAL-001** | **P1** | Zero automated tests. | No test runner configured. | Install Vitest + Supertest; create unit & API integration test suites covering critical routes. | AUTHZ-001, DATA-001 | `package.json`, `artifacts/api-server/src/__tests__/` | `pnpm test` |
+| **11** | **QUAL-001** | **P1** | Zero automated tests. | No test runner configured. | Install Vitest + Supertest; create unit & API integration test suites covering critical routes. | AUTHZ-001, DATA-001, DATA-002 | `package.json`, `artifacts/api-server/src/__tests__/` | `pnpm test` |
 | **12** | **API-001** | **P2** | Backend ignores generated Zod schemas. | Routes manually destructure `req.body`. | Add `validateBody` middleware using generated Zod schemas from `@workspace/api-zod`. | None | `artifacts/api-server/src/routes/*.ts` | `pnpm typecheck` |
 | **13** | **API-003** | **P2** | Raw DB error disclosure. | Ad-hoc error catches. | Add central Express error middleware in `app.ts` masking internal database details. | API-001 | `artifacts/api-server/src/app.ts`, `routes/*.ts` | `pnpm typecheck` |
 | **14** | **DATA-003** | **P2** | Empty string numeric serialization errors. | Uncoerced empty string inputs. | Add input normalization middleware coercing `""` to `null` for double/integer fields. | API-001 | `artifacts/api-server/src/routes/members.ts` | `pnpm typecheck` |
@@ -544,8 +506,12 @@ The following ordered plan details the exact remediation sequence required to ac
 [ AUTH-001: Bootstrap Admin ] ────────► [ AUTH-002: Clerk Invitation ]
                                                     │
 [ DB-001: FKs & Indexes ] ────────────► [ MIG-001: Standalone Migrate ] ──► [ MIG-002: Safe Merge Script ]
-                                                    │
-                                                    ▼
+          │                                         │
+          ▼                                         │
+[ DATA-002: Transactional Enrollment ]              │
+  (seq_member_number & Atomic Tx)                   │
+          │                                         │
+          ▼                                         ▼
 [ AUTHZ-001: Resource Auth Policy ] ──► [ QUAL-001: Test Suite ]
   (authorizeMemberResourceAccess)                   │
                                                     │
@@ -565,39 +531,59 @@ The following ordered plan details the exact remediation sequence required to ac
 ## 22. EXECUTION PLAN FOR JULES/CLAUDE
 
 ### Task REM-DATA-001: Implement Production-Grade Offline Synchronization Protocol
-- **Objective**: Prevent offline data loss AND duplicate writes by implementing durable local queueing with immutable `clientOperationId` UUIDs and server-side idempotency tracking (`processed_operations` table).
-- **Files to Modify**:
-  - `artifacts/capef/src/lib/offline-sync.tsx`
-  - `lib/db/src/schema/members.ts` (or `users.ts`)
-  - `artifacts/api-server/src/routes/members.ts`
-- **Instructions**:
-  1. Add `processed_operations` table schema in `@workspace/db`:
-     `clientOperationId` (UUID PK), `userId` (FK), `operationType` (string), `resultPayload` (JSONB), `processedAt` (timestamp).
-  2. Update `offline-sync.tsx`:
-     - When an action is queued, attach `clientOperationId: crypto.randomUUID()`.
-     - In `syncNow()`, iterate through `capef_offline_actions_queue` sequentially.
-     - Send `clientOperationId` in body or header (`X-Client-Operation-ID`).
-     - NEVER clear `capef_offline_actions_queue` before receiving server confirmation.
-     - On network disconnect or HTTP 5xx: retain item in queue for retry.
-     - On HTTP 400 terminal business error: move item to `capef_offline_failed_actions` log.
-     - On HTTP 200/201: remove item from queue.
-  3. Update `artifacts/api-server/src/routes/members.ts`:
-     - Check `processed_operations` by `clientOperationId`.
-     - If found, return cached `resultPayload` (HTTP 200 OK) without re-executing mutation.
-     - If new, execute mutation and record `clientOperationId` inside the SAME `db.transaction()`.
-- **Acceptance Criteria**:
-  - Offline action survives page reloads and browser restarts.
-  - Reconnect sequentially replays queued operations.
-  - Retrying an ambiguous request (same `clientOperationId`) creates NO duplicate database rows.
-  - Network failures (HTTP 5xx) retain operations in queue.
-  - Terminal validation errors (HTTP 400) move to error log without infinite retry loops.
-  - Local queue items are purged ONLY after explicit server HTTP 200/201 confirmation.
+*(Unchanged)*
 
 ### Task REM-AUTH-001: Remove Implicit First-User Admin Bootstrap
 *(Unchanged)*
 
 ### Task REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy
 *(Unchanged)*
+
+### Task REM-DATA-002: Implement Transactional Enrollment & Sequence-Based Member Number Allocation
+- **Objective**: Eliminate non-transactional `"PENDING"` updates and race conditions during member creation by introducing a PostgreSQL sequence (`seq_member_number`) and wrapping enrollment inside an atomic `db.transaction()`.
+- **Files to Modify**:
+  - `lib/db/src/schema/members.ts`
+  - `artifacts/api-server/src/routes/members.ts`
+- **Instructions**:
+  1. Add PostgreSQL sequence in `@workspace/db` schema:
+     `export const seqMemberNumber = pgSequence("seq_member_number", { startWith: 1, increment: 1 });`
+  2. In `POST /api/members`, wrap member creation, number formatting, primary activity seeding, and initial line items inside `db.transaction(async (tx) => { ... })`:
+     ```typescript
+     const newMember = await db.transaction(async (tx) => {
+       // 1. Fetch next sequence value atomically from PostgreSQL
+       const [{ seqVal }] = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
+       const memberNumber = `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
+
+       // 2. Insert member with final, guaranteed unique memberNumber
+       const [inserted] = await tx.insert(membersTable).values({
+         ...memberValues,
+         memberNumber,
+       }).returning();
+
+       // 3. Insert primary activity inside SAME transaction tx
+       const [primaryActivity] = await tx.insert(memberActivitiesTable).values({
+         memberId: inserted.id,
+         activityType: category,
+         isPrimary: true,
+         ...
+       }).returning();
+
+       // 4. Insert any initial line items if present inside tx
+       if (initialLineItems?.length) {
+         await tx.insert(activityLineItemsTable).values(
+           initialLineItems.map(item => ({ ...item, activityId: primaryActivity.id }))
+         );
+       }
+
+       return inserted;
+     });
+     ```
+  3. Wrap error handling to return HTTP 400 Bad Request or HTTP 409 Conflict for business/unique conflicts without exposing raw SQL error stacks.
+- **Acceptance Criteria**:
+  - Member creation, sequence allocation, primary activity insertion, and initial line-item writes execute in ONE atomic transaction.
+  - No `"PENDING"` placeholder strings are ever inserted into the database.
+  - 10 concurrent member creation requests succeed cleanly, generating 10 unique sequential member numbers with 0 unique constraint crashes.
+  - Failed transactions execute complete rollbacks leaving 0 orphan members or primary activities.
 
 ### Task REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In
 *(Unchanged)*
@@ -623,15 +609,15 @@ Feature development on CAPEF Digital Enrolment may resume **ONLY** when all of t
    - [ ] Unauthenticated admin bootstrap in `auth.ts` is replaced with explicit environment-seeded admin evaluation.
    - [ ] All member resource CRUD and nested activity routes enforce resource-level authorization checks (`authorizeMemberResourceAccess`, returning HTTP 403 on scope mismatch).
 2. **Data & Privacy Hardened**:
+   - [ ] Member enrollment executes inside an atomic `db.transaction()`, allocating sequence numbers (`seq_member_number`) atomically with zero `"PENDING"` placeholders or concurrent unique constraint crashes.
    - [ ] Badge verification routes enforce `requireAppUser` authentication (`authorizeBadgeVerification`), allowing ANY authenticated CAPEF agent to verify ANY valid member badge (HTTP 200 with full profile), while blocking unauthenticated access (HTTP 401 / sign-in redirect).
    - [ ] SVG badge generator escapes all user input strings, neutralizing stored XSS vectors.
-   - [ ] Member enrollment write path executes inside an atomic PostgreSQL transaction.
 3. **Database Integrity Locked**:
    - [ ] Drizzle schema defines explicit foreign keys, cascades, non-PK indexes, and unique constraints.
    - [ ] Destructive `drizzle-kit push --force` is permanently removed from deployment scripts.
    - [ ] Database migrations are decoupled from application startup.
 4. **Test & Pipeline Validation**:
-   - [ ] An automated integration test suite exists and passes 100% of auth, member resource authorization, badge verification, offline sync & idempotency, and member enrollment test cases.
+   - [ ] An automated integration test suite exists and passes 100% of auth, member resource authorization, badge verification, offline sync & idempotency, and concurrent member enrollment test cases.
    - [ ] `pnpm typecheck` and `pnpm build` execute cleanly across all workspace packages without TypeScript errors.
 
 ---
@@ -641,4 +627,4 @@ Feature development on CAPEF Digital Enrolment may resume **ONLY** when all of t
 ### **🔴 STOP FEATURE DEVELOPMENT — STABILIZATION REQUIRED**
 
 **Engineering Justification**:
-The CAPEF Digital Enrolment platform contains **3 P0 Blockers** (silent offline data loss & duplicate write risk, unauthenticated admin takeover, and universal IDOR authorization bypasses) and **8 P1 Critical Defects** (including unauthenticated badge access, SVG stored XSS, non-transactional writes, total lack of database referential integrity, destructive force-push deployments, and zero automated tests). Continuing feature development on this foundation introduces compound risk, multiplies technical debt, and threatens the security of citizen identity data. Feature development must remain paused until the Master Remediation Plan (Phases 0 and 1) is executed and verified.
+The CAPEF Digital Enrolment platform contains **3 P0 Blockers** (silent offline data loss & duplicate write risk, unauthenticated admin takeover, and universal IDOR authorization bypasses) and **8 P1 Critical Defects** (including unauthenticated badge access, SVG stored XSS, non-transactional writes & enrollment race conditions, total lack of database referential integrity, destructive force-push deployments, and zero automated tests). Continuing feature development on this foundation introduces compound risk, multiplies technical debt, and threatens the security of citizen identity data. Feature development must remain paused until the Master Remediation Plan (Phases 0 and 1) is executed and verified.

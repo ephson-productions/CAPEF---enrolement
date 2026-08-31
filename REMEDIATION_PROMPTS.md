@@ -13,10 +13,10 @@ This document contains detailed, self-contained, copy-pasteable engineering prom
 3. [PROMPT REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy](#prompt-rem-authz-001-implement-centralized-member-resource-authorization-policy)
 
 ### PHASE 1: CRITICAL STABILIZATION (P1 HIGH PRIORITY)
-4. [PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In](#prompt-rem-priv-001-implement-badge-verification-authorization--require-sign-in)
-5. [PROMPT REM-PRIV-002: Escape XML Entities in SVG Badge Templates](#prompt-rem-priv-002-escape-xml-entities-in-svg-badge-templates)
-6. [PROMPT REM-AUTH-002: Repair Clerk Agent Invitation & Identity Lifecycle](#prompt-rem-auth-002-repair-clerk-agent-invitation--identity-lifecycle)
-7. [PROMPT REM-DATA-002: Enforce Atomic Member Creation Transactions](#prompt-rem-data-002-enforce-atomic-member-creation-transactions)
+4. [PROMPT REM-DATA-002: Implement Transactional Enrollment & Sequence-Based Member Number Allocation](#prompt-rem-data-002-implement-transactional-enrollment--sequence-based-member-number-allocation)
+5. [PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In](#prompt-rem-priv-001-implement-badge-verification-authorization--require-sign-in)
+6. [PROMPT REM-PRIV-002: Escape XML Entities in SVG Badge Templates](#prompt-rem-priv-002-escape-xml-entities-in-svg-badge-templates)
+7. [PROMPT REM-AUTH-002: Repair Clerk Agent Invitation & Identity Lifecycle](#prompt-rem-auth-002-repair-clerk-agent-invitation--identity-lifecycle)
 8. [PROMPT REM-DB-001: Declare Foreign Keys, Cascades & Performance Indexes](#prompt-rem-db-001-declare-foreign-keys-cascades--performance-indexes)
 9. [PROMPT REM-MIG-001: Decouple Migration Execution from Server Startup](#prompt-rem-mig-001-decouple-migration-execution-from-server-startup)
 10. [PROMPT REM-MIG-002: Replace Destructive Schema Push with Versioned Migrations](#prompt-rem-mig-002-replace-destructive-schema-push-with-versioned-migrations)
@@ -271,6 +271,101 @@ pnpm typecheck
 
 ## PHASE 1: CRITICAL STABILIZATION (P1 HIGH PRIORITY)
 
+### PROMPT REM-DATA-002: Implement Transactional Enrollment & Sequence-Based Member Number Allocation
+
+```markdown
+# TASK SPECIFICATION: REM-DATA-002
+**Title**: Implement Transactional Enrollment & Sequence-Based Member Number Allocation
+**Severity**: P1 Critical
+**Domain**: Transaction Management, Concurrency & Data Integrity
+**Affected Files**:
+- `lib/db/src/schema/members.ts`
+- `artifacts/api-server/src/routes/members.ts`
+
+---
+
+### OBJECTIVE
+Rework `DATA-002` in `artifacts/api-server/src/routes/members.ts` to eliminate non-transactional writes, placeholder updates (`"PENDING"`), and concurrent unique constraint crashes during member creation. Treat member enrollment as ONE atomic database transaction (`db.transaction()`) backed by a database-native PostgreSQL sequence (`seq_member_number`).
+
+---
+
+### BACKGROUND & TECHNICAL CONTEXT (CORRECTION 04)
+- Currently, `POST /api/members` executes an anti-pattern:
+  1. `INSERT` member with `memberNumber = "PENDING"`.
+  2. Compute `memberNumber = generateMemberNumber(category, id)`.
+  3. `UPDATE` member record.
+  4. `INSERT` primary activity in a separate SQL statement outside any transaction.
+- Concurrent creation requests crash with HTTP 500 unique violations on `"PENDING"`. Network or process failures leave permanent `"PENDING"` members, orphan primary activities, or partial enrollment rows.
+
+---
+
+### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
+
+#### 1. PostgreSQL Sequence Definition (`@workspace/db`)
+1. In `lib/db/src/schema/members.ts`, define a PostgreSQL sequence:
+   ```typescript
+   import { pgSequence } from "drizzle-orm/pg-core";
+   export const seqMemberNumber = pgSequence("seq_member_number", { startWith: 1, increment: 1 });
+   ```
+
+#### 2. Atomic Transaction & Sequence Allocation (`members.ts`)
+1. In `artifacts/api-server/src/routes/members.ts`, refactor `POST /api/members` to execute inside `db.transaction(async (tx) => { ... })`:
+   ```typescript
+   const newMember = await db.transaction(async (tx) => {
+     // 1. Fetch next sequence value atomically from PostgreSQL sequence
+     const [{ seqVal }] = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
+     const memberNumber = `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
+
+     // 2. Insert member record with final guaranteed unique member_number (NO "PENDING" placeholder)
+     const [inserted] = await tx.insert(membersTable).values({
+       ...memberValues,
+       memberNumber,
+       createdById: appUser.id,
+     }).returning();
+
+     // 3. Insert primary activity inside SAME transaction tx
+     const [primaryActivity] = await tx.insert(memberActivitiesTable).values({
+       memberId: inserted.id,
+       activityType: category,
+       isPrimary: true,
+       regionId: inserted.regionId ?? null,
+       departmentId: inserted.departmentId ?? null,
+       arrondissementId: inserted.arrondissementId ?? null,
+       village: inserted.village ?? null,
+     }).returning();
+
+     // 4. Insert initial activity line items if present inside tx
+     if (initialLineItems && initialLineItems.length > 0) {
+       await tx.insert(activityLineItemsTable).values(
+         initialLineItems.map((item) => ({ ...item, activityId: primaryActivity.id }))
+       );
+     }
+
+     return inserted;
+   });
+   ```
+2. Wrap route execution in a `try/catch` block that catches database exceptions and maps conflicts (e.g., CNI collision or invalid location ID) to structured HTTP 400 Bad Request or HTTP 409 Conflict without exposing raw PostgreSQL error stacks.
+
+---
+
+### ACCEPTANCE CRITERIA
+- [ ] Member creation, sequence allocation, primary activity insertion, and initial line-item writes execute in ONE atomic transaction.
+- [ ] No `"PENDING"` placeholder strings are ever inserted into the database.
+- [ ] 10 concurrent member creation requests succeed cleanly, generating 10 unique sequential member numbers with 0 unique constraint crashes.
+- [ ] Failed transactions execute complete rollbacks leaving 0 orphan members or primary activities.
+- [ ] Raw PostgreSQL SQL error details are masked and mapped to HTTP 400/409.
+- [ ] `pnpm typecheck` compiles cleanly.
+
+---
+
+### VERIFICATION COMMANDS
+```bash
+pnpm typecheck
+```
+```
+
+---
+
 ### PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In
 
 ```markdown
@@ -482,85 +577,6 @@ pnpm typecheck
 
 ---
 
-### PROMPT REM-DATA-002: Enforce Atomic Member Creation Transactions
-
-```markdown
-# TASK SPECIFICATION: REM-DATA-002
-**Title**: Wrap Member Creation, Sequential Member Numbering & Activity Seeding in PostgreSQL Transaction
-**Severity**: P1 Critical
-**Domain**: Transaction Management & Data Integrity
-**Affected Files**: `artifacts/api-server/src/routes/members.ts`
-
----
-
-### OBJECTIVE
-Eliminate race conditions and partial write failures in `POST /api/members`. Replace the non-transactional two-step creation flow (which inserts `"PENDING"` then updates `CAPEF-{PREFIX}-{id}`) with an atomic Drizzle database transaction (`db.transaction`).
-
----
-
-### BACKGROUND & TECHNICAL CONTEXT
-- In `artifacts/api-server/src/routes/members.ts:251-275`:
-  1. `POST /api/members` executes `db.insert(membersTable).values({ memberNumber: "PENDING", ... })`.
-  2. It generates `memberNumber = generateMemberNumber(category, newId)`.
-  3. It executes `db.update(membersTable).set({ memberNumber }).where(...)`.
-- If two enrollments happen concurrently, both insert `"PENDING"`, causing a PostgreSQL 500 unique constraint crash on `members_member_number_unique`.
-- If process crashes between insert and update, orphan rows with `"PENDING"` persist permanently.
-
----
-
-### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Open `artifacts/api-server/src/routes/members.ts`.
-2. Refactor `POST /api/members` to execute inside `db.transaction(async (tx) => { ... })`.
-3. Inside the transaction:
-   - Query the next sequence number or maximum ID using PostgreSQL `SELECT MAX(id)` or sequence generator.
-   - Alternatively, insert member record without `memberNumber`, or generate a temporary deterministic number based on timestamp + random hash if needed, BUT execute the entire flow inside `tx`.
-   - Recommended pattern:
-     ```typescript
-     const newMember = await db.transaction(async (tx) => {
-       // Insert base member
-       const [inserted] = await tx.insert(membersTable).values({
-         ...memberValues,
-         memberNumber: `TMP-${crypto.randomUUID()}`, // Avoid collisions during initial insert
-       }).returning();
-
-       const memberNumber = generateMemberNumber(category, inserted.id);
-
-       const [updated] = await tx.update(membersTable)
-         .set({ memberNumber })
-         .where(eq(membersTable.id, inserted.id))
-         .returning();
-
-       // Seed primary activity inside same transaction tx
-       await tx.insert(memberActivitiesTable).values({
-         memberId: updated.id,
-         activityType: category,
-         isPrimary: true,
-         ...
-       });
-
-       return updated;
-     });
-     ```
-4. If any sub-operation fails inside `tx`, Drizzle automatically rolls back the entire transaction.
-
----
-
-### ACCEPTANCE CRITERIA
-- [ ] Member creation, member number generation, and primary activity seeding execute inside a single atomic transaction.
-- [ ] Concurrent member enrollments complete successfully without unique constraint 500 errors on `"PENDING"`.
-- [ ] If activity seeding fails, the member insertion is completely rolled back leaving no orphan rows.
-- [ ] `pnpm typecheck` compiles cleanly.
-
----
-
-### VERIFICATION COMMANDS
-```bash
-pnpm typecheck
-```
-```
-
----
-
 ### PROMPT REM-DB-001: Declare Foreign Keys, Cascades & Performance Indexes
 
 ```markdown
@@ -752,11 +768,12 @@ bash scripts/post-merge.sh --dry-run # or inspect script
 - Create `artifacts/api-server/src/__tests__/members.test.ts`
 - Create `artifacts/api-server/src/__tests__/authorization.test.ts`
 - Create `artifacts/api-server/src/__tests__/offline.test.ts`
+- Create `artifacts/api-server/src/__tests__/enrollment-concurrency.test.ts`
 
 ---
 
 ### OBJECTIVE
-Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), production offline sync replay & idempotency (Correction 03), and transactional member creation.
+Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), production offline sync replay & idempotency (Correction 03), and concurrent member enrollment sequence safety (Correction 04).
 
 ---
 
@@ -784,14 +801,19 @@ Introduce an automated integration test suite using **Vitest** and **Supertest**
    - Test server 500 error response retains operation in local queue for retry.
    - Test terminal 400 validation error moves operation to error log without infinite retry loop.
    - Test local queue is cleared ONLY after confirmed HTTP 200/201 server acknowledgement.
-6. Create `artifacts/api-server/src/__tests__/members.test.ts`:
-   - Test member creation returns HTTP 201 with generated `CAPEF-{PREFIX}-{id}` member number.
+6. Create `artifacts/api-server/src/__tests__/enrollment-concurrency.test.ts`:
+   - Issue **10 concurrent POST /api/members creation requests** simultaneously using `Promise.all()`.
+   - Verify that all 10 requests succeed cleanly (HTTP 201).
+   - Verify that 10 distinct, valid sequential member numbers (`CAPEF-AGR-000001`, `CAPEF-AGR-000002`, etc.) are assigned.
+   - Verify that zero members contain `"PENDING"` as their member number.
+   - Verify that zero orphan primary activities or partial enrollment records are created.
+   - Test that an intentional transaction failure (e.g., CNI collision) rolls back the entire enrollment transaction and returns HTTP 400/409 without exposing raw PostgreSQL error details.
 
 ---
 
 ### ACCEPTANCE CRITERIA
 - [ ] `pnpm test` executes Vitest and passes 100% of integration test cases.
-- [ ] Core auth, member resource authorization, badge verification, offline sync & idempotency, and member creation routes are protected by automated tests.
+- [ ] Core auth, member resource authorization, badge verification, offline sync & idempotency, and concurrent member creation routes are protected by automated tests.
 - [ ] Test suite runs cleanly in CI environment.
 
 ---
