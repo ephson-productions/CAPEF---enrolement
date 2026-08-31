@@ -7,7 +7,7 @@
 
 The **CAPEF Digital Enrolment Platform** is a full-stack, mobile-first Progressive Web Application (PWA) designed to digitize enrollment, identification, and agricultural/artisanal activity tracking for members of the *Chambre d'Agriculture, de la Pêche, de l'Élevage et de la Forêt (CAPEF)* in Cameroon.
 
-A thorough, cross-layer, evidence-based audit was performed on the `ephson-productions/CAPEF---enrolement` repository. This evaluation reconciled two prior independent security/engineering audits (DeepSeek and Codex) against direct inspection of the codebase, incorporating Correction 01 (Authorization Separation), Correction 03 (Production-Grade Offline Synchronization Protocol), Correction 04 (Transactional Member Enrollment), and Correction 05 (Business-Driven Relational Integrity).
+A thorough, cross-layer, evidence-based audit was performed on the `ephson-productions/CAPEF---enrolement` repository. This evaluation reconciled two prior independent security/engineering audits (DeepSeek and Codex) against direct inspection of the codebase, incorporating Correction 01 (Authorization Separation), Correction 03 (Production-Grade Offline Synchronization Protocol), Correction 04 (Transactional Member Enrollment), Correction 05 (Business-Driven Relational Integrity), and Correction 06 (Production-Grade Definition of Done & Quality Gates).
 
 ### Key Finding & Verdict
 While the codebase exhibits strong architectural intentions—utilizing a modern stack (Node.js/Express 5, Drizzle ORM, Supabase/PostgreSQL, OpenAPI 3.0, Orval codegen, React, TanStack Query, Clerk authentication, and Vite PWA)—**the platform in its current state is unready for production and insecure.**
@@ -79,40 +79,7 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ## 4. CANONICAL FINDINGS
 
-*(Detailed structural inventory of all 23 canonical findings with complete technical context)*
-
-### AUTH-001: Unauthenticated Admin Bootstrap Escalation
 *(Unchanged)*
-
-### AUTH-002: Broken Agent Invitation & Identity Lifecycle
-*(Unchanged)*
-
-### AUTHZ-001: IDOR & Missing Resource Authorization on Nested Activity Routes
-*(Unchanged)*
-
-### PRIV-001: Unauthenticated Access to Badge Verification & Missing Auth Boundary
-*(Unchanged)*
-
-### PRIV-002: Stored XSS Vector in Generated Badge SVG
-*(Unchanged)*
-
-### DATA-001: Silent Offline Queue Data Loss & Retry Duplicate Write Hazard
-*(Unchanged)*
-
-### DATA-002: Non-Transactional Member Enrollment & Member Number Race Conditions
-*(Unchanged)*
-
-### DATA-003: Numeric Input Serialization Failures
-*(Unchanged)*
-
-### DB-001: Absence of Relational Foreign Keys, Delete Policies & Business Constraints
-- **Severity**: P1
-- **Domain**: Database Schema & Business Integrity
-- **Status**: CONFIRMED
-- **File**: `lib/db/src/schema/index.ts`, `lib/db/drizzle/0000_brief_timeslip.sql`
-- **Description**: Across all 7 database tables (`users`, `members`, `member_activities`, `activity_line_items`, `regions`, `departments`, `arrondissements`), there are **zero foreign key constraints**, **zero delete policies**, **zero non-primary-key indexes**, **zero partial unique primary activity constraints**, and **zero CHECK constraints** enforcing business enums or non-negative numeric ranges.
-- **Root Cause**: Schema relies entirely on application discipline without database-level integrity enforcement or preflight data migration checks.
-- **Impact**: Deleting a user can corrupt or destroy historical member records, orphan records accumulate silently, multiple primary activities can be assigned to a member, and invalid enum/numeric values reach SQL storage.
 
 ---
 
@@ -161,85 +128,9 @@ The following matrix reconciles DeepSeek and Codex findings with current reposit
 
 ---
 
-## 11. DATABASE & DATA INTEGRITY ASSESSMENT (CORRECTION 05)
+## 11. DATABASE & DATA INTEGRITY ASSESSMENT (CORRECTION 04 & 05)
 
-### Business-Driven Relational Integrity & Migration Safety
-
-Database integrity must be enforced as the final boundary without blindly adding `ON DELETE CASCADE` everywhere or risking production migration crashes due to invalid legacy rows.
-
-```
-[ Application / Frontend Validation ]
-               │
-               ▼
-   [ Express / Zod Contract ]
-               │
-               ▼
-[ Business Authorization Policy ]
-               │
-               ▼
- [ PostgreSQL Relational Integrity ] ──► (FKs, CASCADE vs RESTRICT, Partial Unique, CHECKs)
-```
-
-#### 1. Complete Relationship & Delete Policy Matrix
-
-| Parent Table | Child Table | Foreign Key Column | Delete Policy | Business Rationale / Invariant |
-| :--- | :--- | :--- | :--- | :--- |
-| `users` | `members` | `members.created_by_id` | **`ON DELETE RESTRICT`** | **CRITICAL**: Deleting an agent/supervisor user account MUST NEVER destroy historical citizen enrollment records. |
-| `regions` | `members` | `members.region_id` | **`ON DELETE RESTRICT`** | Geographic regions are permanent administrative boundaries; deleting a region must be blocked if members reference it. |
-| `departments` | `members` | `members.department_id` | **`ON DELETE RESTRICT`** | Department references are administrative boundaries; deletion blocked if members exist. |
-| `arrondissements` | `members` | `members.arrondissement_id` | **`ON DELETE RESTRICT`** | Arrondissement references are administrative boundaries; deletion blocked if members exist. |
-| `members` | `member_activities` | `member_activities.member_id` | **`ON DELETE CASCADE`** | Activities are strict child entities of a member. Deleting a member removes their associated activities. |
-| `member_activities` | `activity_line_items` | `activity_line_items.activity_id` | **`ON DELETE CASCADE`** | Line items (crops/livestock/crafts) are child entities of an activity. Deleting an activity removes its line items. |
-| `users` | `processed_operations` | `processed_operations.user_id` | **`ON DELETE RESTRICT`** | Audit logs for offline idempotency tracking must be preserved for compliance. |
-
-#### 2. Business Constraints & Enum Rules
-
-- **Single Primary Activity Enforcement**:
-  A member can operate multiple activities across categories (e.g. `agriculteur` and `eleveur`), but exactly ONE activity may be marked as primary (`is_primary = true`). This is enforced via a PostgreSQL **partial unique index**:
-  ```sql
-  CREATE UNIQUE INDEX idx_single_primary_activity
-  ON member_activities(member_id)
-  WHERE is_primary = TRUE;
-  ```
-- **Category Uniqueness per Member**:
-  A member cannot have two activity rows for the same category:
-  ```sql
-  ALTER TABLE member_activities
-  ADD CONSTRAINT unique_member_activity_type UNIQUE(member_id, activity_type);
-  ```
-- **Enum CHECK Constraints**:
-  - `members.status IN ('incomplet', 'en_attente', 'valide', 'desactive', 'bloque')`
-  - `members.member_type IN ('physique', 'morale')`
-  - `members.category IN ('agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan')`
-- **Numeric Range CHECK Constraints**:
-  - `activity_line_items.superficie_ha >= 0`
-  - `activity_line_items.production_quantity >= 0`
-  - `activity_line_items.production_fcfa >= 0`
-  - *(Note: Specific upper bounds on yield or production values mark as `REQUIRES BUSINESS CONFIRMATION` before applying hard caps).*
-
-#### 3. Data Preflight & Migration Safety Procedure
-
-Before applying migration `0002_*.sql` in production, a preflight SQL audit script MUST execute to detect invalid existing rows:
-
-```sql
--- 1. Preflight Check: Detect orphan activities referencing missing members
-SELECT id, member_id FROM member_activities
-WHERE member_id NOT IN (SELECT id FROM members);
-
--- 2. Preflight Check: Detect members with multiple primary activities
-SELECT member_id, COUNT(*) FROM member_activities
-WHERE is_primary = TRUE GROUP BY member_id HAVING COUNT(*) > 1;
-
--- 3. Preflight Remediation: If invalid rows exist, log and clean before adding FK/index
--- (Executed via script before ALTER TABLE statement)
-```
-
-#### 4. Supporting Performance Indexes
-- `CREATE INDEX idx_members_created_by ON members(created_by_id);`
-- `CREATE INDEX idx_members_region ON members(region_id);`
-- `CREATE INDEX idx_members_badge_token ON members(badge_token);`
-- `CREATE INDEX idx_member_activities_member_id ON member_activities(member_id);`
-- `CREATE INDEX idx_activity_line_items_activity_id ON activity_line_items(activity_id);`
+*(Unchanged)*
 
 ---
 
@@ -249,7 +140,7 @@ WHERE is_primary = TRUE GROUP BY member_id HAVING COUNT(*) > 1;
 
 ---
 
-## 13. OFFLINE ARCHITECTURE ASSESSMENT
+## 13. OFFLINE ARCHITECTURE ASSESSMENT (CORRECTION 03)
 
 *(Unchanged)*
 
@@ -281,16 +172,7 @@ WHERE is_primary = TRUE GROUP BY member_id HAVING COUNT(*) > 1;
 
 ## 18. TESTING & CI ASSESSMENT
 
-### Required Minimum Test Coverage Matrix
-
-| Test Suite | Framework | Target Files | Key Scenarios Covered |
-| :--- | :--- | :--- | :--- |
-| **Auth Integration** | Vitest / Supertest | `routes/auth.ts`, `routes/users.ts` | Bootstrap admin escalation prevention, Clerk invitation link, role preservation. |
-| **Member Resource Authorization**| Vitest / Supertest | `routes/members.ts` | Cross-agent member modification blocked (HTTP 403), supervisor region scope isolation. |
-| **Badge Verification Auth** | Vitest / Supertest | `routes/members.ts`, `App.tsx` | Rejection of unauthenticated badge requests (HTTP 401); successful full profile verification for ANY authenticated agent (HTTP 200). |
-| **Offline Sync & Idempotency**| Vitest / Supertest | `offline-sync.tsx`, `routes/members.ts` | Action survives reload; retry on network failure retains queue; replaying same `clientOperationId` creates NO duplicate records. |
-| **Relational Integrity & Deletes**| Vitest / Supertest | `lib/db/src/schema/`, `routes/users.ts` | Attempting to delete a user with members fails with `ON DELETE RESTRICT`; deleting a member cascades to delete activities/line items; adding second primary activity fails partial unique constraint. |
-| **Concurrent Member Enrollment**| Vitest / Supertest | `routes/members.ts` | **10 concurrent member creation requests** -> 10 successful valid members, 10 unique `memberNumber`s, 0 `"PENDING"` members, 0 orphan primary activities. |
+*(Unchanged)*
 
 ---
 
@@ -331,111 +213,106 @@ The following ordered plan details the exact remediation sequence required to ac
 
 ## 21. DEPENDENCY GRAPH
 
-```
-[ AUTH-001: Bootstrap Admin ] ────────► [ AUTH-002: Clerk Invitation ]
-                                                    │
-[ DB-001: Relational Integrity ] ─────► [ MIG-001: Standalone Migrate ] ──► [ MIG-002: Safe Merge Script ]
-  (FKs, RESTRICT/CASCADE,               │
-   Partial Unique, CHECKs)              │
-          │                             │
-          ▼                             │
-[ DATA-002: Transactional Enrollment ]  │
-  (seq_member_number & Atomic Tx)       │
-          │                             │
-          ▼                             ▼
-[ AUTHZ-001: Resource Auth Policy ] ──► [ QUAL-001: Test Suite ]
-  (authorizeMemberResourceAccess)                   │
-                                                    │
-[ PRIV-001: Badge Verification Auth ] ──────────────┤
-  (authorizeBadgeVerification)                      │
-                                                    │
-[ DATA-001: Production Offline Sync ] ──────────────┤
-  (clientOperationId & Idempotency)                 │
-                                                    │
-[ API-001: Generated Zod Validation ] ──────────────┼──► [ API-003: Error Masking ]
-                                                    │
-[ STOR-001: Supabase Cloud Storage ] ───────────────┘
-```
+*(Unchanged)*
 
 ---
 
 ## 22. EXECUTION PLAN FOR JULES/CLAUDE
 
-### Task REM-DATA-001: Implement Production-Grade Offline Synchronization Protocol
-*(Unchanged)*
-
-### Task REM-AUTH-001: Remove Implicit First-User Admin Bootstrap
-*(Unchanged)*
-
-### Task REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy
-*(Unchanged)*
-
-### Task REM-DATA-002: Implement Transactional Enrollment & Sequence-Based Member Number Allocation
-*(Unchanged)*
-
-### Task REM-DB-001: Implement Business-Driven Relational Integrity & Migration Preflight Safety
-- **Objective**: Add business-driven foreign key delete policies (`ON DELETE RESTRICT` for users/geography, `ON DELETE CASCADE` for child activities/line items), partial unique index for single primary activity, CHECK constraints, and preflight legacy data safety checks.
-- **Files to Modify**:
-  - `lib/db/src/schema/members.ts`
-  - `lib/db/src/schema/users.ts`
-  - Create preflight audit script `lib/db/src/preflight-check.ts`
-  - Generate migration `lib/db/drizzle/0002_add_business_integrity_constraints.sql`
-- **Instructions**:
-  1. Create preflight script `lib/db/src/preflight-check.ts`:
-     - Query and report orphan `member_activities` (referencing non-existent member IDs).
-     - Query and report members with multiple primary activities (`is_primary = true`).
-     - Query and report invalid status or category enum strings.
-  2. In `lib/db/src/schema/members.ts`:
-     - Attach `.references(() => usersTable.id, { onDelete: 'restrict' })` to `createdById` (deleting user MUST NOT delete members).
-     - Attach `.references(() => regionsTable.id, { onDelete: 'restrict' })` to `regionId`.
-     - Attach `.references(() => departmentsTable.id, { onDelete: 'restrict' })` to `departmentId`.
-     - Attach `.references(() => arrondissementsTable.id, { onDelete: 'restrict' })` to `arrondissementId`.
-     - Attach `.references(() => membersTable.id, { onDelete: 'cascade' })` to `memberActivitiesTable.memberId`.
-     - Attach `.references(() => memberActivitiesTable.id, { onDelete: 'cascade' })` to `activityLineItemsTable.activityId`.
-     - Add partial unique index for single primary activity:
-       `extraConfig: (table) => [ uniqueIndex("idx_single_primary_activity").on(table.memberId).where(sql\`is_primary = true\`) ]`
-     - Add CHECK constraints for non-negative numbers: `superficie_ha >= 0`, `production_quantity >= 0`, `production_fcfa >= 0`.
-  3. Generate migration `0002_*.sql` via `pnpm --filter @workspace/db run generate`.
-- **Acceptance Criteria**:
-  - Preflight script identifies any legacy orphan or duplicate rows prior to migration.
-  - Deleting a user account with assigned members is blocked (`ON DELETE RESTRICT`).
-  - Deleting a member cascades to delete associated activities and line items (`ON DELETE CASCADE`).
-  - Attempting to insert a second primary activity for a member fails with PostgreSQL unique constraint violation.
-  - Negative values for surface area or production quantities are rejected by CHECK constraints.
-  - `pnpm --filter @workspace/db run build` succeeds.
-
-### Task REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In
-*(Unchanged)*
-
-### Task REM-PRIV-002: Escape XML Entities in SVG Badge Templates
-*(Unchanged)*
-
-### Task REM-MIG-001: Decouple Migration Execution from Server Startup
 *(Unchanged)*
 
 ---
 
-## 23. DEFINITION OF DONE
+## 23. DEFINITION OF DONE (CORRECTION 06)
 
-Feature development on CAPEF Digital Enrolment may resume **ONLY** when all of the following conditions are met and confirmed:
+A remediation item or phase is **NOT** considered complete merely because TypeScript compiles or code looks visually correct. CAPEF production readiness is governed by 9 strict, testable quality gates:
 
-1. **P0 Containment Verified**:
-   - [ ] Offline action queue in `offline-sync.tsx` attaches `clientOperationId` UUIDs, replays sequentially, and purges local storage ONLY upon server HTTP 200/201 acknowledgement.
-   - [ ] Server tracks `processed_operations` to guarantee that duplicate retries with the same `clientOperationId` do NOT create duplicate database records.
-   - [ ] Unauthenticated admin bootstrap in `auth.ts` is replaced with explicit environment-seeded admin evaluation.
-   - [ ] All member resource CRUD and nested activity routes enforce resource-level authorization checks (`authorizeMemberResourceAccess`, returning HTTP 403 on scope mismatch).
-2. **Data & Privacy Hardened**:
-   - [ ] Member enrollment executes inside an atomic `db.transaction()`, allocating sequence numbers (`seq_member_number`) atomically with zero `"PENDING"` placeholders or concurrent unique constraint crashes.
-   - [ ] Database schema enforces business-driven relational integrity: `ON DELETE RESTRICT` for users/geography, `ON DELETE CASCADE` for child activities/line items, partial unique index for single primary activity, and CHECK constraints.
-   - [ ] Badge verification routes enforce `requireAppUser` authentication (`authorizeBadgeVerification`), allowing ANY authenticated CAPEF agent to verify ANY valid member badge (HTTP 200 with full profile), while blocking unauthenticated access (HTTP 401 / sign-in redirect).
-   - [ ] SVG badge generator escapes all user input strings, neutralizing stored XSS vectors.
-3. **Database Integrity Locked**:
-   - [ ] Legacy data preflight checks execute successfully before applying migration `0002_*.sql`.
-   - [ ] Destructive `drizzle-kit push --force` is permanently removed from deployment scripts.
-   - [ ] Database migrations are decoupled from application startup.
-4. **Test & Pipeline Validation**:
-   - [ ] An automated integration test suite exists and passes 100% of auth, member resource authorization, badge verification, offline sync & idempotency, relational delete policies, and concurrent member enrollment test cases.
-   - [ ] `pnpm typecheck` and `pnpm build` execute cleanly across all workspace packages without TypeScript errors.
+### 1. SECURITY GATE
+- **Authentication**:
+  - Unauthenticated request to protected API endpoint -> HTTP 401 Unauthorized.
+  - Authenticated Clerk identity correctly maps to an application user (`appUser`).
+  - First user sign-up on empty `users` table assigns `role: "agent"` unless email matches `INITIAL_ADMIN_EMAIL`.
+- **Member Resource Authorization (`authorizeMemberResourceAccess`)**:
+  - Agent A attempting to read, update, or delete member resources owned by Agent B -> HTTP 403 Forbidden.
+  - Supervisor attempting to modify member resources outside assigned region/zones -> HTTP 403 Forbidden.
+  - Admin granted unrestricted read/write access across all members.
+- **Badge Verification Authorization (`authorizeBadgeVerification`)**:
+  - Anonymous QR code scan / API request -> HTTP 401 / redirect to sign-in screen (zero member data exposed).
+  - Authenticated Agent A scanning Agent A's member badge -> HTTP 200 + full member verification profile.
+  - Authenticated Agent A scanning Agent B's member badge -> HTTP 200 + full member verification profile.
+  - Authenticated supervisor scanning any badge -> HTTP 200 + full member verification profile.
+  - Authenticated admin scanning any badge -> HTTP 200 + full member verification profile.
+  - Invalid/non-existing badge token -> HTTP 404 Not Found.
+
+### 2. DATA INTEGRITY GATE
+- Member creation executed as ONE atomic transaction (`db.transaction()`):
+  - Sequence member number allocation (`seq_member_number`) + base Member row + primary Activity row + initial Line Items commit or rollback together.
+- Under **10 concurrent member creation requests**:
+  - Exactly 10 successful valid members created.
+  - Exactly 10 unique sequential member numbers assigned.
+  - **0 `"PENDING"` member numbers.**
+  - **0 orphan primary activities.**
+  - **0 orphan line items.**
+  - **0 duplicate member numbers.**
+
+### 3. OFFLINE DATA GATE
+- Every offline operation is assigned an immutable `clientOperationId` UUID.
+- Offline operations survive page reloads and browser restarts in local storage.
+- Reconnecting sequentially replays queued operations.
+- Operations are deleted from local storage ONLY after confirmed server HTTP 200/201 acknowledgement or terminal validation error response.
+- Network failures (HTTP 5xx / timeout) retain operations in local storage for retry.
+- Replaying the same `clientOperationId` multiple times returns cached result with HTTP 200 and creates NO duplicate database records.
+
+### 4. DATABASE GATE
+- All foreign keys declared in Drizzle schema with explicit business delete policies:
+  - `users` -> `members` (`ON DELETE RESTRICT` to preserve historical member records).
+  - `regions`/`departments`/`arrondissements` -> `members` (`ON DELETE RESTRICT`).
+  - `members` -> `member_activities` (`ON DELETE CASCADE`).
+  - `member_activities` -> `activity_line_items` (`ON DELETE CASCADE`).
+- PostgreSQL partial unique index enforced for single primary activity (`WHERE is_primary = true`).
+- PostgreSQL CHECK constraints enforced for statuses, categories, and non-negative numbers.
+- Preflight legacy data audit script (`preflight-check.ts`) executes and passes before running migration `0002_*.sql`.
+- Destructive `drizzle-kit push --force` permanently removed from deployment scripts.
+
+### 5. API CONTRACT GATE
+- Contract pipeline enforced: `OpenAPI -> Orval -> Zod -> Express validation middleware`.
+- Request bodies, params, and queries parsed and validated by generated Zod schemas before reaching route logic.
+- All API responses return documented status codes with stable `{ error, code }` payloads.
+- Raw PostgreSQL exception details (`constraint`, `table`, SQL queries) are masked from clients.
+- Generated code directories (`lib/api-zod/src/generated/`, `lib/api-client-react/src/generated/`) are NEVER manually modified.
+
+### 6. STORAGE GATE
+- Member identity photos, CNI documents, and signatures uploaded to private Supabase Object Storage (`member-documents` bucket).
+- Only immutable cloud URLs (`https://.../bucket/path.jpg`) stored in database columns (JSONB bloat eliminated).
+- MIME types and magic bytes validated; max file size capped (5MB).
+- Local ephemeral disk file writes (`/uploads`) eliminated.
+
+### 7. MIGRATION GATE
+- Express process startup (`artifacts/api-server/src/index.ts`) decoupled from database migrations and reference seeding.
+- Migrations executed explicitly via versioned CLI scripts (`pnpm db:migrate`) using `DIRECT_URL`.
+
+### 8. TEST GATE
+- Minimum Vitest + Supertest integration regression suite passing 100%:
+  - [ ] `Agent A -> Member B activity mutation -> 403`
+  - [ ] `Agent A -> Member B line item mutation -> 403`
+  - [ ] `Agent A -> Member B badge verification -> 200`
+  - [ ] `Anonymous -> badge verification -> 401`
+  - [ ] `Anonymous -> protected member endpoint -> 401`
+  - [ ] `First user signup without bootstrap email -> role: agent (NOT admin)`
+  - [ ] `10 concurrent enrollments -> 10 unique numbers, 0 PENDING, 0 orphans`
+  - [ ] `Offline retry with same clientOperationId -> 0 duplicate DB records`
+  - [ ] `Deleting user account with members -> 400/409 RESTRICT error`
+  - [ ] `Deleting member -> CASCADE deletes activities & line items`
+
+### 9. DEPLOYMENT GATE
+- Build & Verification pipeline executes cleanly without errors:
+  - `pnpm install`
+  - `pnpm typecheck`
+  - `pnpm test`
+  - `pnpm build`
+  - `pnpm --filter @workspace/api-spec run codegen`
+- Environment variables audited for production targets (Render, Supabase, Clerk).
+- CORS allowlist restricted to exact configured origin URLs.
 
 ---
 
