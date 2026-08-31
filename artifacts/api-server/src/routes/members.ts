@@ -38,7 +38,7 @@ async function getProcessedOperation(clientOperationId?: string) {
   return existing || null;
 }
 
-function generateMemberNumber(category: string, id: number): string {
+function generateMemberNumber(category: string, seqVal: number | string): string {
   const prefix: Record<string, string> = {
     agriculteur: "AGR",
     pecheur: "PCH",
@@ -46,7 +46,7 @@ function generateMemberNumber(category: string, id: number): string {
     forestier: "FOR",
     artisan: "ART",
   };
-  return `CAPEF-${prefix[category] ?? "MBR"}-${String(id).padStart(6, "0")}`;
+  return `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
 }
 
 async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect) {
@@ -256,7 +256,7 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 // POST /api/members
 router.post("/members", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData } = req.body;
+  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
   const clientOperationId = getClientOperationId(req);
 
   if (clientOperationId) {
@@ -273,65 +273,97 @@ router.post("/members", requireAppUser, async (req, res): Promise<void> => {
     return;
   }
 
-  const result = await db.transaction(async (tx) => {
-    // Insert with placeholder number; update after getting ID
-    const [member] = await tx
-      .insert(membersTable)
-      .values({
-        memberNumber: "PENDING",
-        memberType,
-        category,
-        individualOrOrg: individualOrOrg ?? "individuel",
-        regionId: regionId ?? null,
-        departmentId: departmentId ?? null,
-        arrondissementId: arrondissementId ?? null,
-        village: village ?? null,
-        gpsLat: gpsLat ?? null,
-        gpsLng: gpsLng ?? null,
-        createdById: appUser.id,
-        physiqueData: physiqueData ?? null,
-        moraleData: moraleData ?? null,
-        categoryData: categoryData ?? null,
-        status: "incomplet",
-      })
-      .returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Create sequence if not exists on postgres instance, then fetch nextval
+      await tx.execute(sql`CREATE SEQUENCE IF NOT EXISTS seq_member_number START WITH 1 INCREMENT BY 1`);
+      const seqResult: any = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
+      const rawSeqVal = seqResult.rows?.[0]?.seqVal ?? seqResult?.[0]?.seqVal;
+      const seqVal = parseInt(String(rawSeqVal), 10);
 
-    // Update with real member number
-    const memberNumber = generateMemberNumber(category, member.id);
-    const [updated] = await tx
-      .update(membersTable)
-      .set({ memberNumber })
-      .where(eq(membersTable.id, member.id))
-      .returning();
+      const memberNumber = generateMemberNumber(category, seqVal);
 
-    // Seed the first activity as primary based on category
-    await tx.insert(memberActivitiesTable).values({
-      memberId: updated.id,
-      activityType: category,
-      isPrimary: true,
-      regionId: updated.regionId,
-      departmentId: updated.departmentId,
-      arrondissementId: updated.arrondissementId,
-      village: updated.village,
-      maillons: [],
+      // Insert member record with final guaranteed unique memberNumber
+      const [inserted] = await tx
+        .insert(membersTable)
+        .values({
+          memberNumber,
+          memberType,
+          category,
+          individualOrOrg: individualOrOrg ?? "individuel",
+          regionId: regionId ?? null,
+          departmentId: departmentId ?? null,
+          arrondissementId: arrondissementId ?? null,
+          village: village ?? null,
+          gpsLat: gpsLat ?? null,
+          gpsLng: gpsLng ?? null,
+          createdById: appUser.id,
+          physiqueData: physiqueData ?? null,
+          moraleData: moraleData ?? null,
+          categoryData: categoryData ?? null,
+          status: "incomplet",
+        })
+        .returning();
+
+      // Seed primary activity inside same transaction
+      const [primaryActivity] = await tx
+        .insert(memberActivitiesTable)
+        .values({
+          memberId: inserted.id,
+          activityType: category,
+          isPrimary: true,
+          regionId: inserted.regionId ?? null,
+          departmentId: inserted.departmentId ?? null,
+          arrondissementId: inserted.arrondissementId ?? null,
+          village: inserted.village ?? null,
+          maillons: [],
+        })
+        .returning();
+
+      // Insert initial line items if present
+      if (Array.isArray(initialLineItems) && initialLineItems.length > 0) {
+        await tx.insert(activityLineItemsTable).values(
+          initialLineItems.map((item: any) => ({
+            ...normalizeLineItemPayload(item),
+            activityId: primaryActivity.id,
+          }))
+        );
+      }
+
+      const formatted = await formatMember(inserted, true);
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "create_member",
+          resourceId: inserted.id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
     });
 
-    const formatted = await formatMember(updated, true);
+    res.status(201).json(result);
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (POST /members):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+      constraint: error.constraint,
+    });
 
-    if (clientOperationId) {
-      await tx.insert(processedOperationsTable).values({
-        clientOperationId,
-        userId: appUser.id,
-        operationType: "create_member",
-        resourceId: updated.id,
-        resultPayload: formatted,
-      });
-    }
+    const isConflict = error.code === "23505";
+    const statusCode = isConflict ? 409 : 400;
 
-    return formatted;
-  });
-
-  res.status(201).json(result);
+    res.status(statusCode).json({
+      success: false,
+      error: isConflict ? "Membre déjà existant ou conflit d'identifiant" : "Échec de la création du membre",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+    });
+  }
 });
 
 // GET /api/members/export

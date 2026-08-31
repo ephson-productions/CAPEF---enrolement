@@ -1,7 +1,9 @@
-import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid, pgSequence } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
+
+export const seqMemberNumber = pgSequence("seq_member_number", { startWith: 1, increment: 1 });
 
 export const membersTable = pgTable("members", {
   id: serial("id").primaryKey(),
