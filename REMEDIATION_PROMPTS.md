@@ -10,10 +10,10 @@ This document contains detailed, self-contained, copy-pasteable engineering prom
 ### PHASE 0: IMMEDIATE CONTAINMENT (P0 BLOCKERS)
 1. [PROMPT REM-DATA-001: Offline Action Queue Transmit & Clear Fix](#prompt-rem-data-001-offline-action-queue-transmit--clear-fix)
 2. [PROMPT REM-AUTH-001: Remove Implicit First-User Admin Bootstrap](#prompt-rem-auth-001-remove-implicit-first-user-admin-bootstrap)
-3. [PROMPT REM-AUTHZ-001: Implement Centralized Resource Authorization Policy](#prompt-rem-authz-001-implement-centralized-resource-authorization-policy)
+3. [PROMPT REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy](#prompt-rem-authz-001-implement-centralized-member-resource-authorization-policy)
 
 ### PHASE 1: CRITICAL STABILIZATION (P1 HIGH PRIORITY)
-4. [PROMPT REM-PRIV-001: Require Authentication for Badge Verification & Return Full Member Profile](#prompt-rem-priv-001-require-authentication-for-badge-verification--return-full-member-profile)
+4. [PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In](#prompt-rem-priv-001-implement-badge-verification-authorization--require-sign-in)
 5. [PROMPT REM-PRIV-002: Escape XML Entities in SVG Badge Templates](#prompt-rem-priv-002-escape-xml-entities-in-svg-badge-templates)
 6. [PROMPT REM-AUTH-002: Repair Clerk Agent Invitation & Identity Lifecycle](#prompt-rem-auth-002-repair-clerk-agent-invitation--identity-lifecycle)
 7. [PROMPT REM-DATA-002: Enforce Atomic Member Creation Transactions](#prompt-rem-data-002-enforce-atomic-member-creation-transactions)
@@ -171,57 +171,57 @@ pnpm typecheck
 
 ---
 
-### PROMPT REM-AUTHZ-001: Implement Centralized Resource Authorization Policy
+### PROMPT REM-AUTHZ-001: Implement Centralized Member Resource Authorization Policy
 
 ```markdown
 # TASK SPECIFICATION: REM-AUTHZ-001
-**Title**: Implement Centralized Resource Authorization Policy on All Nested Member Routes
+**Title**: Implement Centralized Member Resource Authorization Policy on All Member CRUD & Activity Mutations
 **Severity**: P0 Blocker
 **Domain**: Resource Authorization & IDOR Protection
 **Affected Files**:
-- Create `artifacts/api-server/src/middlewares/authorizeMember.ts`
+- Create `artifacts/api-server/src/middlewares/authorizeMemberResource.ts`
 - Modify `artifacts/api-server/src/routes/members.ts`
 
 ---
 
 ### OBJECTIVE
-Eliminate Insecure Direct Object Reference (IDOR) vulnerabilities across all nested member routes (`/api/members/:id/activities`, line items, and badges). Create a centralized Express authorization middleware `authorizeMemberAccess` that verifies whether the authenticated user has permission to read or modify the target member record based on role, creator ownership (`createdById`), and regional scope (`regionId`).
+Eliminate Insecure Direct Object Reference (IDOR) vulnerabilities across member CRUD and nested activity/line-item routes (`/api/members/:id/activities` and `/api/members/:id/activities/:actId/line-items`). Create a centralized Express authorization middleware `authorizeMemberResourceAccess` that enforces creator ownership (`createdById`) and regional assignment scope (`regionId`).
+
+*Note: Per Correction 01, Badge Verification (`GET /api/members/badge/:badgeToken`) is explicitly excluded from member resource ownership policy and governed separately by `authorizeBadgeVerification` (Task REM-PRIV-001).*
 
 ---
 
 ### BACKGROUND & TECHNICAL CONTEXT
-- Currently, routes like `POST /api/members/:id/activities`, `PUT /api/members/:id/activities/:actId/line-items`, and `POST /api/members/:id/badge` attach `requireAppUser`, which verifies that a valid Clerk session exists.
+- Currently, routes like `POST /api/members/:id/activities` and `PUT /api/members/:id/activities/:actId/line-items` attach `requireAppUser`, which verifies that a valid Clerk session exists.
 - However, they fail to verify if the authenticated agent actually created the member (`createdById === appUser.id`) or if a supervisor is assigned to the member's region (`regionId === appUser.regionId`).
-- Low-privilege field agents can read, modify, or delete activities and line items on member records belonging to other agents or regions.
+- Low-privilege field agents can modify or delete activities and line items on member records belonging to other agents.
 
 ---
 
 ### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
-1. Create a new middleware file `artifacts/api-server/src/middlewares/authorizeMember.ts`.
-2. Define `authorizeMemberAccess(action: 'read' | 'write')`:
+1. Create a new middleware file `artifacts/api-server/src/middlewares/authorizeMemberResource.ts`.
+2. Define `authorizeMemberResourceAccess(action: 'read' | 'write')`:
    - Parse `memberId` from `req.params.id` or `req.params.memberId`. Return HTTP 400 if invalid integer.
    - Query `membersTable` by ID. If member does not exist, return HTTP 404 `{ error: "Membre introuvable" }`.
    - Retrieve `appUser = (req as any).appUser`.
    - Evaluate authorization policy rules:
-     - **Admin (`appUser.role === 'admin'`)**: Granted full `'read'` and `'write'` access.
+     - **Admin (`appUser.role === 'admin'`)**: Granted full `'read'` and `'write'` resource access.
      - **Supervisor (`appUser.role === 'supervisor'`)**: Granted access if `member.regionId === appUser.regionId` or if `member.regionId` is included in `appUser.assignedZones`.
      - **Agent (`appUser.role === 'agent'`)**:
-       - For `'write'` actions: Granted access ONLY if `member.createdById === appUser.id`.
-       - For `'read'` actions: Granted access if `member.createdById === appUser.id`, OR if verifying badges via `requireAppUser`.
+       - Granted `'read'` and `'write'` resource access ONLY if `member.createdById === appUser.id`.
    - If authorization fails, log a warning via `logger.warn` and return HTTP 403 Forbidden:
      `res.status(403).json({ error: "Accès non autorisé à ce dossier membre" });`
    - If authorization succeeds, attach `(req as any).member = member;` and call `next()`.
 3. Open `artifacts/api-server/src/routes/members.ts`.
-4. Attach `authorizeMemberAccess('read')` to all GET nested member endpoints.
-5. Attach `authorizeMemberAccess('write')` to all POST, PUT, and DELETE nested member endpoints (activities, line-items, status changes, badge generation).
+4. Attach `authorizeMemberResourceAccess('read')` to member detail and list-activities endpoints.
+5. Attach `authorizeMemberResourceAccess('write')` to all POST, PUT, and DELETE member CRUD and nested activity/line-item endpoints.
 
 ---
 
 ### ACCEPTANCE CRITERIA
-- [ ] Agents attempting to create, update, or delete activities/line items on members created by other agents receive HTTP 403 Forbidden.
-- [ ] Supervisors can modify members only within their assigned region/zones.
-- [ ] Admins retain unrestricted read/write access across all members.
-- [ ] All nested routes reuse the centralized policy middleware instead of ad-hoc ownership checks.
+- [ ] Agent A attempting to modify or add activities to a member created by Agent B receives HTTP 403 Forbidden.
+- [ ] Supervisors can modify member resources only within their assigned region/zones.
+- [ ] Admins retain unrestricted read/write access across all member resources.
 - [ ] `pnpm typecheck` compiles cleanly.
 
 ---
@@ -236,13 +236,13 @@ pnpm typecheck
 
 ## PHASE 1: CRITICAL STABILIZATION (P1 HIGH PRIORITY)
 
-### PROMPT REM-PRIV-001: Require Authentication for Badge Verification & Return Full Member Profile
+### PROMPT REM-PRIV-001: Implement Badge Verification Authorization & Require Sign-In
 
 ```markdown
 # TASK SPECIFICATION: REM-PRIV-001
-**Title**: Protect Badge Verification Route with Authentication and Return Full Member Details for Agents
+**Title**: Require CAPEF Authentication for Badge Verification and Return Full Member Profile to Authorized Verifiers
 **Severity**: P1 Critical
-**Domain**: Authentication & Member Verification
+**Domain**: Authentication & Badge Verification
 **Affected Files**:
 - `artifacts/api-server/src/routes/members.ts`
 - `artifacts/capef/src/App.tsx`
@@ -251,35 +251,44 @@ pnpm typecheck
 ---
 
 ### OBJECTIVE
-Update the badge verification flow so that scanning a member's badge QR code requires authentication (`requireAppUser`). Unauthenticated scanners must be redirected to log in first. Once authenticated as a CAPEF user/agent, the backend route returns the full member detail record (`formatMember(member, true)`), allowing official agents to verify identity documents, activities, and contact details in the field.
+Update the badge verification flow to strictly enforce CAPEF authentication (`requireAppUser`). Unauthenticated scanners attempting to view a badge must be redirected to sign in first. Once authenticated as ANY valid CAPEF user/agent (without requiring creator ownership), the backend badge verification route (`GET /api/members/badge/:badgeToken`) returns the complete member profile (`formatMember(member, true)`), allowing official agents to verify identity documents, activities, and contact details in the field.
 
 ---
 
-### BACKGROUND & TECHNICAL CONTEXT
-- In `artifacts/api-server/src/routes/members.ts:1375-1396`, `GET /api/public/members/badge/:badgeToken` is currently unauthenticated.
-- Per CAPEF business rules, badge verification is an official task performed by authenticated field agents equipped with the PWA. Unauthenticated visitors scanning the QR code must be prompted to sign in before accessing the verification page. Once signed in, the agent gets complete member details to confirm identity.
+### BACKGROUND & TECHNICAL CONTEXT (CORRECTION 01)
+- In `artifacts/api-server/src/routes/members.ts:1375-1396`, `GET /api/public/members/badge/:badgeToken` was mounted without authentication.
+- Per CAPEF business rules (Correction 01):
+  - Badge verification is a global function available to ANY authenticated CAPEF user/agent (Agent A can scan and verify Member B owned by Agent B).
+  - Badge verification MUST NOT be exposed anonymously (unauthenticated calls receive HTTP 401 / sign-in redirect).
+  - Once authenticated, the verifier receives the FULL member verification profile (`formatMember(member, true)`) for official field inspection. Do NOT strip fields into a minimal public DTO.
 
 ---
 
 ### STEP-BY-STEP IMPLEMENTATION REQUIREMENTS
 1. Open `artifacts/api-server/src/routes/members.ts`.
-2. Refactor the badge verification endpoint route:
-   - Change path from `/api/public/members/badge/:badgeToken` to `/api/members/badge/:badgeToken` (or retain legacy path alias for backwards compatibility).
-   - Attach `requireAppUser` middleware.
-   - If user is not authenticated, Express returns HTTP 401 Unauthorized.
-   - When authenticated, query `membersTable` by `badgeToken`. Return HTTP 404 if not found.
-   - Call `formatMember(member, true)` and return the full member profile JSON.
+2. Refactor the badge verification route handler (`GET /api/members/badge/:badgeToken`):
+   - Attach `requireAppUser` middleware (`authorizeBadgeVerification`).
+   - If user is unauthenticated, return HTTP 401 Unauthorized (`{ error: "Authentification requise pour vérifier un badge CAPEF" }`).
+   - Query `membersTable` by `badgeToken`. Return HTTP 404 Not Found if token does not exist (`{ error: "Badge invalide ou introuvable" }`).
+   - Call `formatMember(member, true)` and return the complete member verification profile JSON.
+   - Do NOT check `createdById` or regional bounds for badge verification. Allow ANY authenticated CAPEF agent to verify ANY valid badge.
 3. Open `artifacts/capef/src/App.tsx`.
-4. Move `<Route path="/badge-verify/:token" component={BadgeVerify} />` inside the protected route switch wrapper (`<ProtectedRoutes />` or wrapped with `<Show when="signed-in">`), so unauthenticated visitors scanning the QR code are automatically redirected to `${basePath}/sign-in`.
+4. Update frontend route configuration so `/badge-verify/:token` requires authentication:
+   - If an unauthenticated user scans the QR code, redirect them to sign in (`${basePath}/sign-in`).
+   - Once authenticated, render the full `BadgeVerify` page.
 5. Open `artifacts/capef/src/pages/members/BadgeVerify.tsx`.
-6. Ensure `BadgeVerify` correctly fetches member details using the authenticated client hook and renders the complete member identity and activity breakdown.
+6. Ensure `BadgeVerify` fetches member details using the authenticated API hook and renders the complete member identity, contact, and activity breakdown.
 
 ---
 
 ### ACCEPTANCE CRITERIA
-- [ ] Unauthenticated requests to `/api/members/badge/:token` return HTTP 401 Unauthorized.
-- [ ] Scanning a badge QR code in an unauthenticated browser redirects to the sign-in page.
-- [ ] Authenticated CAPEF agents scanning the QR code successfully load the full member profile (`BadgeVerify.tsx`).
+- [ ] Anonymous HTTP request to `/api/members/badge/:badgeToken` returns HTTP 401 Unauthorized.
+- [ ] Unauthenticated browser scanning QR code is redirected to sign in.
+- [ ] Authenticated Agent A scanning own member's badge receives HTTP 200 with full member profile.
+- [ ] Authenticated Agent A scanning Agent B's member badge receives HTTP 200 with full member profile.
+- [ ] Authenticated supervisor scanning any badge receives HTTP 200 with full member profile.
+- [ ] Authenticated admin scanning any badge receives HTTP 200 with full member profile.
+- [ ] Invalid or non-existent badge token returns HTTP 404 Not Found.
 - [ ] `pnpm typecheck` and `pnpm --filter capef run build` compile cleanly.
 
 ---
@@ -711,7 +720,7 @@ bash scripts/post-merge.sh --dry-run # or inspect script
 ---
 
 ### OBJECTIVE
-Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, resource authorization policy (IDOR prevention), transactional member creation, offline sync replay, and badge verification auth boundaries.
+Introduce an automated integration test suite using **Vitest** and **Supertest**. Create core regression tests covering authentication provisioning, member resource authorization policy (IDOR prevention), badge verification authorization (Correction 01), transactional member creation, and offline sync replay.
 
 ---
 
@@ -728,8 +737,10 @@ Introduce an automated integration test suite using **Vitest** and **Supertest**
 3. Create `artifacts/api-server/src/__tests__/auth.test.ts`:
    - Test that `/api/auth/provision` on an empty table assigns `role: "agent"` unless email matches `INITIAL_ADMIN_EMAIL`.
 4. Create `artifacts/api-server/src/__tests__/authorization.test.ts`:
-   - Test that an agent attempting to modify an activity on a member owned by another agent receives HTTP 403 Forbidden.
-   - Test that an unauthenticated GET request to `/api/members/badge/:token` receives HTTP 401 Unauthorized.
+   - Test that Agent A attempting to modify or add activities to a member created by Agent B receives HTTP 403 Forbidden (`authorizeMemberResourceAccess`).
+   - Test that an unauthenticated GET request to `/api/members/badge/:token` receives HTTP 401 Unauthorized (`authorizeBadgeVerification`).
+   - Test that Authenticated Agent A scanning Agent B's member badge receives HTTP 200 with full member verification details.
+   - Test that an invalid badge token returns HTTP 404 Not Found.
 5. Create `artifacts/api-server/src/__tests__/members.test.ts`:
    - Test member creation returns HTTP 201 with generated `CAPEF-{PREFIX}-{id}` member number.
 
@@ -737,7 +748,7 @@ Introduce an automated integration test suite using **Vitest** and **Supertest**
 
 ### ACCEPTANCE CRITERIA
 - [ ] `pnpm test` executes Vitest and passes 100% of integration test cases.
-- [ ] Core auth, authorization, member creation, and badge verification routes are protected by automated tests.
+- [ ] Core auth, member resource authorization, badge verification, member creation, and offline sync routes are protected by automated tests.
 - [ ] Test suite runs cleanly in CI environment.
 
 ---
