@@ -19,6 +19,7 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import ExcelJS from "exceljs";
 
 const router: IRouter = Router();
 
@@ -95,18 +96,16 @@ async function formatMemberActivity(activity: typeof memberActivitiesTable.$infe
   };
 }
 
-async function formatMember(m: typeof membersTable.$inferSelect, includeDetail = false, executor: any = db) {
-  const [region] = m.regionId
-    ? await executor.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
-    : [null];
-  const [dept] = m.departmentId
-    ? await executor.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
-    : [null];
-  const [arr] = m.arrondissementId
-    ? await executor.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
-    : [null];
-  const [creator] = await executor.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+type PreJoinedMemberRow = {
+  member: typeof membersTable.$inferSelect;
+  regionName: string | null;
+  departmentName: string | null;
+  arrondissementName: string | null;
+  createdByName: string | null;
+};
 
+function formatPreJoinedMember(row: PreJoinedMemberRow, includeDetail = false) {
+  const m = row.member;
   const physique = m.physiqueData as any;
   const morale = m.moraleData as any;
   const displayName = m.memberType === "physique"
@@ -119,14 +118,58 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
     memberType: m.memberType,
     category: m.category,
     displayName,
-    regionName: region?.name ?? null,
-    createdByName: creator?.name ?? null,
+    regionName: row.regionName ?? null,
+    createdByName: row.createdByName ?? null,
     badgeUrl: m.badgeUrl ?? null,
     status: m.status,
     createdAt: m.createdAt.toISOString(),
   };
 
   if (!includeDetail) return base;
+
+  return {
+    ...base,
+    individualOrOrg: m.individualOrOrg,
+    regionId: m.regionId ?? null,
+    departmentId: m.departmentId ?? null,
+    departmentName: row.departmentName ?? null,
+    arrondissementId: m.arrondissementId ?? null,
+    arrondissementName: row.arrondissementName ?? null,
+    village: m.village ?? null,
+    gpsLat: m.gpsLat ?? null,
+    gpsLng: m.gpsLng ?? null,
+    createdById: m.createdById,
+    physiqueData: m.physiqueData ?? null,
+    moraleData: m.moraleData ?? null,
+    categoryData: m.categoryData ?? null,
+    updatedAt: m.updatedAt.toISOString(),
+  };
+}
+
+async function formatMember(m: typeof membersTable.$inferSelect, includeDetail = false, executor: any = db) {
+  const [region] = m.regionId
+    ? await executor.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
+    : [null];
+  const [dept] = m.departmentId
+    ? await executor.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
+    : [null];
+  const [arr] = m.arrondissementId
+    ? await executor.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
+    : [null];
+  const [creator] = await executor.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+
+  const formattedBase = formatPreJoinedMember(
+    {
+      member: m,
+      regionName: region?.name ?? null,
+      departmentName: dept?.name ?? null,
+      arrondissementName: arr?.name ?? null,
+      createdByName: creator?.name ?? null,
+    },
+    includeDetail
+  );
+
+  if (!includeDetail) return formattedBase;
 
   // Retrieve activities & line items for details
   const activities = await executor
@@ -139,21 +182,7 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
   );
 
   return {
-    ...base,
-    individualOrOrg: m.individualOrOrg,
-    regionId: m.regionId ?? null,
-    departmentId: m.departmentId ?? null,
-    departmentName: dept?.name ?? null,
-    arrondissementId: m.arrondissementId ?? null,
-    arrondissementName: arr?.name ?? null,
-    village: m.village ?? null,
-    gpsLat: m.gpsLat ?? null,
-    gpsLng: m.gpsLng ?? null,
-    createdById: m.createdById,
-    physiqueData: m.physiqueData ?? null,
-    moraleData: m.moraleData ?? null,
-    categoryData: m.categoryData ?? null,
-    updatedAt: m.updatedAt.toISOString(),
+    ...formattedBase,
     activities: formattedActivities,
   };
 }
@@ -241,31 +270,46 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     }
   }
 
-  let query = db.select().from(membersTable);
   let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(membersTable);
+  if (conditions.length) {
+    countQuery = countQuery.where(and(...conditions)) as any;
+  }
+
+  let joinedQuery = db
+    .select({
+      member: membersTable,
+      regionName: regionsTable.name,
+      departmentName: departmentsTable.name,
+      arrondissementName: arrondissementsTable.name,
+      createdByName: usersTable.name,
+    })
+    .from(membersTable)
+    .leftJoin(regionsTable, eq(membersTable.regionId, regionsTable.id))
+    .leftJoin(departmentsTable, eq(membersTable.departmentId, departmentsTable.id))
+    .leftJoin(arrondissementsTable, eq(membersTable.arrondissementId, arrondissementsTable.id))
+    .leftJoin(usersTable, eq(membersTable.createdById, usersTable.id));
 
   if (conditions.length) {
-    query = query.where(and(...conditions)) as any;
-    countQuery = countQuery.where(and(...conditions)) as any;
+    joinedQuery = joinedQuery.where(and(...conditions)) as any;
   }
 
   // Search by member number or display name (via JSON)
   if (search) {
     const s = `%${String(search)}%`;
     const searchCond = sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`;
-    query = query.where(searchCond) as any;
+    joinedQuery = joinedQuery.where(searchCond) as any;
     countQuery = countQuery.where(searchCond) as any;
   }
 
   const [totalResult] = await countQuery;
   const total = totalResult?.count ?? 0;
 
-  const rows = await query
+  const rows = await joinedQuery
     .orderBy(sql`${membersTable.createdAt} DESC`)
     .limit(limitNum)
     .offset(offset);
 
-  const summaries = await Promise.all(rows.map((m) => formatMember(m, false)));
+  const summaries = rows.map((row) => formatPreJoinedMember(row, false));
 
   res.json({
     data: summaries,
@@ -392,11 +436,44 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   const appUser = (req as any).appUser;
   const { category, memberType, regionId, status, representantGenre } = req.query;
 
+  const dateStr = new Date().toISOString().split("T")[0];
+  const filename = `capef-membres-${dateStr}.xlsx`;
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+    stream: res,
+    useStyles: true,
+    useSharedStrings: true,
+  });
+
+  const worksheet = workbook.addWorksheet("Tous les membres");
+
+  worksheet.columns = [
+    { header: "matricule", key: "matricule", width: 22 },
+    { header: "name", key: "name", width: 30 },
+    { header: "forme", key: "forme", width: 20 },
+    { header: "activite", key: "activite", width: 18 },
+    { header: "nature", key: "nature", width: 30 },
+    { header: "date_creation", key: "date_creation", width: 15 },
+    { header: "region", key: "region", width: 20 },
+    { header: "departement", key: "departement", width: 20 },
+    { header: "commune", key: "commune", width: 20 },
+    { header: "mobile", key: "mobile", width: 18 },
+    { header: "village", key: "village", width: 20 },
+    { header: "statut", key: "statut", width: 15 },
+    { header: "agent", key: "agent", width: 25 },
+    { header: "inscription", key: "inscription", width: 15 },
+    { header: "cotisation", key: "cotisation", width: 15 },
+    { header: "adhesion_yunus", key: "adhesion_yunus", width: 15 },
+    { header: "inscription_date", key: "inscription_date", width: 15 },
+    { header: "cotisation_restant", key: "cotisation_restant", width: 15 },
+    { header: "adhesion_yunus_restant", key: "adhesion_yunus_restant", width: 15 },
+  ];
+
   if (representantGenre && memberType === "physique") {
-    const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send("\uFEFF"); // Return empty file
+    await workbook.commit();
     return;
   }
 
@@ -417,10 +494,6 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     }
   }
 
-  const rows = conditions.length
-    ? await db.select().from(membersTable).where(and(...conditions))
-    : await db.select().from(membersTable);
-
   const categoryTranslation: Record<string, string> = {
     agriculteur: "agriculture",
     pecheur: "fishing",
@@ -429,122 +502,114 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     artisan: "artisanat"
   };
 
-  // Legacy consular columns requested by Ephraim + new helpful columns
-  const headers = [
-    "matricule",
-    "name",
-    "forme",
-    "activite",
-    "nature",
-    "date_creation",
-    "region",
-    "departement",
-    "commune",
-    "mobile",
-    "village",
-    "statut",
-    "agent",
-    "inscription",
-    "cotisation",
-    "adhesion_yunus",
-    "inscription_date",
-    "cotisation_restant",
-    "adhesion_yunus_restant"
-  ];
-  const csvRows = [headers.join(",")];
+  const batchSize = 500;
+  let offset = 0;
+  let hasMore = true;
 
-  const escapeCsv = (str: any) => {
-    const val = str === null || str === undefined ? "" : String(str);
-    if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
-      return `"${val.replace(/"/g, '""')}"`;
+  while (hasMore) {
+    let query = db
+      .select({
+        member: membersTable,
+        regionName: regionsTable.name,
+        departmentName: departmentsTable.name,
+        arrondissementName: arrondissementsTable.name,
+        createdByName: usersTable.name,
+      })
+      .from(membersTable)
+      .leftJoin(regionsTable, eq(membersTable.regionId, regionsTable.id))
+      .leftJoin(departmentsTable, eq(membersTable.departmentId, departmentsTable.id))
+      .leftJoin(arrondissementsTable, eq(membersTable.arrondissementId, arrondissementsTable.id))
+      .leftJoin(usersTable, eq(membersTable.createdById, usersTable.id));
+
+    if (conditions.length) {
+      query = query.where(and(...conditions)) as any;
     }
-    return val;
-  };
 
-  for (const m of rows) {
-    const physique = m.physiqueData as any;
-    const morale = m.moraleData as any;
-    const name = m.memberType === "physique"
-      ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
-      : (morale?.nom ?? "");
-    const forme = m.memberType === "morale"
-      ? (morale?.typeOrganisation ?? "")
-      : "";
-    const activite = categoryTranslation[m.category] || m.category;
-    const mobile = m.memberType === "physique"
-      ? (physique?.telephone1 ?? "")
-      : (morale?.telephone1 ?? "");
+    const batch = await query
+      .orderBy(sql`${membersTable.id} ASC`)
+      .limit(batchSize)
+      .offset(offset);
 
-    const [region] = m.regionId
-      ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
-      : [null];
-    const [dept] = m.departmentId
-      ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
-      : [null];
-    const [arr] = m.arrondissementId
-      ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
-      : [null];
+    if (batch.length === 0) {
+      hasMore = false;
+      break;
+    }
 
-    // Build the nature column from member activities and line items
-    const memberActivities = await db
-      .select()
+    // Fetch line items for current batch to populate nature
+    const memberIds = batch.map((r) => r.member.id);
+    const batchActivities = await db
+      .select({
+        memberId: memberActivitiesTable.memberId,
+        activityType: memberActivitiesTable.activityType,
+        cropName: activityLineItemsTable.cropName,
+        speciesPêche: activityLineItemsTable.speciesPêche,
+        species: activityLineItemsTable.species,
+        essence: activityLineItemsTable.essence,
+        artisanatProducts: activityLineItemsTable.artisanatProducts,
+      })
       .from(memberActivitiesTable)
-      .where(eq(memberActivitiesTable.memberId, m.id));
+      .innerJoin(activityLineItemsTable, eq(activityLineItemsTable.activityId, memberActivitiesTable.id))
+      .where(sql`${memberActivitiesTable.memberId} IN ${memberIds}`);
 
-    const lineItemDetails: string[] = [];
-    for (const act of memberActivities) {
-      const items = await db
-        .select()
-        .from(activityLineItemsTable)
-        .where(eq(activityLineItemsTable.activityId, act.id));
-      for (const item of items) {
-        if (act.activityType === "agriculteur") {
-          if (item.cropName) lineItemDetails.push(item.cropName);
-        } else if (act.activityType === "pecheur") {
-          if (item.speciesPêche) lineItemDetails.push(item.speciesPêche);
-        } else if (act.activityType === "eleveur") {
-          if (item.species) lineItemDetails.push(item.species);
-        } else if (act.activityType === "forestier") {
-          if (item.essence) lineItemDetails.push(item.essence);
-        } else if (act.activityType === "artisan") {
-          if (item.artisanatProducts) lineItemDetails.push(item.artisanatProducts);
-        }
-      }
+    const natureMap = new Map<number, string[]>();
+    for (const act of batchActivities) {
+      const list = natureMap.get(act.memberId) || [];
+      if (act.activityType === "agriculteur" && act.cropName) list.push(act.cropName);
+      else if (act.activityType === "pecheur" && act.speciesPêche) list.push(act.speciesPêche);
+      else if (act.activityType === "eleveur" && act.species) list.push(act.species);
+      else if (act.activityType === "forestier" && act.essence) list.push(act.essence);
+      else if (act.activityType === "artisan" && act.artisanatProducts) list.push(act.artisanatProducts);
+      natureMap.set(act.memberId, list);
     }
-    const nature = lineItemDetails.length > 0 ? lineItemDetails.join("; ") : "";
 
-    const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+    for (const row of batch) {
+      const m = row.member;
+      const physique = m.physiqueData as any;
+      const morale = m.moraleData as any;
+      const name = m.memberType === "physique"
+        ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
+        : (morale?.nom ?? "");
+      const forme = m.memberType === "morale"
+        ? (morale?.typeOrganisation ?? "")
+        : "";
+      const activite = categoryTranslation[m.category] || m.category;
+      const mobile = m.memberType === "physique"
+        ? (physique?.telephone1 ?? "")
+        : (morale?.telephone1 ?? "");
 
-    csvRows.push([
-      escapeCsv(m.memberNumber),
-      escapeCsv(name),
-      escapeCsv(forme),
-      escapeCsv(activite),
-      escapeCsv(nature),
-      escapeCsv(m.createdAt.toISOString().split("T")[0]),
-      escapeCsv(region?.name),
-      escapeCsv(dept?.name),
-      escapeCsv(arr?.name),
-      escapeCsv(mobile),
-      escapeCsv(m.village),
-      escapeCsv(m.status),
-      escapeCsv(creator?.name),
-      "", // inscription (blank)
-      "", // cotisation (blank)
-      "", // adhesion_yunus (blank)
-      "", // inscription_date (blank)
-      "", // cotisation_restant (blank)
-      ""  // adhesion_yunus_restant (blank)
-    ].join(","));
+      const lineItems = natureMap.get(m.id) || [];
+      const nature = lineItems.length > 0 ? Array.from(new Set(lineItems)).join("; ") : "";
+
+      worksheet.addRow({
+        matricule: m.memberNumber,
+        name,
+        forme,
+        activite,
+        nature,
+        date_creation: m.createdAt.toISOString().split("T")[0],
+        region: row.regionName ?? "",
+        departement: row.departmentName ?? "",
+        commune: row.arrondissementName ?? "",
+        mobile,
+        village: m.village ?? "",
+        statut: m.status,
+        agent: row.createdByName ?? "",
+        inscription: "",
+        cotisation: "",
+        adhesion_yunus: "",
+        inscription_date: "",
+        cotisation_restant: "",
+        adhesion_yunus_restant: "",
+      }).commit();
+    }
+
+    offset += batch.length;
+    if (batch.length < batchSize) {
+      hasMore = false;
+    }
   }
 
-  const csv = csvRows.join("\n");
-  const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
-
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  // Prepend a UTF-8 BOM so Excel opens accented French characters correctly
-  res.send("\uFEFF" + csv);
+  await workbook.commit();
 });
 
 // GET /api/members/:id
