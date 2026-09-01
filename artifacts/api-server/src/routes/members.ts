@@ -40,6 +40,12 @@ async function getProcessedOperation(clientOperationId?: string) {
   return existing || null;
 }
 
+function coerceNumeric(val: any): number | null {
+  if (val === "" || val === undefined || val === null) return null;
+  const num = Number(val);
+  return Number.isNaN(num) ? null : num;
+}
+
 function escapeXml(str: string | null | undefined): string {
   if (!str) return "";
   return String(str).replace(/[<>&'"]/g, (c) => {
@@ -306,12 +312,12 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
           memberType,
           category,
           individualOrOrg: individualOrOrg ?? "individuel",
-          regionId: regionId ?? null,
-          departmentId: departmentId ?? null,
-          arrondissementId: arrondissementId ?? null,
+          regionId: coerceNumeric(regionId),
+          departmentId: coerceNumeric(departmentId),
+          arrondissementId: coerceNumeric(arrondissementId),
           village: village ?? null,
-          gpsLat: gpsLat ?? null,
-          gpsLng: gpsLng ?? null,
+          gpsLat: coerceNumeric(gpsLat),
+          gpsLng: coerceNumeric(gpsLng),
           createdById: appUser.id,
           physiqueData: physiqueData ?? null,
           moraleData: moraleData ?? null,
@@ -585,9 +591,14 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   }
 
   const updates: Record<string, unknown> = {};
-  const fields = ["category", "individualOrOrg", "regionId", "departmentId", "arrondissementId", "village", "gpsLat", "gpsLng", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
+  const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
   for (const f of fields) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
+  }
+
+  const numericFields = ["regionId", "departmentId", "arrondissementId", "gpsLat", "gpsLng"];
+  for (const f of numericFields) {
+    if (req.body[f] !== undefined) updates[f] = coerceNumeric(req.body[f]);
   }
 
   const [updated] = await db
