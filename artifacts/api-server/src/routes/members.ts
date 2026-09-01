@@ -1587,27 +1587,27 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
   res.json({ created, failed: errors.length, errors });
 });
 
-const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+const ipRequestLogs = new Map<string, number[]>();
 
 const publicRateLimiter = (req: any, res: any, next: any) => {
-  const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  // Use req.ip directly, safely backed by Express trust proxy 1
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute window
   const maxRequests = 30; // Max 30 requests per minute
 
-  const record = ipRequestCounts.get(ip);
+  let timestamps = ipRequestLogs.get(ip) || [];
+  // Filter out timestamps older than the sliding window
+  timestamps = timestamps.filter((ts) => now - ts < windowMs);
 
-  if (!record || now > record.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + windowMs });
-    next();
-  } else {
-    record.count++;
-    if (record.count > maxRequests) {
-      res.status(429).json({ error: "Trop de requêtes. Veuillez réessayer dans une minute." });
-    } else {
-      next();
-    }
+  if (timestamps.length >= maxRequests) {
+    res.status(429).json({ error: "Trop de requêtes. Veuillez réessayer dans une minute." });
+    return;
   }
+
+  timestamps.push(now);
+  ipRequestLogs.set(ip, timestamps);
+  next();
 };
 
 // GET /api/members/badge/:badgeToken - Require authentication (requireAppUser)
