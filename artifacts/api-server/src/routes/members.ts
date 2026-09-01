@@ -129,7 +129,7 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
     .where(eq(memberActivitiesTable.memberId, m.id));
 
   const formattedActivities = await Promise.all(
-    activities.map(act => formatMemberActivity(act, executor))
+    activities.map((act: any) => formatMemberActivity(act, executor))
   );
 
   return {

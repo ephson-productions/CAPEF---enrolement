@@ -15,7 +15,6 @@
     "@replit/connectors-sdk": "^0.4.1"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
     "prettier": "^3.9.5",
     "typescript": "~5.9.3"
   }

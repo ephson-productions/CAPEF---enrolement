@@ -1,14 +1,44 @@
 import { vi } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
+import { newDb } from "pg-mem";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as dbSchema from "@workspace/db/schema";
 
 process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/capef_test";
 
-const pglite = new PGlite();
+const memDb = newDb();
 
-// Initialize tables in pglite WASM database instance
-await pglite.exec(`
+const pgMemClient = memDb.adapters.createPg();
+
+// Bridge pg-mem query behavior with drizzle-orm node-postgres driver
+const origQuery = pgMemClient.Client.prototype.query;
+pgMemClient.Client.prototype.query = function (config: any, values: any, callback: any) {
+  let cb = typeof values === "function" ? values : typeof callback === "function" ? callback : undefined;
+  let params = Array.isArray(values) ? values : undefined;
+
+  if (typeof config === "object" && config) {
+    const sqlText = config.text;
+    const sqlValues = config.values || params || [];
+    delete config.types;
+    if (config.rowMode === "array") {
+      delete config.rowMode;
+      const promise = origQuery.call(this, sqlText, sqlValues).then((res: any) => {
+        if (res && res.rows) {
+          res.rows = res.rows.map((row: any) => Object.values(row));
+        }
+        return res;
+      });
+      if (cb) {
+        promise.then((r: any) => cb(null, r)).catch((e: any) => cb(e));
+      }
+      return promise;
+    }
+    return origQuery.call(this, sqlText, sqlValues, cb);
+  }
+  return origQuery.apply(this, arguments as any);
+};
+
+// Initialize tables in pg-mem database instance
+memDb.public.none(`
   CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     clerk_user_id TEXT NOT NULL UNIQUE,
@@ -99,14 +129,18 @@ await pglite.exec(`
   CREATE SEQUENCE seq_member_number START WITH 1 INCREMENT BY 1;
 `);
 
-export const testDrizzle = drizzle({ client: pglite, schema: dbSchema });
+const testPool = new pgMemClient.Pool();
+(testPool as any).options = {};
 
-// Mock @workspace/db so all routes & tests import pglite drizzle instance directly
+export const testDrizzle = drizzle(testPool, { schema: dbSchema });
+
+// Mock @workspace/db so all routes & tests import pg-mem drizzle instance directly
 vi.mock("@workspace/db", async (importOriginal) => {
   const actual: any = await importOriginal();
   return {
     ...actual,
     db: testDrizzle,
+    pool: testPool,
   };
 });
 
