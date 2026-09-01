@@ -15,9 +15,27 @@ import {
 
 const { Pool } = pg;
 
+import fs from "fs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const migrationsFolder = path.join(__dirname, "../drizzle");
+
+export function findMigrationsFolder(): string {
+  const candidates = [
+    path.resolve(__dirname, "../drizzle"),
+    path.resolve(__dirname, "../../drizzle"),
+    path.resolve(__dirname, "../../lib/db/drizzle"),
+    path.resolve(process.cwd(), "lib/db/drizzle"),
+    path.resolve(process.cwd(), "../lib/db/drizzle"),
+    path.resolve(process.cwd(), "drizzle"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, "meta"))) {
+      return candidate;
+    }
+  }
+  throw new Error(`Migrations folder not found. Searched in: ${candidates.join(", ")}`);
+}
 
 const SEED_DATA = [
   {
@@ -99,11 +117,12 @@ const SEED_DATA = [
   }
 ];
 
-async function runStandaloneMigrateAndSeed() {
+export async function runStandaloneMigrateAndSeed(exitOnComplete = true): Promise<void> {
   let connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
   if (!connectionString) {
     console.error("❌ Missing database connection string (DIRECT_URL or DATABASE_URL).");
-    process.exit(1);
+    if (exitOnComplete) process.exit(1);
+    throw new Error("Missing database connection string (DIRECT_URL or DATABASE_URL).");
   }
 
   try {
@@ -121,6 +140,7 @@ async function runStandaloneMigrateAndSeed() {
   });
 
   const db = drizzle(pool);
+  const migrationsFolder = findMigrationsFolder();
 
   console.log("⏳ Running schema migrations from:", migrationsFolder);
   try {
@@ -258,12 +278,19 @@ async function runStandaloneMigrateAndSeed() {
 
     console.log("🎉 All migrations and seed tasks completed successfully.");
     await pool.end();
-    process.exit(0);
+    if (exitOnComplete) process.exit(0);
   } catch (error) {
     console.error("❌ Migration/seed execution failed:", error);
     await pool.end();
-    process.exit(1);
+    if (exitOnComplete) {
+      process.exit(1);
+    } else {
+      throw error;
+    }
   }
 }
 
-runStandaloneMigrateAndSeed();
+// If executed directly as CLI script
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  runStandaloneMigrateAndSeed(true);
+}
