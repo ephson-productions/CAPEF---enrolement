@@ -11,7 +11,9 @@ import {
   activityLineItemsTable,
   processedOperationsTable
 } from "@workspace/db";
+import { CreateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
+import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
 import crypto from "crypto";
 import QRCode from "qrcode";
@@ -268,7 +270,7 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 });
 
 // POST /api/members
-router.post("/members", requireAppUser, async (req, res): Promise<void> => {
+router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
   const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
   const clientOperationId = getClientOperationId(req);

@@ -2,7 +2,9 @@ import { Router, type IRouter } from "express";
 import { clerkClient } from "@clerk/express";
 import { eq, and } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
+import { CreateUserBody } from "@workspace/api-zod";
 import { requireAppUser, requireRole } from "../lib/auth";
+import { validateBody } from "../middlewares/validateBody";
 import { formatUser } from "../lib/user";
 
 const router: IRouter = Router();
@@ -41,7 +43,7 @@ router.get("/users", requireAppUser, requireRole("admin", "supervisor"), async (
 });
 
 // POST /api/users
-router.post("/users", requireAppUser, requireRole("admin"), async (req, res): Promise<void> => {
+router.post("/users", requireAppUser, requireRole("admin"), validateBody(CreateUserBody), async (req, res): Promise<void> => {
   const { email, name, role, regionId, cniNumber, cniPhotoUrl, profilePhotoUrl, assignedZones, status } = req.body;
   if (!email || !name || !role) {
     res.status(400).json({ error: "email, name et role sont requis" });
