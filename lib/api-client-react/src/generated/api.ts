@@ -1168,7 +1168,7 @@ export const getExportMembersUrl = (params?: ExportMembersParams,) => {
 }
 
 /**
- * @summary Export members as CSV
+ * @summary Export members as Excel workbook stream
  */
 export const exportMembers = async (params?: ExportMembersParams, options?: RequestInit): Promise<Blob> => {
 
@@ -1215,7 +1215,7 @@ export type ExportMembersQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Export members as CSV
+ * @summary Export members as Excel workbook stream
  */
 
 export function useExportMembers<TData = Awaited<ReturnType<typeof exportMembers>>, TError = ErrorType<unknown>>(
