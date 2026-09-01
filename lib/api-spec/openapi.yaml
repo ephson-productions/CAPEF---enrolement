@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: CAPEF Digital Enrollment API
@@ -42,6 +41,8 @@ paths:
       operationId: getMe
       tags: [auth]
       summary: Get the authenticated user's profile and role
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Current user
@@ -61,6 +62,8 @@ paths:
       operationId: provisionUser
       tags: [auth]
       summary: JIT-provision the Clerk user into the app DB on first login
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -86,6 +89,8 @@ paths:
       operationId: updateMyProfile
       tags: [auth]
       summary: Update the authenticated user's editable profile fields
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -113,6 +118,8 @@ paths:
       operationId: listUsers
       tags: [auth]
       summary: List all app users (admin only)
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: role
@@ -142,6 +149,8 @@ paths:
       operationId: createUser
       tags: [auth]
       summary: Create/invite a new user (admin only)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -167,6 +176,8 @@ paths:
       operationId: getUser
       tags: [auth]
       summary: Get a single user
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -190,6 +201,8 @@ paths:
       operationId: updateUser
       tags: [auth]
       summary: Update a user's role, zones, status, or profile data (admin only)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -219,6 +232,8 @@ paths:
       operationId: deleteUser
       tags: [auth]
       summary: Delete a user (admin only)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -299,6 +314,8 @@ paths:
       operationId: listMembers
       tags: [members]
       summary: List members with filters, search, and pagination
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: category
@@ -358,6 +375,8 @@ paths:
       operationId: createMember
       tags: [members]
       summary: Enroll a new member
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -382,7 +401,9 @@ paths:
     get:
       operationId: exportMembers
       tags: [members]
-      summary: Export members as CSV
+      summary: Export members as Excel workbook stream
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: category
@@ -411,9 +432,9 @@ paths:
           description: Filtre les Personnes Morales selon que le représentant 1 et/ou 2 est une femme ou un homme
       responses:
         "200":
-          description: Streamed CSV file
+          description: Streamed Excel XLSX file
           content:
-            text/csv:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema:
                 type: string
                 format: binary
@@ -423,6 +444,8 @@ paths:
       operationId: getPublicMemberByBadgeToken
       tags: [members]
       summary: Get a single member by public badge token
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: badge_token
@@ -448,6 +471,8 @@ paths:
       operationId: getMember
       tags: [members]
       summary: Get a single member with all details
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -471,6 +496,8 @@ paths:
       operationId: updateMember
       tags: [members]
       summary: Update a member enrollment
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -500,6 +527,8 @@ paths:
       operationId: deleteMember
       tags: [members]
       summary: Delete a member enrollment
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -521,6 +550,8 @@ paths:
       operationId: generateBadge
       tags: [members]
       summary: Generate a PDF badge with QR code for a member
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -546,6 +577,8 @@ paths:
       operationId: syncMembers
       tags: [members]
       summary: Bulk-sync offline-created members
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -567,6 +600,8 @@ paths:
       operationId: listMemberActivities
       tags: [members]
       summary: List activities of a member
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -586,6 +621,8 @@ paths:
       operationId: createMemberActivity
       tags: [members]
       summary: Add an activity to a member
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -611,6 +648,8 @@ paths:
       operationId: updateMemberActivity
       tags: [members]
       summary: Update a member activity
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -639,6 +678,8 @@ paths:
       operationId: deleteMemberActivity
       tags: [members]
       summary: Delete a member activity
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -659,6 +700,8 @@ paths:
       operationId: createActivityLineItem
       tags: [members]
       summary: Add repeatable row / line item to an activity
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -689,6 +732,8 @@ paths:
       operationId: updateActivityLineItem
       tags: [members]
       summary: Update a repeatable row / line item
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -722,6 +767,8 @@ paths:
       operationId: deleteActivityLineItem
       tags: [members]
       summary: Delete a repeatable row / line item
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -749,6 +796,8 @@ paths:
       operationId: validateMember
       tags: [members]
       summary: Validate a member (admin only)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -768,6 +817,8 @@ paths:
       operationId: deactivateMember
       tags: [members]
       summary: Deactivate a member (admin only)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -787,6 +838,8 @@ paths:
       operationId: reactivateMember
       tags: [members]
       summary: Reactivate a member (admin only)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -806,6 +859,8 @@ paths:
       operationId: blockMember
       tags: [members]
       summary: Block a member (admin only, terminal)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -827,6 +882,8 @@ paths:
       operationId: getDashboardStats
       tags: [dashboard]
       summary: Aggregated statistics for the dashboard
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: status
@@ -853,6 +910,8 @@ paths:
       operationId: getRecentActivity
       tags: [dashboard]
       summary: Recent enrollment activity feed
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: limit
@@ -876,6 +935,8 @@ paths:
       operationId: uploadFile
       tags: [uploads]
       summary: Upload a photo or document (returns a stored URL)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -897,6 +958,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -1584,13 +1651,6 @@ components:
         badgeUrl:
           type: string
         memberNumber:
-          type: string
-
-    ExportResult:
-      type: object
-      required: [downloadUrl]
-      properties:
-        downloadUrl:
           type: string
 
     # ─── Dashboard ───────────────────────────────────────────────────────────

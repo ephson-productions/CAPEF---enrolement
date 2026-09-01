@@ -775,10 +775,6 @@ export interface BadgeResult {
   memberNumber: string;
 }
 
-export interface ExportResult {
-  downloadUrl: string;
-}
-
 export interface CategoryCount {
   category: string;
   count: number;

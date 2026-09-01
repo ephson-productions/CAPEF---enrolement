@@ -1,5 +1,6 @@
 import React from 'react';
-import { useGetPublicMemberByBadgeToken } from '@workspace/api-client-react';
+import { customFetch } from '@workspace/api-client-react';
+import { useQuery } from '@tanstack/react-query';
 import { useRoute } from 'wouter';
 import {
   MapPin, Phone, Mail, Building, User, Tag, FileText, CheckCircle2, AlertOctagon, XCircle, Clock
@@ -9,8 +10,13 @@ export default function BadgeVerify() {
   const [, params] = useRoute('/badge-verify/:token');
   const token = params?.token ?? '';
 
-  const { data: member, isLoading, error } = useGetPublicMemberByBadgeToken(token, {
-    query: { enabled: !!token, queryKey: ['public-member', token], retry: false }
+  const { data: member, isLoading, error } = useQuery({
+    queryKey: ['badge-member', token],
+    queryFn: async () => {
+      return customFetch<any>(`/api/members/badge/${token}`);
+    },
+    enabled: !!token,
+    retry: false,
   });
 
   const getStatusBadge = (status: string) => {
@@ -169,7 +175,7 @@ export default function BadgeVerify() {
               </h3>
             </div>
             <div className="p-6 space-y-6">
-              {member.activities.map((act) => (
+              {member.activities.map((act: any) => (
                 <div key={act.id} className="space-y-3 last:border-b-0 pb-4 last:pb-0 border-b border-border/40">
                   <div className="flex justify-between items-center">
                     <h4 className="font-bold text-foreground text-sm uppercase">
@@ -183,7 +189,7 @@ export default function BadgeVerify() {
                   </div>
                   {act.lineItems && act.lineItems.length > 0 ? (
                     <div className="space-y-3">
-                      {act.lineItems.map((item) => (
+                      {act.lineItems.map((item: any) => (
                         <div key={item.id} className="bg-muted/30 border border-border/40 rounded-xl p-3 text-xs space-y-2">
                           {act.activityType === 'agriculteur' && (
                             <>

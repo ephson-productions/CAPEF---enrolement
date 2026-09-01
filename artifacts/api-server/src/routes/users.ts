@@ -2,7 +2,9 @@ import { Router, type IRouter } from "express";
 import { clerkClient } from "@clerk/express";
 import { eq, and } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
+import { CreateUserBody } from "@workspace/api-zod";
 import { requireAppUser, requireRole } from "../lib/auth";
+import { validateBody } from "../middlewares/validateBody";
 import { formatUser } from "../lib/user";
 
 const router: IRouter = Router();
@@ -41,7 +43,7 @@ router.get("/users", requireAppUser, requireRole("admin", "supervisor"), async (
 });
 
 // POST /api/users
-router.post("/users", requireAppUser, requireRole("admin"), async (req, res): Promise<void> => {
+router.post("/users", requireAppUser, requireRole("admin"), validateBody(CreateUserBody), async (req, res): Promise<void> => {
   const { email, name, role, regionId, cniNumber, cniPhotoUrl, profilePhotoUrl, assignedZones, status } = req.body;
   if (!email || !name || !role) {
     res.status(400).json({ error: "email, name et role sont requis" });
@@ -54,13 +56,24 @@ router.post("/users", requireAppUser, requireRole("admin"), async (req, res): Pr
     return;
   }
 
-  // The current invitation UI creates a local pending record until Clerk invitation
-  // wiring is available. It is intentionally not used for existing Clerk accounts.
   const zones = normalizeZones(assignedZones);
+
+  let invitationId: string | null = null;
+  try {
+    const invitation = await clerkClient.invitations.createInvitation({
+      emailAddress: email,
+      redirectUrl: `${process.env.FRONTEND_URL || ''}/sign-up`,
+      publicMetadata: { role, regionId: regionId ?? zones[0]?.regionId ?? null, assignedZones: zones },
+    });
+    invitationId = invitation.id;
+  } catch (err: any) {
+    console.error("Failed to create Clerk invitation:", err);
+  }
+
   const [user] = await db
     .insert(usersTable)
     .values({
-      clerkUserId: `pending_${Date.now()}`,
+      clerkUserId: invitationId || `pending_${Date.now()}`,
       email,
       name,
       role,

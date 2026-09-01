@@ -8,18 +8,60 @@ import {
   arrondissementsTable,
   usersTable,
   memberActivitiesTable,
-  activityLineItemsTable
+  activityLineItemsTable,
+  processedOperationsTable
 } from "@workspace/db";
+import { CreateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
+import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import ExcelJS from "exceljs";
 
 const router: IRouter = Router();
 
-function generateMemberNumber(category: string, id: number): string {
+function getClientOperationId(req: any): string | undefined {
+  const headerId = req.headers["x-client-operation-id"];
+  const bodyId = req.body?.clientOperationId;
+  const rawId = headerId || bodyId;
+  if (!rawId) return undefined;
+  return Array.isArray(rawId) ? rawId[0] : String(rawId);
+}
+
+async function getProcessedOperation(clientOperationId?: string) {
+  if (!clientOperationId) return null;
+  const [existing] = await db
+    .select()
+    .from(processedOperationsTable)
+    .where(eq(processedOperationsTable.clientOperationId, clientOperationId))
+    .limit(1);
+  return existing || null;
+}
+
+function coerceNumeric(val: any): number | null {
+  if (val === "" || val === undefined || val === null) return null;
+  const num = Number(val);
+  return Number.isNaN(num) ? null : num;
+}
+
+function escapeXml(str: string | null | undefined): string {
+  if (!str) return "";
+  return String(str).replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case "&": return "&amp;";
+      case "'": return "&apos;";
+      case '"': return "&quot;";
+      default: return c;
+    }
+  });
+}
+
+function generateMemberNumber(category: string, seqVal: number | string): string {
   const prefix: Record<string, string> = {
     agriculteur: "AGR",
     pecheur: "PCH",
@@ -27,11 +69,11 @@ function generateMemberNumber(category: string, id: number): string {
     forestier: "FOR",
     artisan: "ART",
   };
-  return `CAPEF-${prefix[category] ?? "MBR"}-${String(id).padStart(6, "0")}`;
+  return `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
 }
 
-async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect) {
-  const lineItems = await db
+async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect, executor: any = db) {
+  const lineItems = await executor
     .select()
     .from(activityLineItemsTable)
     .where(eq(activityLineItemsTable.activityId, activity.id));
@@ -47,25 +89,23 @@ async function formatMemberActivity(activity: typeof memberActivitiesTable.$infe
     village: activity.village ?? null,
     maillons: (activity.maillons as string[]) ?? [],
     createdAt: activity.createdAt.toISOString(),
-    lineItems: lineItems.map(item => ({
+    lineItems: lineItems.map((item: any) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
     })),
   };
 }
 
-async function formatMember(m: typeof membersTable.$inferSelect, includeDetail = false) {
-  const [region] = m.regionId
-    ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
-    : [null];
-  const [dept] = m.departmentId
-    ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
-    : [null];
-  const [arr] = m.arrondissementId
-    ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
-    : [null];
-  const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+type PreJoinedMemberRow = {
+  member: typeof membersTable.$inferSelect;
+  regionName: string | null;
+  departmentName: string | null;
+  arrondissementName: string | null;
+  createdByName: string | null;
+};
 
+function formatPreJoinedMember(row: PreJoinedMemberRow, includeDetail = false) {
+  const m = row.member;
   const physique = m.physiqueData as any;
   const morale = m.moraleData as any;
   const displayName = m.memberType === "physique"
@@ -78,8 +118,8 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
     memberType: m.memberType,
     category: m.category,
     displayName,
-    regionName: region?.name ?? null,
-    createdByName: creator?.name ?? null,
+    regionName: row.regionName ?? null,
+    createdByName: row.createdByName ?? null,
     badgeUrl: m.badgeUrl ?? null,
     status: m.status,
     createdAt: m.createdAt.toISOString(),
@@ -87,24 +127,14 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
 
   if (!includeDetail) return base;
 
-  // Retrieve activities & line items for details
-  const activities = await db
-    .select()
-    .from(memberActivitiesTable)
-    .where(eq(memberActivitiesTable.memberId, m.id));
-
-  const formattedActivities = await Promise.all(
-    activities.map(act => formatMemberActivity(act))
-  );
-
   return {
     ...base,
     individualOrOrg: m.individualOrOrg,
     regionId: m.regionId ?? null,
     departmentId: m.departmentId ?? null,
-    departmentName: dept?.name ?? null,
+    departmentName: row.departmentName ?? null,
     arrondissementId: m.arrondissementId ?? null,
-    arrondissementName: arr?.name ?? null,
+    arrondissementName: row.arrondissementName ?? null,
     village: m.village ?? null,
     gpsLat: m.gpsLat ?? null,
     gpsLng: m.gpsLng ?? null,
@@ -113,6 +143,46 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
     moraleData: m.moraleData ?? null,
     categoryData: m.categoryData ?? null,
     updatedAt: m.updatedAt.toISOString(),
+  };
+}
+
+async function formatMember(m: typeof membersTable.$inferSelect, includeDetail = false, executor: any = db) {
+  const [region] = m.regionId
+    ? await executor.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
+    : [null];
+  const [dept] = m.departmentId
+    ? await executor.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
+    : [null];
+  const [arr] = m.arrondissementId
+    ? await executor.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
+    : [null];
+  const [creator] = await executor.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+
+  const formattedBase = formatPreJoinedMember(
+    {
+      member: m,
+      regionName: region?.name ?? null,
+      departmentName: dept?.name ?? null,
+      arrondissementName: arr?.name ?? null,
+      createdByName: creator?.name ?? null,
+    },
+    includeDetail
+  );
+
+  if (!includeDetail) return formattedBase;
+
+  // Retrieve activities & line items for details
+  const activities = await executor
+    .select()
+    .from(memberActivitiesTable)
+    .where(eq(memberActivitiesTable.memberId, m.id));
+
+  const formattedActivities = await Promise.all(
+    activities.map((act: any) => formatMemberActivity(act, executor))
+  );
+
+  return {
+    ...formattedBase,
     activities: formattedActivities,
   };
 }
@@ -200,31 +270,46 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     }
   }
 
-  let query = db.select().from(membersTable);
   let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(membersTable);
+  if (conditions.length) {
+    countQuery = countQuery.where(and(...conditions)) as any;
+  }
+
+  let joinedQuery = db
+    .select({
+      member: membersTable,
+      regionName: regionsTable.name,
+      departmentName: departmentsTable.name,
+      arrondissementName: arrondissementsTable.name,
+      createdByName: usersTable.name,
+    })
+    .from(membersTable)
+    .leftJoin(regionsTable, eq(membersTable.regionId, regionsTable.id))
+    .leftJoin(departmentsTable, eq(membersTable.departmentId, departmentsTable.id))
+    .leftJoin(arrondissementsTable, eq(membersTable.arrondissementId, arrondissementsTable.id))
+    .leftJoin(usersTable, eq(membersTable.createdById, usersTable.id));
 
   if (conditions.length) {
-    query = query.where(and(...conditions)) as any;
-    countQuery = countQuery.where(and(...conditions)) as any;
+    joinedQuery = joinedQuery.where(and(...conditions)) as any;
   }
 
   // Search by member number or display name (via JSON)
   if (search) {
     const s = `%${String(search)}%`;
     const searchCond = sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`;
-    query = query.where(searchCond) as any;
+    joinedQuery = joinedQuery.where(searchCond) as any;
     countQuery = countQuery.where(searchCond) as any;
   }
 
   const [totalResult] = await countQuery;
   const total = totalResult?.count ?? 0;
 
-  const rows = await query
+  const rows = await joinedQuery
     .orderBy(sql`${membersTable.createdAt} DESC`)
     .limit(limitNum)
     .offset(offset);
 
-  const summaries = await Promise.all(rows.map((m) => formatMember(m, false)));
+  const summaries = rows.map((row) => formatPreJoinedMember(row, false));
 
   res.json({
     data: summaries,
@@ -235,58 +320,115 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 });
 
 // POST /api/members
-router.post("/members", requireAppUser, async (req, res): Promise<void> => {
+router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData } = req.body;
+  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload);
+      return;
+    }
+  }
 
   if (!memberType || !category) {
     res.status(400).json({ error: "memberType et category sont requis" });
     return;
   }
 
-  // Insert with placeholder number; update after getting ID
-  const [member] = await db
-    .insert(membersTable)
-    .values({
-      memberNumber: "PENDING",
-      memberType,
-      category,
-      individualOrOrg: individualOrOrg ?? "individuel",
-      regionId: regionId ?? null,
-      departmentId: departmentId ?? null,
-      arrondissementId: arrondissementId ?? null,
-      village: village ?? null,
-      gpsLat: gpsLat ?? null,
-      gpsLng: gpsLng ?? null,
-      createdById: appUser.id,
-      physiqueData: physiqueData ?? null,
-      moraleData: moraleData ?? null,
-      categoryData: categoryData ?? null,
-      status: "incomplet",
-    })
-    .returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Fetch nextval from seq_member_number
+      const seqResult: any = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
+      const rawSeqVal = seqResult.rows?.[0]?.seqVal ?? seqResult?.[0]?.seqVal;
+      const seqVal = parseInt(String(rawSeqVal), 10);
 
-  // Update with real member number
-  const memberNumber = generateMemberNumber(category, member.id);
-  const [updated] = await db
-    .update(membersTable)
-    .set({ memberNumber })
-    .where(eq(membersTable.id, member.id))
-    .returning();
+      const memberNumber = generateMemberNumber(category, seqVal);
 
-  // Seed the first activity as primary based on category
-  await db.insert(memberActivitiesTable).values({
-    memberId: updated.id,
-    activityType: category,
-    isPrimary: true,
-    regionId: updated.regionId,
-    departmentId: updated.departmentId,
-    arrondissementId: updated.arrondissementId,
-    village: updated.village,
-    maillons: [],
-  });
+      // Insert member record with final guaranteed unique memberNumber
+      const [inserted] = await tx
+        .insert(membersTable)
+        .values({
+          memberNumber,
+          memberType,
+          category,
+          individualOrOrg: individualOrOrg ?? "individuel",
+          regionId: coerceNumeric(regionId),
+          departmentId: coerceNumeric(departmentId),
+          arrondissementId: coerceNumeric(arrondissementId),
+          village: village ?? null,
+          gpsLat: coerceNumeric(gpsLat),
+          gpsLng: coerceNumeric(gpsLng),
+          createdById: appUser.id,
+          physiqueData: physiqueData ?? null,
+          moraleData: moraleData ?? null,
+          categoryData: categoryData ?? null,
+          status: "incomplet",
+        })
+        .returning();
 
-  res.status(201).json(await formatMember(updated, true));
+      // Seed primary activity inside same transaction
+      const [primaryActivity] = await tx
+        .insert(memberActivitiesTable)
+        .values({
+          memberId: inserted.id,
+          activityType: category,
+          isPrimary: true,
+          regionId: inserted.regionId ?? null,
+          departmentId: inserted.departmentId ?? null,
+          arrondissementId: inserted.arrondissementId ?? null,
+          village: inserted.village ?? null,
+          maillons: [],
+        })
+        .returning();
+
+      // Insert initial line items if present
+      if (Array.isArray(initialLineItems) && initialLineItems.length > 0) {
+        await tx.insert(activityLineItemsTable).values(
+          initialLineItems.map((item: any) => ({
+            ...normalizeLineItemPayload(item),
+            activityId: primaryActivity.id,
+          }))
+        );
+      }
+
+      const formatted = await formatMember(inserted, true, tx);
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "create_member",
+          resourceId: inserted.id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
+    });
+
+    res.status(201).json(result);
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (POST /members):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+      constraint: error.constraint,
+    });
+
+    const isConflict = error.code === "23505";
+    const statusCode = isConflict ? 409 : 400;
+
+    res.status(statusCode).json({
+      success: false,
+      error: isConflict ? "Membre déjà existant ou conflit d'identifiant" : "Échec de la création du membre",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+    });
+  }
 });
 
 // GET /api/members/export
@@ -294,11 +436,44 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   const appUser = (req as any).appUser;
   const { category, memberType, regionId, status, representantGenre } = req.query;
 
+  const dateStr = new Date().toISOString().split("T")[0];
+  const filename = `capef-membres-${dateStr}.xlsx`;
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+    stream: res,
+    useStyles: true,
+    useSharedStrings: true,
+  });
+
+  const worksheet = workbook.addWorksheet("Tous les membres");
+
+  worksheet.columns = [
+    { header: "matricule", key: "matricule", width: 22 },
+    { header: "name", key: "name", width: 30 },
+    { header: "forme", key: "forme", width: 20 },
+    { header: "activite", key: "activite", width: 18 },
+    { header: "nature", key: "nature", width: 30 },
+    { header: "date_creation", key: "date_creation", width: 15 },
+    { header: "region", key: "region", width: 20 },
+    { header: "departement", key: "departement", width: 20 },
+    { header: "commune", key: "commune", width: 20 },
+    { header: "mobile", key: "mobile", width: 18 },
+    { header: "village", key: "village", width: 20 },
+    { header: "statut", key: "statut", width: 15 },
+    { header: "agent", key: "agent", width: 25 },
+    { header: "inscription", key: "inscription", width: 15 },
+    { header: "cotisation", key: "cotisation", width: 15 },
+    { header: "adhesion_yunus", key: "adhesion_yunus", width: 15 },
+    { header: "inscription_date", key: "inscription_date", width: 15 },
+    { header: "cotisation_restant", key: "cotisation_restant", width: 15 },
+    { header: "adhesion_yunus_restant", key: "adhesion_yunus_restant", width: 15 },
+  ];
+
   if (representantGenre && memberType === "physique") {
-    const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send("\uFEFF"); // Return empty file
+    await workbook.commit();
     return;
   }
 
@@ -319,10 +494,6 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     }
   }
 
-  const rows = conditions.length
-    ? await db.select().from(membersTable).where(and(...conditions))
-    : await db.select().from(membersTable);
-
   const categoryTranslation: Record<string, string> = {
     agriculteur: "agriculture",
     pecheur: "fishing",
@@ -331,128 +502,124 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     artisan: "artisanat"
   };
 
-  // Legacy consular columns requested by Ephraim + new helpful columns
-  const headers = [
-    "matricule",
-    "name",
-    "forme",
-    "activite",
-    "nature",
-    "date_creation",
-    "region",
-    "departement",
-    "commune",
-    "mobile",
-    "village",
-    "statut",
-    "agent",
-    "inscription",
-    "cotisation",
-    "adhesion_yunus",
-    "inscription_date",
-    "cotisation_restant",
-    "adhesion_yunus_restant"
-  ];
-  const csvRows = [headers.join(",")];
+  const batchSize = 500;
+  let offset = 0;
+  let hasMore = true;
 
-  const escapeCsv = (str: any) => {
-    const val = str === null || str === undefined ? "" : String(str);
-    if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
-      return `"${val.replace(/"/g, '""')}"`;
+  while (hasMore) {
+    let query = db
+      .select({
+        member: membersTable,
+        regionName: regionsTable.name,
+        departmentName: departmentsTable.name,
+        arrondissementName: arrondissementsTable.name,
+        createdByName: usersTable.name,
+      })
+      .from(membersTable)
+      .leftJoin(regionsTable, eq(membersTable.regionId, regionsTable.id))
+      .leftJoin(departmentsTable, eq(membersTable.departmentId, departmentsTable.id))
+      .leftJoin(arrondissementsTable, eq(membersTable.arrondissementId, arrondissementsTable.id))
+      .leftJoin(usersTable, eq(membersTable.createdById, usersTable.id));
+
+    if (conditions.length) {
+      query = query.where(and(...conditions)) as any;
     }
-    return val;
-  };
 
-  for (const m of rows) {
-    const physique = m.physiqueData as any;
-    const morale = m.moraleData as any;
-    const name = m.memberType === "physique"
-      ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
-      : (morale?.nom ?? "");
-    const forme = m.memberType === "morale"
-      ? (morale?.typeOrganisation ?? "")
-      : "";
-    const activite = categoryTranslation[m.category] || m.category;
-    const mobile = m.memberType === "physique"
-      ? (physique?.telephone1 ?? "")
-      : (morale?.telephone1 ?? "");
+    const batch = await query
+      .orderBy(sql`${membersTable.id} ASC`)
+      .limit(batchSize)
+      .offset(offset);
 
-    const [region] = m.regionId
-      ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
-      : [null];
-    const [dept] = m.departmentId
-      ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, m.departmentId)).limit(1)
-      : [null];
-    const [arr] = m.arrondissementId
-      ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, m.arrondissementId)).limit(1)
-      : [null];
+    if (batch.length === 0) {
+      hasMore = false;
+      break;
+    }
 
-    // Build the nature column from member activities and line items
-    const memberActivities = await db
-      .select()
+    // Fetch line items for current batch to populate nature
+    const memberIds = batch.map((r) => r.member.id);
+    const batchActivities = await db
+      .select({
+        memberId: memberActivitiesTable.memberId,
+        activityType: memberActivitiesTable.activityType,
+        cropName: activityLineItemsTable.cropName,
+        speciesPêche: activityLineItemsTable.speciesPêche,
+        species: activityLineItemsTable.species,
+        essence: activityLineItemsTable.essence,
+        artisanatProducts: activityLineItemsTable.artisanatProducts,
+      })
       .from(memberActivitiesTable)
-      .where(eq(memberActivitiesTable.memberId, m.id));
+      .innerJoin(activityLineItemsTable, eq(activityLineItemsTable.activityId, memberActivitiesTable.id))
+      .where(sql`${memberActivitiesTable.memberId} IN ${memberIds}`);
 
-    const lineItemDetails: string[] = [];
-    for (const act of memberActivities) {
-      const items = await db
-        .select()
-        .from(activityLineItemsTable)
-        .where(eq(activityLineItemsTable.activityId, act.id));
-      for (const item of items) {
-        if (act.activityType === "agriculteur") {
-          if (item.cropName) lineItemDetails.push(item.cropName);
-        } else if (act.activityType === "pecheur") {
-          if (item.speciesPêche) lineItemDetails.push(item.speciesPêche);
-        } else if (act.activityType === "eleveur") {
-          if (item.species) lineItemDetails.push(item.species);
-        } else if (act.activityType === "forestier") {
-          if (item.essence) lineItemDetails.push(item.essence);
-        } else if (act.activityType === "artisan") {
-          if (item.artisanatProducts) lineItemDetails.push(item.artisanatProducts);
-        }
-      }
+    const natureMap = new Map<number, string[]>();
+    for (const act of batchActivities) {
+      const list = natureMap.get(act.memberId) || [];
+      if (act.activityType === "agriculteur" && act.cropName) list.push(act.cropName);
+      else if (act.activityType === "pecheur" && act.speciesPêche) list.push(act.speciesPêche);
+      else if (act.activityType === "eleveur" && act.species) list.push(act.species);
+      else if (act.activityType === "forestier" && act.essence) list.push(act.essence);
+      else if (act.activityType === "artisan" && act.artisanatProducts) list.push(act.artisanatProducts);
+      natureMap.set(act.memberId, list);
     }
-    const nature = lineItemDetails.length > 0 ? lineItemDetails.join("; ") : "";
 
-    const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+    for (const row of batch) {
+      const m = row.member;
+      const physique = m.physiqueData as any;
+      const morale = m.moraleData as any;
+      const name = m.memberType === "physique"
+        ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
+        : (morale?.nom ?? "");
+      const forme = m.memberType === "morale"
+        ? (morale?.typeOrganisation ?? "")
+        : "";
+      const activite = categoryTranslation[m.category] || m.category;
+      const mobile = m.memberType === "physique"
+        ? (physique?.telephone1 ?? "")
+        : (morale?.telephone1 ?? "");
 
-    csvRows.push([
-      escapeCsv(m.memberNumber),
-      escapeCsv(name),
-      escapeCsv(forme),
-      escapeCsv(activite),
-      escapeCsv(nature),
-      escapeCsv(m.createdAt.toISOString().split("T")[0]),
-      escapeCsv(region?.name),
-      escapeCsv(dept?.name),
-      escapeCsv(arr?.name),
-      escapeCsv(mobile),
-      escapeCsv(m.village),
-      escapeCsv(m.status),
-      escapeCsv(creator?.name),
-      "", // inscription (blank)
-      "", // cotisation (blank)
-      "", // adhesion_yunus (blank)
-      "", // inscription_date (blank)
-      "", // cotisation_restant (blank)
-      ""  // adhesion_yunus_restant (blank)
-    ].join(","));
+      const lineItems = natureMap.get(m.id) || [];
+      const nature = lineItems.length > 0 ? Array.from(new Set(lineItems)).join("; ") : "";
+
+      worksheet.addRow({
+        matricule: m.memberNumber,
+        name,
+        forme,
+        activite,
+        nature,
+        date_creation: m.createdAt.toISOString().split("T")[0],
+        region: row.regionName ?? "",
+        departement: row.departmentName ?? "",
+        commune: row.arrondissementName ?? "",
+        mobile,
+        village: m.village ?? "",
+        statut: m.status,
+        agent: row.createdByName ?? "",
+        inscription: "",
+        cotisation: "",
+        adhesion_yunus: "",
+        inscription_date: "",
+        cotisation_restant: "",
+        adhesion_yunus_restant: "",
+      }).commit();
+    }
+
+    offset += batch.length;
+    if (batch.length < batchSize) {
+      hasMore = false;
+    }
   }
 
-  const csv = csvRows.join("\n");
-  const filename = `capef-membres-${new Date().toISOString().split("T")[0]}.csv`;
-
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  // Prepend a UTF-8 BOM so Excel opens accented French characters correctly
-  res.send("\uFEFF" + csv);
+  await workbook.commit();
 });
 
 // GET /api/members/:id
 router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -479,6 +646,10 @@ router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -493,9 +664,14 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   }
 
   const updates: Record<string, unknown> = {};
-  const fields = ["category", "individualOrOrg", "regionId", "departmentId", "arrondissementId", "village", "gpsLat", "gpsLng", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
+  const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
   for (const f of fields) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
+  }
+
+  const numericFields = ["regionId", "departmentId", "arrondissementId", "gpsLat", "gpsLng"];
+  for (const f of numericFields) {
+    if (req.body[f] !== undefined) updates[f] = coerceNumeric(req.body[f]);
   }
 
   const [updated] = await db
@@ -511,6 +687,10 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   if (appUser.role !== "admin") {
@@ -530,6 +710,10 @@ router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> =>
 router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(raw, 10);
+  if (isNaN(memberId)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const activities = await db
     .select()
@@ -547,39 +731,94 @@ router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<
 router.post("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(raw, 10);
+  if (isNaN(memberId)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
+  const appUser = (req as any).appUser;
+
+  // Authorization check: Agents can only mutate their own members
+  const [targetMember] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
+  if (!targetMember) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload);
+      return;
+    }
+  }
 
   if (!activityType) {
     res.status(400).json({ error: "activityType est requis" });
     return;
   }
 
-  // If setting this activity as primary, clear other activities' primary flags for this member
-  if (isPrimary) {
-    await db
-      .update(memberActivitiesTable)
-      .set({ isPrimary: false })
-      .where(eq(memberActivitiesTable.memberId, memberId));
-  }
-
   try {
-    const [activity] = await db
-      .insert(memberActivitiesTable)
-      .values({
-        memberId,
-        activityType,
-        isPrimary: isPrimary ?? false,
-        regionId: regionId ?? null,
-        departmentId: departmentId ?? null,
-        arrondissementId: arrondissementId ?? null,
-        village: village ?? null,
-        maillons: maillons ?? [],
-      })
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      // If setting this activity as primary, clear other activities' primary flags for this member
+      if (isPrimary) {
+        await tx
+          .update(memberActivitiesTable)
+          .set({ isPrimary: false })
+          .where(eq(memberActivitiesTable.memberId, memberId));
+      }
+
+      const [activity] = await tx
+        .insert(memberActivitiesTable)
+        .values({
+          memberId,
+          activityType,
+          isPrimary: isPrimary ?? false,
+          regionId: regionId ?? null,
+          departmentId: departmentId ?? null,
+          arrondissementId: arrondissementId ?? null,
+          village: village ?? null,
+          maillons: maillons ?? [],
+        })
+        .returning();
+
+      const formatted = {
+        id: activity.id,
+        memberId: activity.memberId,
+        activityType: activity.activityType,
+        isPrimary: activity.isPrimary,
+        regionId: activity.regionId ?? null,
+        departmentId: activity.departmentId ?? null,
+        arrondissementId: activity.arrondissementId ?? null,
+        village: activity.village ?? null,
+        maillons: (activity.maillons as string[]) ?? [],
+        createdAt: activity.createdAt.toISOString(),
+        lineItems: [],
+      };
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "create_activity",
+          resourceId: activity.id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
+    });
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.status(201).json(await formatMemberActivity(activity));
+    res.status(201).json(result);
   } catch (error: any) {
     console.error("🚨 POSTGRES EXECUTION ERROR (POST activity):", {
       code: error.code,
@@ -607,6 +846,10 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId)) {
+    res.status(400).json({ error: "ID membre ou activité invalide" });
+    return;
+  }
 
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
 
@@ -667,6 +910,10 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId)) {
+    res.status(400).json({ error: "ID membre ou activité invalide" });
+    return;
+  }
 
   const [deleted] = await db
     .delete(memberActivitiesTable)
@@ -737,6 +984,33 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId)) {
+    res.status(400).json({ error: "ID membre ou activité invalide" });
+    return;
+  }
+  const appUser = (req as any).appUser;
+
+  // Authorization check: Agents can only mutate line items of their own members
+  const [targetMember] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
+  if (!targetMember) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return;
+  }
+  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload);
+      return;
+    }
+  }
 
   const [activity] = await db
     .select()
@@ -752,20 +1026,36 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   const normalized = normalizeLineItemPayload(req.body);
 
   try {
-    const [item] = await db
-      .insert(activityLineItemsTable)
-      .values({
-        activityId,
-        ...normalized
-      })
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      const [item] = await tx
+        .insert(activityLineItemsTable)
+        .values({
+          activityId,
+          ...normalized
+        })
+        .returning();
+
+      const formatted = {
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+      };
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "create_line_item",
+          resourceId: item.id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
+    });
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.status(201).json({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-    });
+    res.status(201).json(result);
   } catch (error: any) {
     console.error("🚨 POSTGRES EXECUTION ERROR (POST line-item):", {
       code: error.code,
@@ -797,6 +1087,10 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
   const itemId = parseInt(rawItem, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId) || isNaN(itemId)) {
+    res.status(400).json({ error: "ID membre, activité ou ligne invalide" });
+    return;
+  }
 
   const normalized = normalizeLineItemPayload(req.body);
 
@@ -849,20 +1143,70 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
   const itemId = parseInt(rawItem, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
-
-  const [deleted] = await db
-    .delete(activityLineItemsTable)
-    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-    .returning();
-
-  if (!deleted) {
-    res.status(404).json({ error: "Ligne d'activité introuvable" });
+  if (isNaN(memberId) || isNaN(activityId) || isNaN(itemId)) {
+    res.status(400).json({ error: "ID membre, activité ou ligne invalide" });
     return;
   }
+  const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
 
-  await updateMemberStatusIfNeeded(memberId);
+  if (clientOperationId) {
+    const existing = await getProcessedOperation(clientOperationId);
+    if (existing) {
+      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+      res.status(200).json(existing.resultPayload ?? { success: true });
+      return;
+    }
+  }
 
-  res.sendStatus(204);
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .delete(activityLineItemsTable)
+        .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
+        .returning();
+
+      if (!deleted) {
+        return null;
+      }
+
+      const payload = { success: true, deletedId: itemId };
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "delete_line_item",
+          resourceId: itemId,
+          resultPayload: payload,
+        });
+      }
+
+      return payload;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Ligne d'activité introuvable" });
+      return;
+    }
+
+    await updateMemberStatusIfNeeded(memberId);
+
+    res.sendStatus(204);
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (DELETE line-item):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Database operation failed",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+    });
+  }
 });
 
 // Admin Status Actions (Phase 3)
@@ -876,6 +1220,10 @@ router.post("/members/:id/validate", requireAppUser, async (req, res): Promise<v
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [updated] = await db
     .update(membersTable)
@@ -900,6 +1248,10 @@ router.post("/members/:id/deactivate", requireAppUser, async (req, res): Promise
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [updated] = await db
     .update(membersTable)
@@ -924,6 +1276,10 @@ router.post("/members/:id/reactivate", requireAppUser, async (req, res): Promise
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   // If blocked, we cannot reactivate/unblock
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -955,6 +1311,10 @@ router.post("/members/:id/block", requireAppUser, async (req, res): Promise<void
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [updated] = await db
     .update(membersTable)
@@ -982,6 +1342,10 @@ function formatDate(date: Date): string {
 router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
   if (!member) {
@@ -1154,36 +1518,36 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
 
       <!-- Category Pill Badge -->
       <rect x="50" y="525" width="220" height="42" rx="10" fill="${theme.bg}" stroke="${theme.primary}" stroke-width="1.5" />
-      <text x="160" y="551" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${theme.label}</text>
+      <text x="160" y="551" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${escapeXml(theme.label)}</text>
 
       <!-- User Information list on the right -->
       <!-- Name -->
       <text x="310" y="270" class="label">Nom complet / Full Name</text>
-      <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${name.toUpperCase()}</text>
+      <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${escapeXml(name.toUpperCase())}</text>
 
       <!-- Téléphone / Contacts -->
       <text x="310" y="325" class="label">Téléphone / Contacts</text>
-      <text x="310" y="350" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36">${phone}</text>
+      <text x="310" y="350" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36">${escapeXml(phone)}</text>
 
       <!-- Member number inside a styled banner row -->
       <rect x="310" y="365" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
       <text x="325" y="395" class="label" font-size="12">N° MEMBRE / ID:</text>
-      <text x="460" y="397" class="num-member">${member.memberNumber}</text>
+      <text x="460" y="397" class="num-member">${escapeXml(member.memberNumber)}</text>
 
       <!-- Rest of profile fields -->
       <!-- Location info columns -->
       <g transform="translate(310, 420)">
         <text x="0" y="15" class="label">Région / Region</text>
-        <text x="0" y="40" class="value">${region?.name ?? "-"}</text>
+        <text x="0" y="40" class="value">${escapeXml(region?.name ?? "-")}</text>
 
         <text x="230" y="15" class="label">Département / Division</text>
-        <text x="230" y="40" class="value">${dept?.name ?? "-"}</text>
+        <text x="230" y="40" class="value">${escapeXml(dept?.name ?? "-")}</text>
       </g>
 
       <!-- Arrondissement on its own separate line underneath Region & Department to prevent overlap -->
       <g transform="translate(310, 475)">
         <text x="0" y="15" class="label">Arrondissement / Subdivision</text>
-        <text x="0" y="40" class="value">${arr?.name ?? "-"}</text>
+        <text x="0" y="40" class="value">${escapeXml(arr?.name ?? "-")}</text>
       </g>
 
       <!-- Dates banner footer — No expiration date -->
@@ -1348,32 +1712,33 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
   res.json({ created, failed: errors.length, errors });
 });
 
-const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+const ipRequestLogs = new Map<string, number[]>();
 
 const publicRateLimiter = (req: any, res: any, next: any) => {
-  const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  // Use req.ip directly, safely backed by Express trust proxy 1
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute window
   const maxRequests = 30; // Max 30 requests per minute
 
-  const record = ipRequestCounts.get(ip);
+  let timestamps = ipRequestLogs.get(ip) || [];
+  // Filter out timestamps older than the sliding window
+  timestamps = timestamps.filter((ts) => now - ts < windowMs);
 
-  if (!record || now > record.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + windowMs });
-    next();
-  } else {
-    record.count++;
-    if (record.count > maxRequests) {
-      res.status(429).json({ error: "Trop de requêtes. Veuillez réessayer dans une minute." });
-    } else {
-      next();
-    }
+  if (timestamps.length >= maxRequests) {
+    res.status(429).json({ error: "Trop de requêtes. Veuillez réessayer dans une minute." });
+    return;
   }
+
+  timestamps.push(now);
+  ipRequestLogs.set(ip, timestamps);
+  next();
 };
 
-// GET /api/public/members/badge/:badgeToken
-router.get("/public/members/badge/:badgeToken", publicRateLimiter, async (req, res): Promise<void> => {
-  const token = req.params.badgeToken;
+// GET /api/members/badge/:badgeToken - Require authentication (requireAppUser)
+router.get("/members/badge/:badgeToken", requireAppUser, async (req, res): Promise<void> => {
+  const rawToken = req.params.badgeToken;
+  const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
   if (!token) {
     res.status(404).json({ error: "Token requis" });
     return;
@@ -1386,11 +1751,11 @@ router.get("/public/members/badge/:badgeToken", publicRateLimiter, async (req, r
     .limit(1);
 
   if (!member) {
-    res.status(404).json({ error: "Membre introuvable" });
+    res.status(404).json({ error: "Badge invalide ou introuvable" });
     return;
   }
 
-  // Return full member record using the standard formatMember helper
+  // Return complete member verification profile to any authenticated CAPEF user
   res.json(await formatMember(member, true));
 });
 

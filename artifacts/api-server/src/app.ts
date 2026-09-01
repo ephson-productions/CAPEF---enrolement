@@ -9,9 +9,12 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { errorHandler } from "./middlewares/errorHandler";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -35,26 +38,16 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-// TODO: remove once fully migrated off Vercel
-const legacyAllowedOrigins = [
-  "https://capef-enrolement-capef.vercel.app",
-  "https://capef-enrolement-capef-95fjqmhhx-ephson-productions-projects.vercel.app",
-  "https://platforme-denrolement-digital-capef.onrender.com",
-];
-
-const envFrontendUrls = process.env.FRONTEND_URLS
-  ? process.env.FRONTEND_URLS.split(",").map((url) => url.trim()).filter(Boolean)
-  : [];
-
-const envFrontendUrl = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL.trim()]
-  : [];
-
-const allowedOrigins = [
-  ...legacyAllowedOrigins,
-  ...envFrontendUrl,
-  ...envFrontendUrls,
-];
+const allowedOrigins = new Set(
+  [
+    process.env.FRONTEND_URL?.trim(),
+    ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(",").map((url) => url.trim()) : []),
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+  ].filter(Boolean) as string[]
+);
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -63,12 +56,7 @@ const corsOptions: cors.CorsOptions = {
       return;
     }
 
-    const isAllowed =
-      allowedOrigins.includes(origin) ||
-      origin.startsWith("http://localhost:") ||
-      origin.startsWith("http://127.0.0.1:") ||
-      origin.endsWith(".vercel.app") ||
-      origin.endsWith("-ephson-productions-projects.vercel.app");
+    const isAllowed = allowedOrigins.has(origin);
 
     if (!isAllowed) {
       logger.warn({ origin }, "CORS request rejected for origin");
@@ -78,7 +66,7 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Client-Operation-ID"],
 };
 
 app.use(cors(corsOptions));
@@ -103,5 +91,6 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api", router);
+app.use(errorHandler);
 
 export default app;

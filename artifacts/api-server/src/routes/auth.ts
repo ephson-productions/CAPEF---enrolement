@@ -37,26 +37,37 @@ router.post("/auth/provision", requireAuth, async (req, res): Promise<void> => {
       return;
     }
 
-    // Check if already exists
-    const [existing] = await db
+    // Check if already exists by clerkUserId first
+    let [existing] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.clerkUserId, clerkUserId))
       .limit(1);
 
+    if (!existing) {
+      // If not found by clerkUserId, search by email to match pre-invited accounts
+      [existing] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.email, email))
+        .limit(1);
+    }
+
     if (existing) {
+      // Update record with actual clerkUserId while preserving role, regionId, and assignedZones
       const [updated] = await db
         .update(usersTable)
-        .set({ email })
+        .set({ clerkUserId, email })
         .where(eq(usersTable.id, existing.id))
         .returning();
       res.json(await formatUser(updated ?? existing));
       return;
     }
 
-    // Create new user — first user becomes admin, rest become agents
-    const [count] = await db.select().from(usersTable);
-    const isFirstUser = !count;
+    // Create new user — assign admin role ONLY if matching INITIAL_ADMIN_EMAIL env var
+    const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
+    const userEmail = email.trim().toLowerCase();
+    const assignedRole = initialAdminEmail && userEmail === initialAdminEmail ? "admin" : "agent";
 
     const [newUser] = await db
       .insert(usersTable)
@@ -64,9 +75,11 @@ router.post("/auth/provision", requireAuth, async (req, res): Promise<void> => {
         clerkUserId,
         email,
         name,
-        role: isFirstUser ? "admin" : "agent",
+        role: assignedRole,
       })
       .returning();
+
+    logger.info({ email: newUser.email, role: newUser.role }, "Provisioned new user account");
 
     res.json(await formatUser(newUser));
   } catch (error: any) {

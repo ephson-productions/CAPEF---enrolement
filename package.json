@@ -12,7 +12,8 @@
   },
   "private": true,
   "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
+    "@replit/connectors-sdk": "^0.4.1",
+    "@supabase/supabase-js": "^2.112.4"
   },
   "devDependencies": {
     "prettier": "^3.9.5",

@@ -531,7 +531,7 @@ export const CreateMemberResponse = zod.object({
 
 
 /**
- * @summary Export members as CSV
+ * @summary Export members as Excel workbook stream
  */
 export const ExportMembersQueryParams = zod.object({
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),

@@ -5,15 +5,16 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./migrate": "./src/standalone-migrate.ts"
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts --force",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
     "generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
-    "migrate": "tsx ./src/migrate.ts",
-    "db:migrate": "tsx ./src/migrate.ts"
+    "migrate": "tsx ./src/standalone-migrate.ts",
+    "db:migrate": "tsx ./src/standalone-migrate.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

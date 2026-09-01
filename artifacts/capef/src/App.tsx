@@ -230,7 +230,6 @@ function ClerkProviderWithRoutes() {
                 <Route path="/" component={HomeRedirect} />
                 <Route path="/sign-in/*?" component={SignInPage} />
                 <Route path="/sign-up/*?" component={SignUpPage} />
-                <Route path="/badge-verify/:token" component={BadgeVerify} />
 
                 {/* Protected shell wrapper handles other routes */}
                 <Route>
@@ -238,7 +237,10 @@ function ClerkProviderWithRoutes() {
                     <Redirect to="/" />
                   </Show>
                   <Show when="signed-in">
-                    <ProtectedRoutes />
+                    <Switch>
+                      <Route path="/badge-verify/:token" component={BadgeVerify} />
+                      <Route component={ProtectedRoutes} />
+                    </Switch>
                   </Show>
                 </Route>
               </Switch>

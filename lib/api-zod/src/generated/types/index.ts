@@ -30,7 +30,6 @@ export * from './exportMembersMemberType';
 export * from './exportMembersParams';
 export * from './exportMembersRepresentantGenre';
 export * from './exportMembersStatus';
-export * from './exportResult';
 export * from './getDashboardStatsParams';
 export * from './getRecentActivityParams';
 export * from './healthStatus';
