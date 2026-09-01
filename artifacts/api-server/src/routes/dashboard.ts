@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, gte, and } from "drizzle-orm";
-import { db, membersTable, regionsTable, usersTable } from "@workspace/db";
+import { db, membersTable, regionsTable, usersTable, memberActivitiesTable } from "@workspace/db";
 import { requireAppUser } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { representedByWomanCondition } from "../lib/memberFilters";
@@ -58,15 +58,20 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
       );
     const organisationsRepresenteesParFemmes = femaleMoraleResult?.count ?? 0;
 
-    // By category
-    const categoryRows = await db
+    // By category (aggregated over multi-activity member_activities table)
+    let categoryQuery = db
       .select({
-        category: membersTable.category,
-        count: sql<number>`count(*)::int`,
+        category: memberActivitiesTable.activityType,
+        count: sql<number>`count(DISTINCT ${memberActivitiesTable.memberId})::int`,
       })
-      .from(membersTable)
-      .where(whereClause)
-      .groupBy(membersTable.category);
+      .from(memberActivitiesTable)
+      .innerJoin(membersTable, eq(memberActivitiesTable.memberId, membersTable.id));
+
+    if (whereClause) {
+      categoryQuery = categoryQuery.where(whereClause) as any;
+    }
+
+    const categoryRows = await categoryQuery.groupBy(memberActivitiesTable.activityType);
 
     const byCategory = categoryRows.map((r) => ({ category: r.category, count: r.count }));
 

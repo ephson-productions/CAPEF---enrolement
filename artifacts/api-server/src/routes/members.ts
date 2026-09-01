@@ -616,6 +616,10 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
 router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -642,6 +646,10 @@ router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -679,6 +687,10 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   if (appUser.role !== "admin") {
@@ -698,6 +710,10 @@ router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> =>
 router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(raw, 10);
+  if (isNaN(memberId)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const activities = await db
     .select()
@@ -715,6 +731,10 @@ router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<
 router.post("/members/:id/activities", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(raw, 10);
+  if (isNaN(memberId)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   // Authorization check: Agents can only mutate their own members
@@ -826,6 +846,10 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId)) {
+    res.status(400).json({ error: "ID membre ou activité invalide" });
+    return;
+  }
 
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
 
@@ -886,6 +910,10 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId)) {
+    res.status(400).json({ error: "ID membre ou activité invalide" });
+    return;
+  }
 
   const [deleted] = await db
     .delete(memberActivitiesTable)
@@ -956,6 +984,10 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   const activityId = parseInt(rawAct, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId)) {
+    res.status(400).json({ error: "ID membre ou activité invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
 
   // Authorization check: Agents can only mutate line items of their own members
@@ -1055,6 +1087,10 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
   const itemId = parseInt(rawItem, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId) || isNaN(itemId)) {
+    res.status(400).json({ error: "ID membre, activité ou ligne invalide" });
+    return;
+  }
 
   const normalized = normalizeLineItemPayload(req.body);
 
@@ -1107,6 +1143,10 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
   const itemId = parseInt(rawItem, 10);
   const rawMem = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const memberId = parseInt(rawMem, 10);
+  if (isNaN(memberId) || isNaN(activityId) || isNaN(itemId)) {
+    res.status(400).json({ error: "ID membre, activité ou ligne invalide" });
+    return;
+  }
   const appUser = (req as any).appUser;
   const clientOperationId = getClientOperationId(req);
 
@@ -1180,6 +1220,10 @@ router.post("/members/:id/validate", requireAppUser, async (req, res): Promise<v
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [updated] = await db
     .update(membersTable)
@@ -1204,6 +1248,10 @@ router.post("/members/:id/deactivate", requireAppUser, async (req, res): Promise
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [updated] = await db
     .update(membersTable)
@@ -1228,6 +1276,10 @@ router.post("/members/:id/reactivate", requireAppUser, async (req, res): Promise
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   // If blocked, we cannot reactivate/unblock
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -1259,6 +1311,10 @@ router.post("/members/:id/block", requireAppUser, async (req, res): Promise<void
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [updated] = await db
     .update(membersTable)
@@ -1286,6 +1342,10 @@ function formatDate(date: Date): string {
 router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID membre invalide" });
+    return;
+  }
 
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
   if (!member) {

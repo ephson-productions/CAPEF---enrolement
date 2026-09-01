@@ -866,7 +866,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-md p-4 flex gap-3 text-sm text-yellow-900 dark:text-yellow-200">
               <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold">Note technique :</span> Les activités saisies seront automatiquement synchronisées en arrière-plan avec la file d'attente d'enrôlements.
+                <span className="font-semibold">Note technique :</span> Activité sauvegardée localement. Elle sera transmise lors de la reconnexion.
               </div>
             </div>
 
