@@ -22,19 +22,61 @@ const __dirname = path.dirname(__filename);
 
 export function findMigrationsFolder(): string {
   const candidates = [
+    path.resolve(__dirname, "./drizzle"),
     path.resolve(__dirname, "../drizzle"),
     path.resolve(__dirname, "../../drizzle"),
     path.resolve(__dirname, "../../lib/db/drizzle"),
+    path.resolve(process.cwd(), "dist/drizzle"),
     path.resolve(process.cwd(), "lib/db/drizzle"),
     path.resolve(process.cwd(), "../lib/db/drizzle"),
     path.resolve(process.cwd(), "drizzle"),
   ];
+
   for (const candidate of candidates) {
     if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, "meta"))) {
       return candidate;
     }
   }
-  throw new Error(`Migrations folder not found. Searched in: ${candidates.join(", ")}`);
+
+  const searched: string[] = [...candidates];
+
+  // Traversal starting from __dirname
+  let currDir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    const candidate1 = path.join(currDir, "lib/db/drizzle");
+    searched.push(candidate1);
+    if (fs.existsSync(candidate1) && fs.existsSync(path.join(candidate1, "meta"))) {
+      return candidate1;
+    }
+    const candidate2 = path.join(currDir, "drizzle");
+    searched.push(candidate2);
+    if (fs.existsSync(candidate2) && fs.existsSync(path.join(candidate2, "meta"))) {
+      return candidate2;
+    }
+    const parent = path.dirname(currDir);
+    if (parent === currDir) break;
+    currDir = parent;
+  }
+
+  // Traversal starting from process.cwd()
+  let currCwd = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    const candidate1 = path.join(currCwd, "lib/db/drizzle");
+    searched.push(candidate1);
+    if (fs.existsSync(candidate1) && fs.existsSync(path.join(candidate1, "meta"))) {
+      return candidate1;
+    }
+    const candidate2 = path.join(currCwd, "drizzle");
+    searched.push(candidate2);
+    if (fs.existsSync(candidate2) && fs.existsSync(path.join(candidate2, "meta"))) {
+      return candidate2;
+    }
+    const parent = path.dirname(currCwd);
+    if (parent === currCwd) break;
+    currCwd = parent;
+  }
+
+  throw new Error(`Migrations folder not found. Searched in:\n${Array.from(new Set(searched)).join("\n")}`);
 }
 
 const SEED_DATA = [
