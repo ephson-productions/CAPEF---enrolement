@@ -261,7 +261,9 @@ export default function MemberDetail() {
         <div className="flex-1 text-center md:text-left">
           <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2 flex-wrap justify-center md:justify-start">
             <h1 className="text-3xl font-bold text-foreground">
-              {isPhysique ? `${(info as any)?.nom} ${(info as any)?.prenom || ''}` : (info as any)?.nom}
+              {isPhysique
+                ? `${(info as any)?.civilite ? `${(info as any).civilite} ` : ''}${(info as any)?.nom || ''} ${(info as any)?.prenom || ''}`.trim()
+                : (info as any)?.nom}
             </h1>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getCategoryColor(member.category)} capitalize self-center md:self-auto`}>
               {member.category}
@@ -368,7 +370,6 @@ export default function MemberDetail() {
               {isPhysique ? (
                 <>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Civilité</dt><dd className="col-span-2 font-medium">{(info as any)?.civilite || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Sexe</dt><dd className="col-span-2 font-medium">{(info as any)?.sexe === 'M' ? 'Masculin' : (info as any)?.sexe === 'F' ? 'Féminin' : '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Sit. Matrimoniale</dt><dd className="col-span-2 font-medium">{(info as any)?.situationMatrimoniale || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Date de naiss.</dt><dd className="col-span-2 font-medium">{(info as any)?.dateNaissance || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Lieu de naiss.</dt><dd className="col-span-2 font-medium">{(info as any)?.lieuNaissance || '-'}</dd></div>
