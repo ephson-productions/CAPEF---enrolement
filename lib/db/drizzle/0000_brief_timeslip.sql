@@ -1,22 +1,22 @@
-CREATE TABLE "regions" (
+CREATE TABLE IF NOT EXISTS "regions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	CONSTRAINT "regions_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "departments" (
+CREATE TABLE IF NOT EXISTS "departments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"region_id" integer NOT NULL,
 	"name" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "arrondissements" (
+CREATE TABLE IF NOT EXISTS "arrondissements" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"department_id" integer NOT NULL,
 	"name" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"clerk_user_id" text NOT NULL,
 	"email" text NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE "activity_line_items" (
+CREATE TABLE IF NOT EXISTS "activity_line_items" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"activity_id" integer NOT NULL,
 	"parcelle_group_id" text,
@@ -58,7 +58,7 @@ CREATE TABLE "activity_line_items" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "member_activities" (
+CREATE TABLE IF NOT EXISTS "member_activities" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"member_id" integer NOT NULL,
 	"activity_type" text NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE "member_activities" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "members" (
+CREATE TABLE IF NOT EXISTS "members" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"member_number" text NOT NULL,
 	"member_type" text NOT NULL,
