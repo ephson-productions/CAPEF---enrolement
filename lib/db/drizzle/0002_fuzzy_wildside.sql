@@ -73,6 +73,20 @@ DO $$ BEGIN
     ALTER TABLE "members" ADD CONSTRAINT "members_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
+DELETE FROM "member_activities"
+WHERE id NOT IN (
+  SELECT MIN(id)
+  FROM "member_activities"
+  GROUP BY member_id, activity_type
+);--> statement-breakpoint
+UPDATE "member_activities"
+SET is_primary = false
+WHERE is_primary = true AND id NOT IN (
+  SELECT MIN(id)
+  FROM "member_activities"
+  WHERE is_primary = true
+  GROUP BY member_id
+);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_activity_line_items_activity_id" ON "activity_line_items" USING btree ("activity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_single_primary_activity" ON "member_activities" USING btree ("member_id") WHERE is_primary = true;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "unique_member_activity_type" ON "member_activities" USING btree ("member_id","activity_type");--> statement-breakpoint
