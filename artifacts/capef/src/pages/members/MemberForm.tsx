@@ -217,6 +217,9 @@ function toDefaultValues(member?: Member): MemberFormValues {
     }
   ];
 
+  const defaultCivilite = phys.civilite ?? 'M.';
+  const defaultSexe = phys.sexe ?? (defaultCivilite === 'Mme.' || defaultCivilite === 'Mlle.' ? 'F' : 'M');
+
   return {
     memberType: member.memberType as 'physique' | 'morale',
     category: member.category as MemberFormValues['category'],
@@ -229,8 +232,8 @@ function toDefaultValues(member?: Member): MemberFormValues {
     physiqueData: {
       nom: phys.nom ?? '',
       prenom: phys.prenom ?? '',
-      civilite: phys.civilite ?? 'M.',
-      sexe: phys.sexe ?? 'M',
+      civilite: defaultCivilite,
+      sexe: defaultSexe,
       situationMatrimoniale: phys.situationMatrimoniale ?? 'Célibataire',
       dateNaissance: phys.dateNaissance ?? '',
       lieuNaissance: phys.lieuNaissance ?? '',
@@ -1021,6 +1024,15 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
 
   const memberType = watch('memberType');
   const category = watch('category');
+  const physiqueCivilite = watch('physiqueData.civilite');
+
+  useEffect(() => {
+    if (physiqueCivilite === 'M.') {
+      setValue('physiqueData.sexe', 'M');
+    } else if (physiqueCivilite === 'Mme.' || physiqueCivilite === 'Mlle.') {
+      setValue('physiqueData.sexe', 'F');
+    }
+  }, [physiqueCivilite, setValue]);
 
   const regions = useListRegions();
   const selectedRegion = watch('regionId');
@@ -1155,13 +1167,6 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Prénom</label>
                     <input type="text" {...methods.register('physiqueData.prenom')} className="w-full px-3 py-2 border border-input rounded-md" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold">Sexe</label>
-                    <select {...methods.register('physiqueData.sexe')} className="w-full px-3 py-2 border border-input rounded-md">
-                      <option value="M">Masculin</option>
-                      <option value="F">Féminin</option>
-                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Situation matrimoniale</label>

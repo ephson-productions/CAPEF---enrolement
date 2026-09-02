@@ -332,7 +332,4 @@ export async function runStandaloneMigrateAndSeed(exitOnComplete = true): Promis
   }
 }
 
-// If executed directly as CLI script
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  runStandaloneMigrateAndSeed(true);
-}
+// Auto-execution removed when imported as a module to prevent early process.exit(0) in bundled environments

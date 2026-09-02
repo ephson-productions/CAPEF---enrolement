@@ -10,6 +10,34 @@ CREATE TABLE IF NOT EXISTS "processed_operations" (
 --> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active' NOT NULL;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "profile_photo_url" text;--> statement-breakpoint
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'regions_pkey') THEN
+    ALTER TABLE "regions" ADD PRIMARY KEY ("id");
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'departments_pkey') THEN
+    ALTER TABLE "departments" ADD PRIMARY KEY ("id");
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'arrondissements_pkey') THEN
+    ALTER TABLE "arrondissements" ADD PRIMARY KEY ("id");
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_pkey') THEN
+    ALTER TABLE "users" ADD PRIMARY KEY ("id");
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'members_pkey') THEN
+    ALTER TABLE "members" ADD PRIMARY KEY ("id");
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'member_activities_pkey') THEN
+    ALTER TABLE "member_activities" ADD PRIMARY KEY ("id");
+  END IF;
+END $$;--> statement-breakpoint
+UPDATE "users" SET "region_id" = NULL WHERE "region_id" IS NOT NULL AND ("region_id" = 0 OR "region_id" NOT IN (SELECT "id" FROM "regions"));--> statement-breakpoint
+UPDATE "member_activities" SET "region_id" = NULL WHERE "region_id" IS NOT NULL AND ("region_id" = 0 OR "region_id" NOT IN (SELECT "id" FROM "regions"));--> statement-breakpoint
+UPDATE "member_activities" SET "department_id" = NULL WHERE "department_id" IS NOT NULL AND ("department_id" = 0 OR "department_id" NOT IN (SELECT "id" FROM "departments"));--> statement-breakpoint
+UPDATE "member_activities" SET "arrondissement_id" = NULL WHERE "arrondissement_id" IS NOT NULL AND ("arrondissement_id" = 0 OR "arrondissement_id" NOT IN (SELECT "id" FROM "arrondissements"));--> statement-breakpoint
+UPDATE "members" SET "region_id" = NULL WHERE "region_id" IS NOT NULL AND ("region_id" = 0 OR "region_id" NOT IN (SELECT "id" FROM "regions"));--> statement-breakpoint
+UPDATE "members" SET "department_id" = NULL WHERE "department_id" IS NOT NULL AND ("department_id" = 0 OR "department_id" NOT IN (SELECT "id" FROM "departments"));--> statement-breakpoint
+UPDATE "members" SET "arrondissement_id" = NULL WHERE "arrondissement_id" IS NOT NULL AND ("arrondissement_id" = 0 OR "arrondissement_id" NOT IN (SELECT "id" FROM "arrondissements"));--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'processed_operations_user_id_users_id_fk') THEN
     ALTER TABLE "processed_operations" ADD CONSTRAINT "processed_operations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
@@ -45,6 +73,20 @@ DO $$ BEGIN
     ALTER TABLE "members" ADD CONSTRAINT "members_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
+DELETE FROM "member_activities"
+WHERE id NOT IN (
+  SELECT MIN(id)
+  FROM "member_activities"
+  GROUP BY member_id, activity_type
+);--> statement-breakpoint
+UPDATE "member_activities"
+SET is_primary = false
+WHERE is_primary = true AND id NOT IN (
+  SELECT MIN(id)
+  FROM "member_activities"
+  WHERE is_primary = true
+  GROUP BY member_id
+);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_activity_line_items_activity_id" ON "activity_line_items" USING btree ("activity_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_single_primary_activity" ON "member_activities" USING btree ("member_id") WHERE is_primary = true;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "unique_member_activity_type" ON "member_activities" USING btree ("member_id","activity_type");--> statement-breakpoint
