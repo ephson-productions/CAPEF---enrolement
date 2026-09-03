@@ -1477,9 +1477,6 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <!-- Adjusted horizontal bicolour banner Vert #005A36, Rouge #E11D48 -->
       <rect x="0" y="145" width="1012" height="15" fill="#005A36"/> <!-- Green -->
       <rect x="0" y="160" width="1012" height="15" fill="#E11D48"/> <!-- Red -->
-      <!-- Interrupted pavé blanc with CAPEF -->
-      <rect x="441" y="141" width="130" height="38" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5" />
-      <text x="506" y="167" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36" text-anchor="middle">CAPEF</text>
 
       <!-- Top Header 3-column bilingual layout -->
       <!-- Left Column (French) -->
