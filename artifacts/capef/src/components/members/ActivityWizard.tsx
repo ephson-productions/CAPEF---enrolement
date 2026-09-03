@@ -12,6 +12,7 @@ import {
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, Trash2, Check, AlertTriangle, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ActivityWizardProps {
   memberId: number;
@@ -19,6 +20,7 @@ interface ActivityWizardProps {
 }
 
 export default function ActivityWizard({ memberId, onComplete }: ActivityWizardProps) {
+  const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -128,7 +130,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         await refetchActivities();
         setStep(2);
       } catch (err) {
-        toast({ variant: 'destructive', title: 'Erreur', description: 'Échec de la création du questionnaire.' });
+        toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.create_failed', 'Échec de la création du questionnaire.') });
       }
     } else if (step === 2) {
       setStep(3);
@@ -143,7 +145,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
       if (selectedType === 'agriculteur') {
         if (!cropCategory || !cropName) {
-          toast({ variant: 'destructive', title: 'Erreur', description: 'Catégorie et culture principale requises.' });
+          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.crop_req', 'Catégorie et culture principale requises.') });
           return;
         }
         // Duplicate check
@@ -151,7 +153,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
           item => item.cropName?.toLowerCase() === cropName.toLowerCase()
         );
         if (isDuplicate) {
-          toast({ variant: 'destructive', title: 'Erreur', description: 'Cette culture a déjà été ajoutée pour ce membre.' });
+          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.duplicate_crop', 'Cette culture a déjà été ajoutée pour ce membre.') });
           return;
         }
 
@@ -165,7 +167,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       }
       else if (selectedType === 'pecheur') {
         if (!pesceSpecies) {
-          toast({ variant: 'destructive', title: 'Erreur', description: 'Espèce principale requise.' });
+          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.species_req', 'Espèce principale requise.') });
           return;
         }
         payload.speciesPêche = pesceSpecies;
@@ -175,7 +177,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       }
       else if (selectedType === 'eleveur') {
         if (!species || !cheptelSize) {
-          toast({ variant: 'destructive', title: 'Erreur', description: 'Espèce et taille du cheptel requises.' });
+          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.livestock_req', 'Espèce et taille du cheptel requises.') });
           return;
         }
         payload.species = species;
@@ -185,7 +187,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       }
       else if (selectedType === 'forestier') {
         if (!essence) {
-          toast({ variant: 'destructive', title: 'Erreur', description: 'Essence forestière requise.' });
+          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.essence_req', 'Essence forestière requise.') });
           return;
         }
         payload.subCategory = foretSub;
@@ -198,7 +200,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       }
       else if (selectedType === 'artisan') {
         if (!artProd || !rawMat) {
-          toast({ variant: 'destructive', title: 'Erreur', description: 'Produits et matières premières requis.' });
+          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.artisan_req', 'Produits et matières premières requis.') });
           return;
         }
         payload.artisanatProducts = artProd;
@@ -230,9 +232,9 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       setArtProd('');
       setRawMat('');
 
-      toast({ title: 'Succès', description: 'Ligne ajoutée avec succès.' });
+      toast({ title: t('common.success', 'Succès'), description: t('activities.toast.line_added', 'Ligne ajoutée avec succès.') });
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Échec de l\'ajout de la ligne.' });
+      toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.add_line_failed', 'Échec de l\'ajout de la ligne.') });
     }
   };
 
@@ -246,9 +248,9 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         itemId
       });
       await refetchActivities();
-      toast({ title: 'Succès', description: 'Ligne supprimée.' });
+      toast({ title: t('common.success', 'Succès'), description: t('activities.toast.line_deleted', 'Ligne supprimée.') });
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Échec de la suppression.' });
+      toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.delete_failed', 'Échec de la suppression.') });
     }
   };
 
@@ -258,24 +260,24 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
     <div className="bg-card rounded-xl border border-border shadow-sm max-w-4xl mx-auto overflow-hidden">
       <div className="bg-primary/5 p-6 border-b border-border flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-primary">Questionnaire d'Activité</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Enrôlement ID: {member?.memberNumber}</p>
+          <h2 className="text-xl font-bold text-primary">{t('activities.title', 'Questionnaire d\'Activité')}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('activities.member_id', 'Enrôlement ID:')} {member?.memberNumber}</p>
         </div>
         <button
           onClick={() => {
             setLocation('/members');
-            toast({ title: 'Enregistré', description: 'Vous avez quitté le questionnaire. Les données saisies ont été conservées.' });
+            toast({ title: t('common.saved', 'Enregistré'), description: t('activities.toast.left_wizard', 'Vous avez quitté le questionnaire. Les données saisies ont été conservées.') });
           }}
           className="text-sm font-semibold text-muted-foreground hover:text-foreground border border-input rounded-md px-3 py-1.5 bg-background transition-colors"
         >
-          Quitter & Retour au Menu
+          {t('activities.quit_and_return', 'Quitter & Retour au Menu')}
         </button>
       </div>
 
       <div className="p-6 space-y-6">
         {/* Stepper progress indicator */}
         <div className="flex items-center justify-center gap-2">
-          {['1. Localisation & Type', '2. Questionnaire', '3. Récapitulatif'].map((lbl, idx) => (
+          {[t('activities.steps.step1', '1. Localisation & Type'), t('activities.steps.step2', '2. Questionnaire'), t('activities.steps.step3', '3. Récapitulatif')].map((lbl, idx) => (
             <React.Fragment key={idx}>
               <div className="flex items-center gap-1.5">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === idx + 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
@@ -290,25 +292,25 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
         {step === 1 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">Étape 1 : Localisation spécifique de l'activité</h3>
+            <h3 className="text-lg font-semibold border-b pb-2">{t('activities.step1_title', 'Étape 1 : Localisation spécifique de l\'activité')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Catégorie d'activité</label>
+                <label className="block text-sm font-medium mb-1">{t('activities.category_label', 'Catégorie d\'activité')}</label>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value as any)}
                   className="w-full border rounded-md p-2 bg-background"
                 >
-                  <option value="agriculteur">Agriculteur / Agriculture</option>
-                  <option value="pecheur">Pêcheur / Aquaculture</option>
-                  <option value="eleveur">Éleveur / Élevage</option>
-                  <option value="forestier">Exploitant Forestier</option>
-                  <option value="artisan">Artisan / Artisanat</option>
+                  <option value="agriculteur">{t('members.categories.agriculteur', 'Agriculteur / Agriculture')}</option>
+                  <option value="pecheur">{t('members.categories.pecheur', 'Pêcheur / Aquaculture')}</option>
+                  <option value="eleveur">{t('members.categories.eleveur', 'Éleveur / Élevage')}</option>
+                  <option value="forestier">{t('members.categories.forestier', 'Exploitant Forestier')}</option>
+                  <option value="artisan">{t('members.categories.artisan', 'Artisan / Artisanat')}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Région</label>
+                <label className="block text-sm font-medium mb-1">{t('members.filters.region', 'Région')}</label>
                 <select
                   value={selectedReg || ''}
                   onChange={(e) => {
@@ -318,13 +320,13 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   }}
                   className="w-full border rounded-md p-2 bg-background"
                 >
-                  <option value="">Sélectionner une région</option>
+                  <option value="">{t('common.select_region', 'Sélectionner une région')}</option>
                   {regions?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Département</label>
+                <label className="block text-sm font-medium mb-1">{t('members.filters.department', 'Département')}</label>
                 <select
                   value={selectedDept || ''}
                   disabled={!selectedReg}
@@ -334,38 +336,38 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   }}
                   className="w-full border rounded-md p-2 bg-background"
                 >
-                  <option value="">Sélectionner un département</option>
+                  <option value="">{t('common.select_department', 'Sélectionner un département')}</option>
                   {departments?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Arrondissement</label>
+                <label className="block text-sm font-medium mb-1">{t('members.filters.arrondissement', 'Arrondissement')}</label>
                 <select
                   value={selectedArr || ''}
                   disabled={!selectedDept}
                   onChange={(e) => setSelectedArr(e.target.value ? parseInt(e.target.value, 10) : null)}
                   className="w-full border rounded-md p-2 bg-background"
                 >
-                  <option value="">Sélectionner un arrondissement</option>
+                  <option value="">{t('common.select_arrondissement', 'Sélectionner un arrondissement')}</option>
                   {arrondissements?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Village / Quartier de l'exploitation</label>
+                <label className="block text-sm font-medium mb-1">{t('activities.village_label', 'Village / Quartier de l\'exploitation')}</label>
                 <input
                   type="text"
                   value={village}
                   onChange={(e) => setVillage(e.target.value)}
-                  placeholder="Nom du village ou quartier"
+                  placeholder={t('activities.village_placeholder', 'Nom du village ou quartier')}
                   className="w-full border rounded-md p-2 bg-background"
                 />
               </div>
             </div>
 
             <div className="space-y-2 mt-4">
-              <label className="block text-sm font-medium">Maillons dans la filière (Sélection multiple)</label>
+              <label className="block text-sm font-medium">{t('activities.maillons_label', 'Maillons dans la filière (Sélection multiple)')}</label>
               <div className="grid grid-cols-2 gap-2 border p-3 rounded-md bg-muted/20">
                 {selectedType === 'agriculteur' && ['Production', 'Transformation', 'Distribution', 'Prestation de service', 'Fourniture d\'intrants'].map(m => (
                   <label key={m} className="flex items-center gap-2 text-sm">
@@ -440,7 +442,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 onClick={handleNextStep}
                 className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2"
               >
-                Suivant <ArrowRight className="h-4 w-4" />
+                {t('common.next', 'Suivant')} <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -448,35 +450,35 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
         {step === 2 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">Étape 2 : Détails de la production</h3>
+            <h3 className="text-lg font-semibold border-b pb-2">{t('activities.step2_title', 'Étape 2 : Détails de la production')}</h3>
 
             {selectedType === 'agriculteur' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Catégorie de culture principale</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.crop_category', 'Catégorie de culture principale')}</label>
                   <select
                     value={cropCategory}
                     onChange={(e) => setCropCategory(e.target.value)}
                     className="w-full border rounded-md p-2 bg-background"
                   >
-                    <option value="">Sélectionner</option>
+                    <option value="">{t('common.select', 'Sélectionner')}</option>
                     {['Céréales', 'Oléagineux', 'Racines-tubercules', 'Légumes', 'Fruits et noix', 'Plantes stimulantes', 'Légumineuses', 'Cultures sucrières', 'Autres'].map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Culture précise</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.crop_name', 'Culture précise')}</label>
                   <input
                     type="text"
                     value={cropName}
                     onChange={(e) => setCropName(e.target.value)}
-                    placeholder="Ex: Maïs, Manioc..."
+                    placeholder={t('activities.crop_placeholder', 'Ex: Maïs, Manioc...')}
                     className="w-full border rounded-md p-2 bg-background"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Type de culture</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.culture_type', 'Type de culture')}</label>
                   <select
                     value={cultureType}
                     onChange={(e) => setCultureType(e.target.value)}
@@ -487,7 +489,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Superficie de la parcelle (ha)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.superficie', 'Superficie de la parcelle (ha)')}</label>
                   <input
                     type="number"
                     value={superficieHa}
@@ -497,7 +499,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Production annuelle (Quantité)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.prod_quantity', 'Production annuelle (Quantité)')}</label>
                   <input
                     type="number"
                     value={prodQuantity}
@@ -507,17 +509,17 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Unité de production</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.prod_unit', 'Unité de production')}</label>
                   <input
                     type="text"
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
-                    placeholder="Ex: Tonnes, Sacs..."
+                    placeholder={t('activities.unit_placeholder', 'Ex: Tonnes, Sacs...')}
                     className="w-full border rounded-md p-2 bg-background"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Valeur de la production (FCFA)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.prod_fcfa', 'Valeur de la production (FCFA)')}</label>
                   <input
                     type="number"
                     value={prodFcfa}
@@ -532,20 +534,20 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             {selectedType === 'pecheur' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Espèce principale</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.pesce_species', 'Espèce principale')}</label>
                   <select
                     value={pesceSpecies}
                     onChange={(e) => setPesceSpecies(e.target.value)}
                     className="w-full border rounded-md p-2 bg-background"
                   >
-                    <option value="">Sélectionner</option>
+                    <option value="">{t('common.select', 'Sélectionner')}</option>
                     {['Poissons de mer', 'Crustacés', 'Poissons d\'eau douce Silure', 'Tilapia', 'Carpe', 'Autres'].map(e => (
                       <option key={e} value={e}>{e}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Production annuelle (Quantité)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.prod_quantity', 'Production annuelle (Quantité)')}</label>
                   <input
                     type="number"
                     value={prodQuantity}
@@ -554,7 +556,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Unité de production</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.prod_unit', 'Unité de production')}</label>
                   <input
                     type="text"
                     value={prodUnit}
@@ -564,7 +566,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Valeur (FCFA)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.value_fcfa', 'Valeur (FCFA)')}</label>
                   <input
                     type="number"
                     value={prodFcfa}
@@ -578,20 +580,20 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             {selectedType === 'eleveur' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Type d'élevage</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.elevage_type', 'Type d\'élevage')}</label>
                   <select
                     value={elevageType}
                     onChange={(e) => setElevageType(e.target.value)}
                     className="w-full border rounded-md p-2 bg-background"
                   >
-                    <option value="">Sélectionner</option>
-                    {['Volaille', 'Apiculture', 'Bovins', 'Canins', 'Asins', 'Ovins', 'Caprins', 'Non-conventionnel'].map(t => (
-                      <option key={t} value={t}>{t}</option>
+                    <option value="">{t('common.select', 'Sélectionner')}</option>
+                    {['Volaille', 'Apiculture', 'Bovins', 'Canins', 'Asins', 'Ovins', 'Caprins', 'Non-conventionnel'].map(tVal => (
+                      <option key={tVal} value={tVal}>{tVal}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Espèce élevée</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.species', 'Espèce élevée')}</label>
                   <input
                     type="text"
                     value={species}
@@ -601,7 +603,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Taille du cheptel (Têtes)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.cheptel_size', 'Taille du cheptel (Têtes)')}</label>
                   <input
                     type="number"
                     value={cheptelSize}
@@ -610,13 +612,13 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Type de nourriture</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.food_type', 'Type de nourriture')}</label>
                   <select
                     value={foodType}
                     onChange={(e) => setFoodType(e.target.value)}
                     className="w-full border rounded-md p-2 bg-background"
                   >
-                    <option value="">Sélectionner</option>
+                    <option value="">{t('common.select', 'Sélectionner')}</option>
                     {['Pâturage naturel', 'Céréales', 'Tourteaux', 'Autres'].map(f => (
                       <option key={f} value={f}>{f}</option>
                     ))}
@@ -624,10 +626,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 </div>
 
                 <div className="md:col-span-2 border-t pt-4 mt-2">
-                  <h4 className="font-semibold text-sm mb-2 text-primary">Produits d'élevage</h4>
+                  <h4 className="font-semibold text-sm mb-2 text-primary">{t('activities.elevage_products', 'Produits d\'élevage')}</h4>
                   <div className="grid grid-cols-4 gap-2 items-end">
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium mb-1">Nom du produit (Ex: Lait, Miel, Œufs)</label>
+                      <label className="block text-xs font-medium mb-1">{t('activities.product_name', 'Nom du produit (Ex: Lait, Miel, Œufs)')}</label>
                       <input
                         type="text"
                         value={prodName}
@@ -636,7 +638,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1">Quantité</label>
+                      <label className="block text-xs font-medium mb-1">{t('activities.quantity', 'Quantité')}</label>
                       <input
                         type="number"
                         placeholder="Ex: 100"
@@ -661,7 +663,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                         }}
                         className="bg-secondary text-secondary-foreground font-semibold px-3 py-1.5 text-xs rounded hover:bg-secondary/90 w-full"
                       >
-                        Ajouter Produit
+                        {t('activities.add_product', 'Ajouter Produit')}
                       </button>
                     </div>
                   </div>
@@ -670,7 +672,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                       {elevageProducts.map((p, i) => (
                         <li key={i} className="py-1 flex justify-between">
                           <span>{p.name} : {p.quantity} {p.unit}</span>
-                          <button onClick={() => setElevageProducts(elevageProducts.filter((_, j) => j !== i))} className="text-destructive hover:underline">Retirer</button>
+                          <button onClick={() => setElevageProducts(elevageProducts.filter((_, j) => j !== i))} className="text-destructive hover:underline">{t('common.remove', 'Retirer')}</button>
                         </li>
                       ))}
                     </ul>
@@ -682,7 +684,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             {selectedType === 'forestier' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Sous-catégorie d'exploitation</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.foret_sub', 'Sous-catégorie d\'exploitation')}</label>
                   <select
                     value={foretSub}
                     onChange={(e) => setForetSub(e.target.value as any)}
@@ -695,7 +697,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Essence / Espèce précise</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.essence', 'Essence / Espèce précise')}</label>
                   <input
                     type="text"
                     value={essence}
@@ -706,7 +708,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 </div>
                 {foretSub === 'cultivé' && (
                   <div>
-                    <label className="block text-sm font-medium mb-1">Type de plantation</label>
+                    <label className="block text-sm font-medium mb-1">{t('activities.plantation_type', 'Type de plantation')}</label>
                     <select
                       value={plantationType}
                       onChange={(e) => setPlantationType(e.target.value)}
@@ -718,7 +720,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium mb-1">Superficie cultivée (ha)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.superficie', 'Superficie cultivée (ha)')}</label>
                   <input
                     type="number"
                     value={superficieHa}
@@ -727,7 +729,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Produits obtenus / Grumes, Planches (FCFA)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.forest_value', 'Produits obtenus / Grumes, Planches (FCFA)')}</label>
                   <input
                     type="number"
                     value={prodFcfa}
@@ -741,20 +743,20 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             {selectedType === 'artisan' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Produits d'artisanat</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.artisan_products', 'Produits d\'artisanat')}</label>
                   <select
                     value={artProd}
                     onChange={(e) => setArtProd(e.target.value)}
                     className="w-full border rounded-md p-2 bg-background"
                   >
-                    <option value="">Sélectionner</option>
+                    <option value="">{t('common.select', 'Sélectionner')}</option>
                     {['Boissons', 'Farines', 'Confiserie', 'Biscuiterie', 'Chips', 'Huiles alimentaires', 'Tissus', 'Cosmétiques', 'Bijoux', 'Autres'].map(p => (
                       <option key={p} value={p}>{p}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Matières premières utilisées</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.raw_mat', 'Matières premières utilisées')}</label>
                   <input
                     type="text"
                     value={rawMat}
@@ -764,7 +766,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Valeur de la production annuelle (FCFA)</label>
+                  <label className="block text-sm font-medium mb-1">{t('activities.prod_fcfa', 'Valeur de la production annuelle (FCFA)')}</label>
                   <input
                     type="number"
                     value={prodFcfa}
@@ -780,7 +782,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 onClick={() => setStep(1)}
                 className="border border-input bg-background hover:bg-muted font-semibold px-4 py-2 rounded-md flex items-center gap-2"
               >
-                <ArrowLeft className="h-4 w-4" /> Précédent
+                <ArrowLeft className="h-4 w-4" /> {t('common.previous', 'Précédent')}
               </button>
 
               <div className="flex gap-2">
@@ -790,10 +792,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   className="bg-secondary text-secondary-foreground font-semibold px-4 py-2 rounded-md hover:bg-secondary/90 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {createLineItem.isPending ? (
-                    <>Enregistrement...</>
+                    <>{t('common.saving', 'Enregistrement...')}</>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4" /> Ajouter cette ligne
+                      <Plus className="h-4 w-4" /> {t('activities.add_this_line', '+ Ajouter cette ligne')}
                     </>
                   )}
                 </button>
@@ -801,7 +803,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   onClick={handleNextStep}
                   className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5"
                 >
-                  Suivant <ArrowRight className="h-4 w-4" />
+                  {t('common.next', 'Suivant')} <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -810,23 +812,23 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
         {step === 3 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">Étape 3 : Récapitulatif de la saisie</h3>
+            <h3 className="text-lg font-semibold border-b pb-2">{t('activities.step3_title', 'Étape 3 : Récapitulatif de la saisie')}</h3>
 
             <div className="overflow-hidden rounded-md border border-border">
               <table className="w-full text-sm text-left">
                 <thead className="bg-muted text-muted-foreground text-xs font-semibold">
                   <tr>
-                    <th className="p-3">Détails</th>
-                    <th className="p-3">Spécificités</th>
-                    <th className="p-3">Production (Quantité / Unité)</th>
-                    <th className="p-3 text-right">Valeur (FCFA)</th>
-                    <th className="p-3 text-right">Action</th>
+                    <th className="p-3">{t('activities.table.details', 'Détails')}</th>
+                    <th className="p-3">{t('activities.table.specifics', 'Spécificités')}</th>
+                    <th className="p-3">{t('activities.table.production', 'Production (Quantité / Unité)')}</th>
+                    <th className="p-3 text-right">{t('activities.table.value', 'Valeur (FCFA)')}</th>
+                    <th className="p-3 text-right">{t('common.action', 'Action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {activeActivity?.lineItems?.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-6 text-center text-muted-foreground">Aucune ligne d'activité enregistrée. Veuillez retourner à l'étape 2.</td>
+                      <td colSpan={5} className="p-6 text-center text-muted-foreground">{t('activities.no_line_items_step3', 'Aucune ligne d\'activité enregistrée. Veuillez retourner à l\'étape 2.')}</td>
                     </tr>
                   ) : (
                     activeActivity?.lineItems?.map((item) => (
@@ -866,7 +868,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-md p-4 flex gap-3 text-sm text-yellow-900 dark:text-yellow-200">
               <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold">Note technique :</span> Activité sauvegardée localement. Elle sera transmise lors de la reconnexion.
+                <span className="font-semibold">{t('activities.tech_note_title', 'Note technique :')}</span> {t('activities.tech_note_text', 'Activité sauvegardée localement. Elle sera transmise lors de la reconnexion.')}
               </div>
             </div>
 
@@ -875,7 +877,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 onClick={() => setStep(2)}
                 className="border border-input bg-background hover:bg-muted font-semibold px-4 py-2 rounded-md flex items-center gap-2"
               >
-                <ArrowLeft className="h-4 w-4" /> Retour au formulaire
+                <ArrowLeft className="h-4 w-4" /> {t('activities.back_to_form', 'Retour au formulaire')}
               </button>
 
               <button
@@ -885,12 +887,12 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     onComplete();
                   } else {
                     setLocation('/members');
-                    toast({ title: 'Questionnaire Validé', description: 'Le questionnaire de l\'activité a été validé et finalisé.' });
+                    toast({ title: t('activities.toast.validated_title', 'Questionnaire Validé'), description: t('activities.toast.validated_desc', 'Le questionnaire de l\'activité a été validé et finalisé.') });
                   }
                 }}
                 className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5"
               >
-                Valider & Terminer <Check className="h-4 w-4" />
+                {t('common.validate_and_finish', 'Valider & Terminer')} <Check className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -902,8 +904,8 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
               <Check className="h-6 w-6" />
             </div>
             <div>
-              <h4 className="font-semibold text-lg text-foreground">Activité enregistrée avec succès !</h4>
-              <p className="text-sm text-muted-foreground mt-1">Souhaitez-vous ajouter une autre activité ou retourner au menu principal ?</p>
+              <h4 className="font-semibold text-lg text-foreground">{t('activities.success_title', 'Activité enregistrée avec succès !')}</h4>
+              <p className="text-sm text-muted-foreground mt-1">{t('activities.success_subtitle', 'Souhaitez-vous ajouter une autre activité ou retourner au menu principal ?')}</p>
             </div>
             <div className="flex justify-center gap-4">
               <button
@@ -913,7 +915,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 }}
                 className="border border-input bg-background hover:bg-muted text-sm font-semibold px-4 py-2 rounded-md"
               >
-                Saisir une activité secondaire
+                {t('activities.add_secondary_activity', 'Saisir une activité secondaire')}
               </button>
               <button
                 onClick={() => {
@@ -921,7 +923,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 }}
                 className="bg-primary text-primary-foreground text-sm font-semibold px-4 py-2 rounded-md hover:bg-primary/90"
               >
-                Retourner au Menu Principal
+                {t('activities.return_to_main_menu', 'Retourner au Menu Principal')}
               </button>
             </div>
           </div>

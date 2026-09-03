@@ -9,6 +9,7 @@ import {
   User as UserIcon, Building2, MapPin, Tractor, Droplets, Trees, Hammer, CheckCircle2, ChevronRight, ChevronLeft, Save, Upload, PenTool
 } from 'lucide-react';
 import { CATEGORY_STYLES } from '@/lib/category-colors';
+import { useTranslation } from 'react-i18next';
 
 const representativeSchema = z.object({
   ordre: z.number(),
@@ -294,6 +295,7 @@ type RepresentativeRowProps = {
 };
 
 function MoraleStepFields() {
+  const { t } = useTranslation();
   const { register, control, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
   const typeOrg = watch('moraleData.typeOrganisation');
 
@@ -307,7 +309,7 @@ function MoraleStepFields() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Type d'organisation */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Type d'organisation</label>
+          <label className="text-sm font-semibold">{t('members.form.org_type', 'Type d\'organisation')}</label>
           <select
             {...register('moraleData.typeOrganisation')}
             className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
@@ -322,13 +324,13 @@ function MoraleStepFields() {
             <option value="FUGIC">FUGIC</option>
             <option value="COOP92">COOP92</option>
             <option value="COOP OHADA">COOP OHADA</option>
-            <option value="Autre">Autre</option>
+            <option value="Autre">{t('common.other', 'Autre')}</option>
           </select>
         </div>
 
         {/* Nom de l'organisation */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Nom de l'organisation *</label>
+          <label className="text-sm font-semibold">{t('members.form.org_name', 'Nom de l\'organisation')} *</label>
           <input
             type="text"
             {...register('moraleData.nom')}
@@ -341,7 +343,7 @@ function MoraleStepFields() {
 
         {/* N° Immatriculation & Date d'immatriculation */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">N° Immatriculation</label>
+          <label className="text-sm font-semibold">{t('members.detail.registration_number', 'N° Immatriculation')}</label>
           <input
             type="text"
             {...register('moraleData.numeroImmatriculation')}
@@ -350,7 +352,7 @@ function MoraleStepFields() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Date d'immatriculation</label>
+          <label className="text-sm font-semibold">{t('members.detail.registration_date', 'Date d\'immatriculation')}</label>
           <input
             type="date"
             {...register('moraleData.dateImmatriculation')}
@@ -360,13 +362,13 @@ function MoraleStepFields() {
 
         {/* Certificat de conformité / URL de preuve */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Certificat de conformité (URL ou fichier)</label>
+          <label className="text-sm font-semibold">{t('members.form.conformity_cert_upload', 'Certificat de conformité (URL ou fichier)')}</label>
           <Controller
             control={control}
             name="moraleData.certificatUrl"
             render={({ field }) => (
               <ImageUploadField
-                label="Uploader le Certificat"
+                label={t('members.form.upload_certificate', 'Uploader le Certificat')}
                 value={field.value}
                 onChange={field.onChange}
               />
@@ -377,12 +379,12 @@ function MoraleStepFields() {
         {/* Chiffre d'affaires - CONDITIONAL for Exploitation */}
         {typeOrg === 'Exploitation' && (
           <div className="space-y-2">
-            <label className="text-sm font-semibold">Chiffre d'affaires annuel *</label>
+            <label className="text-sm font-semibold">{t('members.form.annual_turnover', 'Chiffre d\'affaires annuel')} *</label>
             <select
               {...register('moraleData.chiffreAffaires')}
               className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
             >
-              <option value="">Sélectionnez...</option>
+              <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
               <option value="< 5m">&lt; 5m FCFA</option>
               <option value="5-10m">5m - 10m FCFA</option>
               <option value="10m-20m">10m - 20m FCFA</option>
@@ -397,7 +399,7 @@ function MoraleStepFields() {
 
         {/* Téléphone 1 & Téléphone 2 */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Téléphone principal</label>
+          <label className="text-sm font-semibold">{t('members.form.phone_primary', 'Téléphone principal')}</label>
           <input
             type="tel"
             {...register('moraleData.telephone1')}
@@ -406,7 +408,7 @@ function MoraleStepFields() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Téléphone 2 (optionnel)</label>
+          <label className="text-sm font-semibold">{t('members.form.phone_secondary', 'Téléphone 2 (optionnel)')}</label>
           <input
             type="tel"
             {...register('moraleData.telephone2')}
@@ -416,7 +418,7 @@ function MoraleStepFields() {
 
         {/* Email & Boîte Postale */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Email de l'organisation</label>
+          <label className="text-sm font-semibold">{t('members.form.org_email', 'Email de l\'organisation')}</label>
           <input
             type="email"
             {...register('moraleData.email')}
@@ -425,7 +427,7 @@ function MoraleStepFields() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Boîte postale (optionnelle)</label>
+          <label className="text-sm font-semibold">{t('members.form.post_box', 'Boîte postale (optionnelle)')}</label>
           <input
             type="text"
             {...register('moraleData.boitePostale')}
@@ -435,7 +437,7 @@ function MoraleStepFields() {
 
         {/* Website / Site web */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Site Web / Réseaux sociaux</label>
+          <label className="text-sm font-semibold">{t('members.detail.website', 'Site Web / Réseaux sociaux')}</label>
           <input
             type="text"
             placeholder="Ex: https://gic-example.com"
@@ -446,7 +448,7 @@ function MoraleStepFields() {
 
         {/* Nombre de membres & Nombre de femmes */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Nombre total de membres</label>
+          <label className="text-sm font-semibold">{t('members.form.total_members', 'Nombre total de membres')}</label>
           <input
             type="number"
             {...register('moraleData.nombreMembres')}
@@ -455,7 +457,7 @@ function MoraleStepFields() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold">Nombre total de femmes</label>
+          <label className="text-sm font-semibold">{t('members.form.total_women', 'Nombre total de femmes')}</label>
           <input
             type="number"
             {...register('moraleData.nombreFemmes')}
@@ -468,8 +470,8 @@ function MoraleStepFields() {
       <div className="space-y-4 pt-4 border-t border-border">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-md font-bold text-foreground">Représentants de l'organisation</h3>
-            <p className="text-xs text-muted-foreground">Au moins un représentant (Représentant 1) est obligatoire.</p>
+            <h3 className="text-md font-bold text-foreground">{t('members.detail.org_representatives', 'Représentants de l\'organisation')}</h3>
+            <p className="text-xs text-muted-foreground">{t('members.form.rep1_required_note', 'Au moins un représentant (Représentant 1) est obligatoire.')}</p>
           </div>
           <button
             type="button"
@@ -492,7 +494,7 @@ function MoraleStepFields() {
             })}
             className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded hover:bg-primary/90 flex items-center gap-1"
           >
-            Ajouter un représentant
+            {t('members.form.add_representative', 'Ajouter un représentant')}
           </button>
         </div>
 
@@ -516,6 +518,7 @@ function MoraleStepFields() {
 }
 
 function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowProps) {
+  const { t } = useTranslation();
   const { register, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
 
   const regions = useListRegions();
@@ -535,14 +538,14 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
   return (
     <div className="border border-border rounded-xl p-4 bg-muted/5 space-y-4 animate-in fade-in">
       <div className="flex justify-between items-center border-b pb-2">
-        <h4 className="font-bold text-sm text-primary">Représentant {index + 1} {index === 0 && '*'}</h4>
+        <h4 className="font-bold text-sm text-primary">{t('members.detail.representative_num', 'Représentant {{num}}', { num: index + 1 })} {index === 0 && '*'}</h4>
         {isRemovable && onRemove && (
           <button
             type="button"
             onClick={onRemove}
             className="text-xs font-bold text-destructive hover:underline"
           >
-            Retirer
+            {t('common.remove', 'Retirer')}
           </button>
         )}
       </div>
@@ -550,7 +553,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Civilité, Nom, Prénom */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Civilité</label>
+          <label className="text-xs font-semibold">{t('members.detail.civilite', 'Civilité')}</label>
           <select
             {...register(`moraleData.representants.${index}.civilite`)}
             className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs"
@@ -562,7 +565,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Nom *</label>
+          <label className="text-xs font-semibold">{t('members.form.last_name', 'Nom')} *</label>
           <input
             type="text"
             {...register(`moraleData.representants.${index}.nom`)}
@@ -572,7 +575,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Prénom *</label>
+          <label className="text-xs font-semibold">{t('members.form.first_name', 'Prénom')} *</label>
           <input
             type="text"
             {...register(`moraleData.representants.${index}.prenom`)}
@@ -583,30 +586,30 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
 
         {/* Profession vs Fonction */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Profession (métier personnel)</label>
+          <label className="text-xs font-semibold">{t('members.detail.profession', 'Profession (métier personnel)')}</label>
           <input
             type="text"
             placeholder="Ex: agronome, comptable"
             {...register(`moraleData.representants.${index}.profession`)}
             className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs"
           />
-          <span className="text-[10px] text-muted-foreground block">Métier/commerce personnel de l'individu.</span>
+          <span className="text-[10px] text-muted-foreground block">{t('members.form.profession_hint', 'Métier/commerce personnel de l\'individu.')}</span>
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Fonction (au sein de l'org.)</label>
+          <label className="text-xs font-semibold">{t('members.detail.function', 'Fonction (au sein de l\'org.)')}</label>
           <input
             type="text"
             placeholder="Ex: Président, Trésorier"
             {...register(`moraleData.representants.${index}.fonction`)}
             className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs"
           />
-          <span className="text-[10px] text-muted-foreground block">Rôle/titre officiel au sein du GIC/Coop.</span>
+          <span className="text-[10px] text-muted-foreground block">{t('members.form.function_hint', 'Rôle/titre officiel au sein du GIC/Coop.')}</span>
         </div>
 
         {/* Téléphone 1, Téléphone 2, Email */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Téléphone principal</label>
+          <label className="text-xs font-semibold">{t('members.form.phone_primary', 'Téléphone principal')}</label>
           <input
             type="tel"
             {...register(`moraleData.representants.${index}.telephone1`)}
@@ -615,7 +618,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Téléphone 2 (optionnel)</label>
+          <label className="text-xs font-semibold">{t('members.form.phone_secondary', 'Téléphone 2 (optionnel)')}</label>
           <input
             type="tel"
             {...register(`moraleData.representants.${index}.telephone2`)}
@@ -624,7 +627,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Email de contact</label>
+          <label className="text-xs font-semibold">{t('members.form.contact_email', 'Email de contact')}</label>
           <input
             type="email"
             {...register(`moraleData.representants.${index}.email`)}
@@ -634,7 +637,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
 
         {/* Boîte postale */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Boîte postale (optionnelle)</label>
+          <label className="text-xs font-semibold">{t('members.form.post_box', 'Boîte postale (optionnelle)')}</label>
           <input
             type="text"
             {...register(`moraleData.representants.${index}.boitePostale`)}
@@ -644,7 +647,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
 
         {/* Address sub-block dropdowns */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Région (Adresse)</label>
+          <label className="text-xs font-semibold">{t('members.form.region_address', 'Région (Adresse)')}</label>
           <select
             {...register(`moraleData.representants.${index}.regionId`)}
             className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs"
@@ -655,7 +658,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
               setValue(`moraleData.representants.${index}.arrondissementId`, null);
             }}
           >
-            <option value="">Sélectionnez...</option>
+            <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
             {regions.data?.map(r => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
@@ -663,7 +666,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Département (Adresse)</label>
+          <label className="text-xs font-semibold">{t('members.form.department_address', 'Département (Adresse)')}</label>
           <select
             {...register(`moraleData.representants.${index}.departmentId`)}
             disabled={!selectedRegion}
@@ -674,7 +677,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
               setValue(`moraleData.representants.${index}.arrondissementId`, null);
             }}
           >
-            <option value="">Sélectionnez...</option>
+            <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
             {departments.data?.map(d => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -682,7 +685,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Arrondissement (Adresse)</label>
+          <label className="text-xs font-semibold">{t('members.form.arrondissement_address', 'Arrondissement (Adresse)')}</label>
           <select
             {...register(`moraleData.representants.${index}.arrondissementId`)}
             disabled={!selectedDept}
@@ -692,7 +695,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
               setValue(`moraleData.representants.${index}.arrondissementId`, val);
             }}
           >
-            <option value="">Sélectionnez...</option>
+            <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
             {arrondissements.data?.map(a => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
@@ -700,7 +703,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold">Village / Quartier (Adresse)</label>
+          <label className="text-xs font-semibold">{t('members.form.village_address', 'Village / Quartier (Adresse)')}</label>
           <input
             type="text"
             {...register(`moraleData.representants.${index}.village`)}
@@ -709,7 +712,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
         </div>
 
         <div className="space-y-1 md:col-span-2 lg:col-span-3">
-          <label className="text-xs font-semibold">Adresse détaillée (Complément libre)</label>
+          <label className="text-xs font-semibold">{t('members.detail.detailed_address', 'Adresse détaillée (Complément libre)')}</label>
           <input
             type="text"
             placeholder="Quartier, lieu-dit, etc."
@@ -730,6 +733,7 @@ type ImageUploadFieldProps = {
 };
 
 function ImageUploadField({ label, value, onChange, required }: ImageUploadFieldProps) {
+  const { t } = useTranslation();
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -795,7 +799,7 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
         ) : (
           <div className="h-24 w-24 bg-muted rounded border border-border flex flex-col items-center justify-center text-[10px] text-muted-foreground font-medium shrink-0">
             <Upload className="h-5 w-5 mb-1 opacity-60" />
-            Pas d'image
+            {t('common.no_image', 'Pas d\'image')}
           </div>
         )}
         <div className="flex-1 w-full text-center sm:text-left">
@@ -810,7 +814,7 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
             htmlFor={`file-input-${label.replace(/\s+/g, '-').replace(/[^\w-]/g, '')}`}
             className="inline-flex px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded hover:bg-secondary/90 transition-colors cursor-pointer text-sm"
           >
-            Choisir un fichier / Prendre une photo
+            {t('common.choose_or_take_photo', 'Choisir un fichier / Prendre une photo')}
           </label>
         </div>
       </div>
@@ -824,6 +828,7 @@ type SignatureCaptureProps = {
 };
 
 function SignatureCapture({ value, onChange }: SignatureCaptureProps) {
+  const { t } = useTranslation();
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = React.useState(false);
 
@@ -915,7 +920,7 @@ function SignatureCapture({ value, onChange }: SignatureCaptureProps) {
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-semibold">Signature du membre</label>
+      <label className="text-sm font-semibold">{t('members.form.member_signature', 'Signature du membre')}</label>
       <div className="flex flex-col gap-4 p-4 border border-dashed border-border rounded-lg bg-muted/10">
         <div className="relative bg-white border border-input rounded-md overflow-hidden" style={{ height: '150px' }}>
           <canvas
@@ -936,12 +941,12 @@ function SignatureCapture({ value, onChange }: SignatureCaptureProps) {
             onClick={clear}
             className="absolute top-2 right-2 bg-destructive text-destructive-foreground px-2 py-1 text-xs rounded hover:bg-destructive/90 font-semibold"
           >
-            Effacer
+            {t('common.clear', 'Effacer')}
           </button>
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground text-center sm:text-left flex items-center gap-1">
-            <PenTool className="h-3 w-3" /> Dessinez la signature ci-dessus avec votre doigt ou souris.
+            <PenTool className="h-3 w-3" /> {t('members.form.draw_signature_hint', 'Dessinez la signature ci-dessus avec votre doigt ou souris.')}
           </p>
           <div className="shrink-0">
             <input
@@ -955,7 +960,7 @@ function SignatureCapture({ value, onChange }: SignatureCaptureProps) {
               htmlFor="signature-file-upload"
               className="inline-flex px-3 py-1.5 bg-secondary text-secondary-foreground font-semibold rounded hover:bg-secondary/90 transition-colors cursor-pointer text-xs"
             >
-              Ou charger l'image de la signature
+              {t('members.form.or_upload_signature', 'Ou charger l\'image de la signature')}
             </label>
           </div>
         </div>
@@ -972,6 +977,7 @@ type MemberFormProps = {
 };
 
 export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel }: MemberFormProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
 
@@ -986,7 +992,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
     console.error("Form validation failed:", formErrors);
 
     // Find the first error message to display
-    let firstErrorMessage = "Veuillez vérifier tous les champs requis.";
+    let firstErrorMessage = t('members.form.check_required_fields', 'Veuillez vérifier tous les champs requis.');
 
     if (formErrors.physiqueData?.nom?.message) {
       firstErrorMessage = formErrors.physiqueData.nom.message;
@@ -1010,7 +1016,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
     }
 
     toast({
-      title: "Formulaire invalide ou incomplet",
+      title: t('members.form.invalid_form_title', 'Formulaire invalide ou incomplet'),
       description: firstErrorMessage,
       variant: "destructive",
     });
@@ -1051,9 +1057,9 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
       navigator.geolocation.getCurrentPosition((pos) => {
         setValue('gpsLat', pos.coords.latitude);
         setValue('gpsLng', pos.coords.longitude);
-        toast({ title: 'GPS Capturé', description: 'Coordonnées enregistrées avec succès.' });
+        toast({ title: t('members.form.gps_captured_title', 'GPS Capturé'), description: t('members.form.gps_captured_desc', 'Coordonnées enregistrées avec succès.') });
       }, () => {
-        toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible d\'obtenir la position.' });
+        toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('members.form.gps_failed', 'Impossible d\'obtenir la position.') });
       });
     }
   };
@@ -1063,10 +1069,10 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
       {/* Stepper Header */}
       <div className="flex items-center mb-8 overflow-x-auto pb-2">
         {[
-          { num: 1, title: 'Type & Catégorie' },
-          { num: 2, title: 'Identité' },
-          { num: 3, title: 'Localisation' },
-          { num: 4, title: 'Détails Pro.' },
+          { num: 1, title: t('members.form.steps.step1', 'Type & Catégorie') },
+          { num: 2, title: t('members.form.steps.step2', 'Identité') },
+          { num: 3, title: t('members.form.steps.step3', 'Localisation') },
+          { num: 4, title: t('members.form.steps.step4', 'Détails Pro.') },
         ].map((s, idx) => (
           <React.Fragment key={s.num}>
             <div className={`flex items-center gap-2 shrink-0 ${step >= s.num ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -1089,7 +1095,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
             {step === 1 && (
               <div className="space-y-8 animate-in fade-in">
                 <div>
-                  <h3 className="text-lg font-bold mb-4">Type de membre</h3>
+                  <h3 className="text-lg font-bold mb-4">{t('members.form.member_type', 'Type de membre')}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'physique' ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm' : 'border-border hover:border-primary/50'}`}>
                       <input type="radio" value="physique" {...methods.register('memberType')} className="sr-only" />
@@ -1097,8 +1103,8 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                         <UserIcon className="h-6 w-6" />
                       </div>
                       <div>
-                        <div className="font-bold text-foreground">Personne Physique</div>
-                        <div className="text-sm text-muted-foreground">Individu, exploitant indépendant</div>
+                        <div className="font-bold text-foreground">{t('members.types.physique', 'Personne Physique')}</div>
+                        <div className="text-sm text-muted-foreground">{t('members.form.physique_desc', 'Individu, exploitant indépendant')}</div>
                       </div>
                     </label>
                     <label className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'morale' ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm' : 'border-border hover:border-primary/50'}`}>
@@ -1107,22 +1113,22 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                         <Building2 className="h-6 w-6" />
                       </div>
                       <div>
-                        <div className="font-bold text-foreground">Personne Morale</div>
-                        <div className="text-sm text-muted-foreground">GIC, Coopérative, Entreprise</div>
+                        <div className="font-bold text-foreground">{t('members.types.morale', 'Personne Morale')}</div>
+                        <div className="text-sm text-muted-foreground">{t('members.form.morale_desc', 'GIC, Coopérative, Entreprise')}</div>
                       </div>
                     </label>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold mb-4">Catégorie d'activité principale</h3>
+                  <h3 className="text-lg font-bold mb-4">{t('members.form.main_activity_category', 'Catégorie d\'activité principale')}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
-                      { id: 'agriculteur', label: 'Agriculteur', icon: Tractor, color: 'text-green-600' },
-                      { id: 'pecheur', label: 'Pêcheur / Aquaculteur', icon: Droplets, color: 'text-blue-500' },
-                      { id: 'eleveur', label: 'Éleveur', icon: Building2, color: 'text-orange-500' },
-                      { id: 'forestier', label: 'Exploitant Forestier', icon: Trees, color: 'text-emerald-700' },
-                      { id: 'artisan', label: 'Artisan', icon: Hammer, color: 'text-purple-500' },
+                      { id: 'agriculteur', label: t('members.categories.agriculteur', 'Agriculteur'), icon: Tractor, color: 'text-green-600' },
+                      { id: 'pecheur', label: t('members.categories.pecheur', 'Pêcheur / Aquaculteur'), icon: Droplets, color: 'text-blue-500' },
+                      { id: 'eleveur', label: t('members.categories.eleveur', 'Éleveur'), icon: Building2, color: 'text-orange-500' },
+                      { id: 'forestier', label: t('members.categories.forestier', 'Exploitant Forestier'), icon: Trees, color: 'text-emerald-700' },
+                      { id: 'artisan', label: t('members.categories.artisan', 'Artisan'), icon: Hammer, color: 'text-purple-500' },
                     ].map(cat => {
                       const style = CATEGORY_STYLES[cat.id];
                       return (
@@ -1152,7 +1158,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
               <div className="space-y-6 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Civilité</label>
+                    <label className="text-sm font-semibold">{t('members.detail.civilite', 'Civilité')}</label>
                     <select {...methods.register('physiqueData.civilite')} className="w-full px-3 py-2 border border-input rounded-md">
                       <option value="M.">M.</option>
                       <option value="Mme.">Mme.</option>
@@ -1160,16 +1166,16 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Nom *</label>
+                    <label className="text-sm font-semibold">{t('members.form.last_name', 'Nom')} *</label>
                     <input type="text" {...methods.register('physiqueData.nom')} className="w-full px-3 py-2 border border-input rounded-md" />
                     {errors.physiqueData?.nom && <p className="text-red-500 text-xs">{errors.physiqueData.nom.message as string}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Prénom</label>
+                    <label className="text-sm font-semibold">{t('members.form.first_name', 'Prénom')}</label>
                     <input type="text" {...methods.register('physiqueData.prenom')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Situation matrimoniale</label>
+                    <label className="text-sm font-semibold">{t('members.detail.matrimonial', 'Situation matrimoniale')}</label>
                     <select {...methods.register('physiqueData.situationMatrimoniale')} className="w-full px-3 py-2 border border-input rounded-md">
                       <option value="Célibataire">Célibataire</option>
                       <option value="Marié(e)">Marié(e)</option>
@@ -1178,15 +1184,15 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Date de naissance</label>
+                    <label className="text-sm font-semibold">{t('members.detail.birth_date', 'Date de naissance')}</label>
                     <input type="date" {...methods.register('physiqueData.dateNaissance')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Lieu de naissance</label>
+                    <label className="text-sm font-semibold">{t('members.detail.birth_place', 'Lieu de naissance')}</label>
                     <input type="text" {...methods.register('physiqueData.lieuNaissance')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Niveau d'études</label>
+                    <label className="text-sm font-semibold">{t('members.detail.education', 'Niveau d\'études')}</label>
                     <select {...methods.register('physiqueData.niveauEtudes')} className="w-full px-3 py-2 border border-input rounded-md">
                       <option value="Autodidacte">Autodidacte</option>
                       <option value="Primaire">Primaire</option>
@@ -1194,28 +1200,28 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       <option value="Secondaire">Secondaire</option>
                       <option value="Universitaire">Universitaire</option>
                       <option value="Doctorat">Doctorat</option>
-                      <option value="Autres">Autres</option>
+                      <option value="Autres">{t('common.other', 'Autres')}</option>
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Téléphone Principal (WhatsApp)</label>
+                    <label className="text-sm font-semibold">{t('members.form.phone_primary_whatsapp', 'Téléphone Principal (WhatsApp)')}</label>
                     <input type="tel" {...methods.register('physiqueData.telephone1')} className="w-full px-3 py-2 border border-input rounded-md" />
-                    <p className="text-xs text-muted-foreground mt-1">Ce numéro doit être joignable sur WhatsApp — il sera utilisé pour le groupe des membres.</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('members.form.whatsapp_hint', 'Ce numéro doit être joignable sur WhatsApp — il sera utilisé pour le groupe des membres.')}</p>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Téléphone 2 (optionnel)</label>
+                    <label className="text-sm font-semibold">{t('members.form.phone_secondary', 'Téléphone 2 (optionnel)')}</label>
                     <input type="tel" {...methods.register('physiqueData.telephone2')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Email (optionnel)</label>
+                    <label className="text-sm font-semibold">{t('members.form.email_optional', 'Email (optionnel)')}</label>
                     <input type="email" {...methods.register('physiqueData.email')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Téléphone personne à contacter (optionnel)</label>
+                    <label className="text-sm font-semibold">{t('members.form.contact_phone_optional', 'Téléphone personne à contacter (optionnel)')}</label>
                     <input type="tel" {...methods.register('physiqueData.telephonePersonneAContacter')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-semibold">N° CNI</label>
+                    <label className="text-sm font-semibold">{t('users.form.cni_number', 'N° CNI')}</label>
                     <input type="text" {...methods.register('physiqueData.numeroCni')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
 
@@ -1226,7 +1232,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       control={methods.control}
                       render={({ field }) => (
                         <ImageUploadField
-                          label="Photo du membre"
+                          label={t('members.form.member_photo', 'Photo du membre')}
                           value={field.value}
                           onChange={field.onChange}
                         />
@@ -1237,7 +1243,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       control={methods.control}
                       render={({ field }) => (
                         <ImageUploadField
-                          label="Photo CNI recto"
+                          label={t('members.detail.cni_recto', 'Photo CNI recto')}
                           value={field.value}
                           onChange={field.onChange}
                         />
@@ -1248,7 +1254,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       control={methods.control}
                       render={({ field }) => (
                         <ImageUploadField
-                          label="Photo CNI verso"
+                          label={t('members.detail.cni_verso', 'Photo CNI verso')}
                           value={field.value}
                           onChange={field.onChange}
                         />
@@ -1278,43 +1284,43 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
               <div className="space-y-6 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Région</label>
+                    <label className="text-sm font-semibold">{t('members.filters.region', 'Région')}</label>
                     <select {...methods.register('regionId')} className="w-full px-3 py-2 border border-input rounded-md">
-                      <option value="">Sélectionnez...</option>
+                      <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
                       {regions.data?.map(r => (
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Département</label>
+                    <label className="text-sm font-semibold">{t('members.filters.department', 'Département')}</label>
                     <select {...methods.register('departmentId')} disabled={!selectedRegion} className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted">
-                      <option value="">Sélectionnez...</option>
+                      <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
                       {departments.data?.map(d => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Arrondissement</label>
+                    <label className="text-sm font-semibold">{t('members.filters.arrondissement', 'Arrondissement')}</label>
                     <select {...methods.register('arrondissementId')} disabled={!selectedDept} className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted">
-                      <option value="">Sélectionnez...</option>
+                      <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
                       {arrondissements.data?.map(a => (
                         <option key={a.id} value={a.id}>{a.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold">Village / Quartier</label>
+                    <label className="text-sm font-semibold">{t('members.detail.village', 'Village / Quartier')}</label>
                     <input type="text" {...methods.register('village')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                 </div>
 
                 <div className="p-4 bg-muted/20 border border-border rounded-lg">
-                  <h4 className="font-semibold flex items-center gap-2 mb-2"><MapPin className="h-4 w-4" /> Coordonnées GPS</h4>
+                  <h4 className="font-semibold flex items-center gap-2 mb-2"><MapPin className="h-4 w-4" /> {t('members.form.gps_coords', 'Coordonnées GPS')}</h4>
                   <div className="flex gap-4 items-center">
                     <button type="button" onClick={getGPS} className="px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded hover:bg-secondary/90 transition-colors">
-                      Capturer la position
+                      {t('members.form.capture_location', 'Capturer la position')}
                     </button>
                     <div className="text-sm text-muted-foreground">
                       Lat: {watch('gpsLat') || '---'} | Lng: {watch('gpsLng') || '---'}
@@ -1327,16 +1333,16 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
             {/* STEP 4: CATEGORY DATA */}
             {step === 4 && (
               <div className="space-y-6 animate-in fade-in">
-                <p className="text-muted-foreground mb-6">Saisissez les informations spécifiques à l'activité de l'acteur.</p>
+                <p className="text-muted-foreground mb-6">{t('members.form.specific_activity_desc', 'Saisissez les informations spécifiques à l\'activité de l\'acteur.')}</p>
 
                 {category === 'agriculteur' && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Superficie totale exploitée (ha)</label>
+                      <label className="text-sm font-semibold">{t('members.form.total_farmed_area', 'Superficie totale exploitée (ha)')}</label>
                       <input type="number" step="0.01" {...methods.register('categoryData.superficie')} className="w-full md:w-1/2 px-3 py-2 border border-input rounded-md" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Cultures principales</label>
+                      <label className="text-sm font-semibold">{t('members.form.main_crops', 'Cultures principales')}</label>
                       <input type="text" placeholder="Ex: Cacao, Maïs..." {...methods.register('categoryData.cultures')} className="w-full px-3 py-2 border border-input rounded-md" />
                     </div>
                   </div>
@@ -1345,11 +1351,11 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 {category === 'eleveur' && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Types d'élevage</label>
+                      <label className="text-sm font-semibold">{t('members.form.livestock_types', 'Types d\'élevage')}</label>
                       <input type="text" placeholder="Ex: Volailles, Bovins..." {...methods.register('categoryData.types')} className="w-full px-3 py-2 border border-input rounded-md" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Taille du cheptel estimée</label>
+                      <label className="text-sm font-semibold">{t('members.form.estimated_cheptel', 'Taille du cheptel estimée')}</label>
                       <input type="number" {...methods.register('categoryData.taille')} className="w-full md:w-1/2 px-3 py-2 border border-input rounded-md" />
                     </div>
                   </div>
@@ -1359,7 +1365,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 {['pecheur', 'forestier', 'artisan'].includes(category) && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold">Description de l'activité</label>
+                      <label className="text-sm font-semibold">{t('members.form.activity_desc', 'Description de l\'activité')}</label>
                       <textarea rows={4} {...methods.register('categoryData.description')} className="w-full px-3 py-2 border border-input rounded-md"></textarea>
                     </div>
                   </div>
@@ -1375,7 +1381,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
               onClick={() => setStep(s => Math.max(1, s - 1))}
               className={`px-4 py-2 font-semibold rounded-md flex items-center gap-2 ${step === 1 ? 'invisible' : 'text-muted-foreground hover:bg-muted'}`}
             >
-              <ChevronLeft className="h-4 w-4" /> Retour
+              <ChevronLeft className="h-4 w-4" /> {t('common.previous', 'Retour')}
             </button>
 
             {step < 4 ? (
@@ -1384,7 +1390,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 onClick={() => setStep(s => Math.min(4, s + 1))}
                 className="px-6 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow flex items-center gap-2 hover:bg-primary/90"
               >
-                Suivant <ChevronRight className="h-4 w-4" />
+                {t('common.next', 'Suivant')} <ChevronRight className="h-4 w-4" />
               </button>
             ) : (
               <button
@@ -1392,7 +1398,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 disabled={isSubmitting}
                 className="px-6 py-2 bg-primary text-primary-foreground font-bold rounded-md shadow flex items-center gap-2 hover:bg-primary/90 disabled:opacity-50"
               >
-                {isSubmitting ? 'Enregistrement...' : <><Save className="h-4 w-4" /> {submitLabel || 'Terminer'}</>}
+                {isSubmitting ? t('common.saving', 'Enregistrement...') : <><Save className="h-4 w-4" /> {submitLabel || t('common.finish', 'Terminer')}</>}
               </button>
             )}
           </div>

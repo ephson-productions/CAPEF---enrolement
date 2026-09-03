@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useListMembers, useListUsers, exportMembers } from '@workspace/api-client-react';
 import type { ListMembersCategory, ListMembersMemberType, ListMembersStatus, ListMembersRepresentantGenre } from '@workspace/api-client-react';
 import { Link } from 'wouter';
-import { useEffect } from 'react';
 import {
   Search, Download, Plus, FileText, ChevronLeft, ChevronRight, User as UserIcon, Building2, Eye, Edit, MapPin
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS } from 'date-fns/locale';
 import { useAuthContext } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslation } from 'react-i18next';
 
 export default function MembersList() {
+  const { t, i18n } = useTranslation();
   const { isAdmin, isSupervisor } = useAuthContext();
   const { toast } = useToast();
   const [page, setPage] = useState(1);
@@ -21,6 +22,8 @@ export default function MembersList() {
   const [status, setStatus] = useState<ListMembersStatus | undefined>();
   const [agentId, setAgentId] = useState<number | undefined>(undefined);
   const [representantGenre, setRepresentantGenre] = useState<ListMembersRepresentantGenre | undefined>();
+
+  const dateLocale = i18n.language.startsWith('en') ? enUS : fr;
 
   // Reset representation filter if memberType is physique
   useEffect(() => {
@@ -62,7 +65,6 @@ export default function MembersList() {
         downloadUrl = window.URL.createObjectURL(result);
         shouldRevoke = true;
       } else {
-        // Fallback for any raw/string contents
         const blob = new Blob([result as any], { type: 'text/csv;charset=utf-8;' });
         downloadUrl = window.URL.createObjectURL(blob);
         shouldRevoke = true;
@@ -81,8 +83,8 @@ export default function MembersList() {
     } catch (err) {
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: "Impossible d'exporter les membres. Veuillez réessayer."
+        title: t('common.error', 'Erreur'),
+        description: t('members.export_error', "Impossible d'exporter les membres. Veuillez réessayer.")
       });
     } finally {
       setIsExporting(false);
@@ -115,8 +117,8 @@ export default function MembersList() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Registre des Membres</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gérez les acteurs agropastoraux enregistrés.</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('members.title', 'Registre des Membres')}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t('members.subtitle', 'Gérez les acteurs agropastoraux enregistrés.')}</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
@@ -125,14 +127,14 @@ export default function MembersList() {
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exporter CSV</span>
+            <span className="hidden sm:inline">{t('members.export_csv', 'Exporter CSV')}</span>
           </button>
           <Link
             href="/members/new"
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            <span>Nouveau</span>
+            <span>{t('members.new_member', 'Nouveau')}</span>
           </Link>
         </div>
       </div>
@@ -144,7 +146,7 @@ export default function MembersList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Rechercher (Nom, N° Membre...)"
+              placeholder={t('members.search_placeholder', 'Rechercher (Nom, N° Membre...)')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all text-sm"
@@ -156,9 +158,9 @@ export default function MembersList() {
             onChange={(e) => setMemberType(e.target.value ? e.target.value as ListMembersMemberType : undefined)}
             className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
           >
-            <option value="">Tous les types</option>
-            <option value="physique">Personne Physique</option>
-            <option value="morale">Personne Morale</option>
+            <option value="">{t('members.filters.all_types', 'Tous les types')}</option>
+            <option value="physique">{t('members.types.physique', 'Personne Physique')}</option>
+            <option value="morale">{t('members.types.morale', 'Personne Morale')}</option>
           </select>
 
           <select
@@ -166,12 +168,12 @@ export default function MembersList() {
             onChange={(e) => setCategory(e.target.value ? e.target.value as ListMembersCategory : undefined)}
             className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
           >
-            <option value="">Toutes les catégories</option>
-            <option value="agriculteur">Agriculteur</option>
-            <option value="pecheur">Pêcheur</option>
-            <option value="eleveur">Élever</option>
-            <option value="forestier">Exploitant Forestier</option>
-            <option value="artisan">Artisan</option>
+            <option value="">{t('members.filters.all_categories', 'Toutes les catégories')}</option>
+            <option value="agriculteur">{t('members.categories.agriculteur', 'Agriculteur')}</option>
+            <option value="pecheur">{t('members.categories.pecheur', 'Pêcheur')}</option>
+            <option value="eleveur">{t('members.categories.eleveur', 'Éleveur')}</option>
+            <option value="forestier">{t('members.categories.forestier', 'Exploitant Forestier')}</option>
+            <option value="artisan">{t('members.categories.artisan', 'Artisan')}</option>
           </select>
 
           <select
@@ -179,12 +181,12 @@ export default function MembersList() {
             onChange={(e) => setStatus(e.target.value ? e.target.value as ListMembersStatus : undefined)}
             className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
           >
-            <option value="">Tous les statuts</option>
-            <option value="incomplet">Incomplet</option>
-            <option value="en_attente">En attente</option>
-            <option value="valide">Validé</option>
-            <option value="desactive">Désactivé</option>
-            <option value="bloque">Bloqué</option>
+            <option value="">{t('members.filters.all_statuses', 'Tous les statuts')}</option>
+            <option value="incomplet">{t('members.status.incomplet', 'Incomplet')}</option>
+            <option value="en_attente">{t('members.status.en_attente', 'En attente')}</option>
+            <option value="valide">{t('members.status.valide', 'Validé')}</option>
+            <option value="desactive">{t('members.status.desactive', 'Désactivé')}</option>
+            <option value="bloque">{t('members.status.bloque', 'Bloqué')}</option>
           </select>
 
           {memberType !== 'physique' && (
@@ -193,9 +195,9 @@ export default function MembersList() {
               onChange={(e) => setRepresentantGenre(e.target.value ? e.target.value as ListMembersRepresentantGenre : undefined)}
               className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm animate-in fade-in"
             >
-              <option value="">Tous les types de représentation</option>
-              <option value="femme">Représentée par une femme</option>
-              <option value="homme">Représentée par un homme</option>
+              <option value="">{t('members.filters.all_representations', 'Tous les types de représentation')}</option>
+              <option value="femme">{t('members.filters.represented_by_woman', 'Représentée par une femme')}</option>
+              <option value="homme">{t('members.filters.represented_by_man', 'Représentée par un homme')}</option>
             </select>
           )}
 
@@ -205,7 +207,7 @@ export default function MembersList() {
               onChange={(e) => setAgentId(e.target.value ? parseInt(e.target.value, 10) : undefined)}
               className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
             >
-              <option value="">Tous les agents</option>
+              <option value="">{t('members.filters.all_agents', 'Tous les agents')}</option>
               {users?.map(u => (
                 <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
               ))}
@@ -218,13 +220,13 @@ export default function MembersList() {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground bg-muted/30 uppercase border-b border-border">
               <tr>
-                <th className="px-6 py-3 font-semibold">Membre</th>
-                <th className="px-6 py-3 font-semibold">N° Matricule</th>
-                <th className="px-6 py-3 font-semibold">Catégorie</th>
-                <th className="px-6 py-3 font-semibold">Statut</th>
-                <th className="px-6 py-3 font-semibold">Localisation</th>
-                <th className="px-6 py-3 font-semibold">Date</th>
-                <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                <th className="px-6 py-3 font-semibold">{t('members.table.member', 'Membre')}</th>
+                <th className="px-6 py-3 font-semibold">{t('members.table.member_number', 'N° Matricule')}</th>
+                <th className="px-6 py-3 font-semibold">{t('members.table.category', 'Catégorie')}</th>
+                <th className="px-6 py-3 font-semibold">{t('members.table.status', 'Statut')}</th>
+                <th className="px-6 py-3 font-semibold">{t('members.table.location', 'Localisation')}</th>
+                <th className="px-6 py-3 font-semibold">{t('members.table.date', 'Date')}</th>
+                <th className="px-6 py-3 font-semibold text-right">{t('common.actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -244,8 +246,8 @@ export default function MembersList() {
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                     <FileText className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                    <p className="text-base font-medium">Aucun membre trouvé.</p>
-                    <p className="text-sm">Essayez de modifier vos filtres de recherche.</p>
+                    <p className="text-base font-medium">{t('members.no_members_found', 'Aucun membre trouvé.')}</p>
+                    <p className="text-sm">{t('members.try_changing_filters', 'Essayez de modifier vos filtres de recherche.')}</p>
                   </td>
                 </tr>
               ) : (
@@ -259,7 +261,7 @@ export default function MembersList() {
                         <div>
                           <div className="font-medium text-foreground">{member.displayName}</div>
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            {member.memberType === 'physique' ? 'Pers. Physique' : 'Pers. Morale'}
+                            {member.memberType === 'physique' ? t('members.types.physique_short', 'Pers. Physique') : t('members.types.morale_short', 'Pers. Morale')}
                           </div>
                         </div>
                       </div>
@@ -267,36 +269,36 @@ export default function MembersList() {
                     <td className="px-6 py-4 font-mono text-xs">{member.memberNumber}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold border ${getCategoryColor(member.category)} capitalize`}>
-                        {member.category}
+                        {t(`members.categories.${member.category}`, member.category)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeColor(member.status)} capitalize`}>
-                        {member.status}
+                        {t(`members.status.${member.status}`, member.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5" />
-                        <span className="truncate max-w-[120px]">{member.regionName || 'Non défini'}</span>
+                        <span className="truncate max-w-[120px]">{member.regionName || t('common.not_defined', 'Non défini')}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {format(new Date(member.createdAt), 'dd MMM yyyy', { locale: fr })}
+                      {format(new Date(member.createdAt), 'dd MMM yyyy', { locale: dateLocale })}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/members/${member.id}`}
                           className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-                          title="Voir les détails"
+                          title={t('common.view_details', 'Voir les détails')}
                         >
                           <Eye className="h-4 w-4" />
                         </Link>
                         <Link
                           href={`/members/${member.id}/edit`}
                           className="p-1.5 text-muted-foreground hover:text-secondary-foreground hover:bg-secondary/20 rounded-md transition-colors"
-                          title="Modifier"
+                          title={t('common.edit', 'Modifier')}
                         >
                           <Edit className="h-4 w-4" />
                         </Link>
@@ -313,7 +315,11 @@ export default function MembersList() {
         {!isLoading && data && data.total > 0 && (
           <div className="p-4 border-t border-border bg-muted/10 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              Affichage de {((page - 1) * data.limit) + 1} à {Math.min(page * data.limit, data.total)} sur {data.total}
+              {t('common.pagination_info', 'Affichage de {{from}} à {{to}} sur {{total}}', {
+                from: ((page - 1) * data.limit) + 1,
+                to: Math.min(page * data.limit, data.total),
+                total: data.total
+              })}
             </span>
             <div className="flex gap-1">
               <button
