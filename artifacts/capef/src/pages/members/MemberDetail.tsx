@@ -12,7 +12,7 @@ import {
 } from '@workspace/api-client-react';
 import { useRoute, Link } from 'wouter';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS } from 'date-fns/locale';
 import {
   ArrowLeft, Edit, FileBadge, MapPin, Phone, Mail, Building, User, Tag, FileText, CheckSquare, Plus,
   CheckCircle, XCircle, RotateCcw, AlertOctagon
@@ -20,12 +20,16 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
 import ActivityWizard from '@/components/members/ActivityWizard';
+import { useTranslation } from 'react-i18next';
 
 export default function MemberDetail() {
+  const { t, i18n } = useTranslation();
   const [, params] = useRoute('/members/:id');
   const id = Number(params?.id);
   const { toast } = useToast();
   const { isAdmin } = useAuthContext();
+
+  const dateLocale = i18n.language.startsWith('en') ? enUS : fr;
 
   const { data: member, isLoading, error, refetch: refetchMember } = useGetMember(id, {
     query: { enabled: !!id, queryKey: ['member', id] }
@@ -78,22 +82,22 @@ export default function MemberDetail() {
     try {
       if (action === 'validate') {
         await validateMutation.mutateAsync({ id });
-        toast({ title: 'Succès', description: 'Membre validé.' });
+        toast({ title: t('common.success', 'Succès'), description: t('members.toast.validated', 'Membre validé.') });
       } else if (action === 'deactivate') {
         await deactivateMutation.mutateAsync({ id });
-        toast({ title: 'Succès', description: 'Membre désactivé.' });
+        toast({ title: t('common.success', 'Succès'), description: t('members.toast.deactivated', 'Membre désactivé.') });
       } else if (action === 'reactivate') {
         await reactivateMutation.mutateAsync({ id });
-        toast({ title: 'Succès', description: 'Membre réactivé.' });
+        toast({ title: t('common.success', 'Succès'), description: t('members.toast.reactivated', 'Membre réactivé.') });
       } else if (action === 'block') {
-        if (confirm('Êtes-vous sûr de vouloir bloquer ce membre définitivement ? Cette action est irréversible.')) {
+        if (confirm(t('members.confirm_block', 'Êtes-vous sûr de vouloir bloquer ce membre définitivement ? Cette action est irréversible.'))) {
           await blockMutation.mutateAsync({ id });
-          toast({ title: 'Succès', description: 'Membre bloqué définitivement.' });
+          toast({ title: t('common.success', 'Succès'), description: t('members.toast.blocked', 'Membre bloqué définitivement.') });
         }
       }
       refetchMember();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err?.response?.data?.error || 'Une erreur est survenue.' });
+      toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: err?.response?.data?.error || t('common.error_occurred', 'Une erreur est survenue.') });
     }
   };
 
@@ -113,7 +117,7 @@ export default function MemberDetail() {
         const objectUrl = URL.createObjectURL(blob);
 
         window.open(objectUrl, '_blank');
-        toast({ title: 'Badge généré', description: 'Le badge a été ouvert dans un nouvel onglet.' });
+        toast({ title: t('badge.generated_title', 'Badge généré'), description: t('badge.generated_desc', 'Le badge a été ouvert dans un nouvel onglet.') });
 
         // Cleanup the object URL to avoid memory leaks
         setTimeout(() => {
@@ -121,16 +125,16 @@ export default function MemberDetail() {
         }, 5000);
       }
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de générer le badge.' });
+      toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('badge.failed_desc', 'Impossible de générer le badge.') });
     }
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground animate-pulse">Chargement des détails...</div>;
+    return <div className="p-8 text-center text-muted-foreground animate-pulse">{t('common.loading', 'Chargement des détails...')}</div>;
   }
 
   if (error || !member) {
-    return <div className="p-8 text-center text-destructive font-bold">Membre introuvable.</div>;
+    return <div className="p-8 text-center text-destructive font-bold">{t('members.not_found', 'Membre introuvable.')}</div>;
   }
 
   if (showWizard) {
@@ -143,7 +147,7 @@ export default function MemberDetail() {
           }}
           className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium mb-4"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" /> Retour au profil
+          <ArrowLeft className="h-4 w-4 mr-2" /> {t('members.back_to_profile', 'Retour au profil')}
         </button>
         <ActivityWizard memberId={id} onComplete={() => {
           setShowWizard(false);
@@ -183,7 +187,7 @@ export default function MemberDetail() {
       {/* Header Actions */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <Link href="/members" className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium">
-          <ArrowLeft className="h-4 w-4 mr-2" /> Retour à la liste
+          <ArrowLeft className="h-4 w-4 mr-2" /> {t('users.back_to_list', 'Retour à la liste')}
         </Link>
         <div className="flex gap-2 flex-wrap">
           {isAdmin && (
@@ -193,7 +197,7 @@ export default function MemberDetail() {
                   onClick={() => handleStatusAction('validate')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-colors"
                 >
-                  <CheckCircle className="h-3.5 w-3.5" /> Valider
+                  <CheckCircle className="h-3.5 w-3.5" /> {t('members.actions.validate', 'Valider')}
                 </button>
               )}
               {member.status === 'valide' && (
@@ -201,7 +205,7 @@ export default function MemberDetail() {
                   onClick={() => handleStatusAction('deactivate')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-600 text-white text-xs font-semibold rounded hover:bg-yellow-700 transition-colors"
                 >
-                  <XCircle className="h-3.5 w-3.5" /> Désactiver
+                  <XCircle className="h-3.5 w-3.5" /> {t('members.actions.deactivate', 'Désactiver')}
                 </button>
               )}
               {member.status === 'desactive' && (
@@ -209,7 +213,7 @@ export default function MemberDetail() {
                   onClick={() => handleStatusAction('reactivate')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-colors"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" /> Réactiver
+                  <RotateCcw className="h-3.5 w-3.5" /> {t('members.actions.reactivate', 'Réactiver')}
                 </button>
               )}
               {member.status !== 'bloque' && (
@@ -217,7 +221,7 @@ export default function MemberDetail() {
                   onClick={() => handleStatusAction('block')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors"
                 >
-                  <AlertOctagon className="h-3.5 w-3.5" /> Bloquer
+                  <AlertOctagon className="h-3.5 w-3.5" /> {t('members.actions.block', 'Bloquer')}
                 </button>
               )}
             </div>
@@ -228,7 +232,7 @@ export default function MemberDetail() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Saisir Activité (Wizard)
+            {t('activities.add_activity_wizard', 'Saisir Activité (Wizard)')}
           </button>
           <button
             onClick={handleGenerateBadge}
@@ -236,13 +240,13 @@ export default function MemberDetail() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors disabled:opacity-50"
           >
             <FileBadge className="h-4 w-4" />
-            {generateBadge.isPending ? 'Génération...' : 'Générer Badge'}
+            {generateBadge.isPending ? t('badge.generating', 'Génération...') : t('badge.generate_btn', 'Générer Badge')}
           </button>
           <Link
             href={`/members/${member.id}/edit`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-semibold rounded-md hover:bg-primary/20 transition-colors"
           >
-            <Edit className="h-4 w-4" /> Modifier
+            <Edit className="h-4 w-4" /> {t('common.edit', 'Modifier')}
           </Link>
         </div>
       </div>
@@ -266,15 +270,15 @@ export default function MemberDetail() {
                 : (info as any)?.nom}
             </h1>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getCategoryColor(member.category)} capitalize self-center md:self-auto`}>
-              {member.category}
+              {t(`members.categories.${member.category}`, member.category)}
             </span>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadgeColor(member.status)} capitalize self-center md:self-auto`}>
-              Statut: {member.status}
+              {t('members.detail.status_label', 'Statut:')} {t(`members.status.${member.status}`, member.status)}
             </span>
           </div>
           <p className="text-muted-foreground font-mono text-lg mb-4">{member.memberNumber}</p>
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {member.regionName || 'Région non définie'}</div>
+            <div className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {member.regionName || t('members.detail.region_not_defined', 'Région non définie')}</div>
             {isPhysique && (info as any)?.telephone1 && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4" /> {(info as any).telephone1}</div>}
             {isPhysique && (info as any)?.email && <div className="flex items-center gap-1.5"><Mail className="h-4 w-4" /> {(info as any).email}</div>}
             {!isPhysique && (info as any)?.telephone1 && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4" /> {(info as any).telephone1}</div>}
@@ -289,7 +293,7 @@ export default function MemberDetail() {
             <div className="px-6 py-4 border-b border-border bg-muted/20">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
                 <CheckSquare className="h-5 w-5 text-primary" />
-                Activités & Productions ({member.activities.length})
+                {t('activities.title_with_count', 'Activités & Productions ({{count}})', { count: member.activities.length })}
               </h3>
             </div>
             <div className="p-6 space-y-6 divide-y divide-border">
@@ -297,9 +301,9 @@ export default function MemberDetail() {
                 <div key={act.id} className="pt-4 first:pt-0 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-bold capitalize text-primary text-base">
-                      {act.activityType} {act.isPrimary && <span className="text-xs bg-yellow-500/10 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full ml-1">Principale</span>}
+                      {t(`members.categories.${act.activityType}`, act.activityType)} {act.isPrimary && <span className="text-xs bg-yellow-500/10 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full ml-1">{t('activities.primary_tag', 'Principale')}</span>}
                     </span>
-                    <span className="text-xs text-muted-foreground">Saisie le {format(new Date(act.createdAt || ''), 'dd/MM/yyyy')}</span>
+                    <span className="text-xs text-muted-foreground">{t('activities.entered_on', 'Saisie le {{date}}', { date: format(new Date(act.createdAt || ''), 'dd/MM/yyyy') })}</span>
                   </div>
 
                   {act.maillons && act.maillons.length > 0 && (
@@ -314,16 +318,16 @@ export default function MemberDetail() {
                     <table className="w-full text-xs text-left">
                       <thead className="bg-muted text-muted-foreground font-semibold">
                         <tr>
-                          <th className="p-2">Détails</th>
-                          <th className="p-2">Spécificités</th>
-                          <th className="p-2">Production (Qté / Unité)</th>
-                          <th className="p-2 text-right">Valeur (FCFA)</th>
+                          <th className="p-2">{t('activities.table.details', 'Détails')}</th>
+                          <th className="p-2">{t('activities.table.specifics', 'Spécificités')}</th>
+                          <th className="p-2">{t('activities.table.production', 'Production (Qté / Unité)')}</th>
+                          <th className="p-2 text-right">{t('activities.table.value', 'Valeur (FCFA)')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {act.lineItems?.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="p-4 text-center text-muted-foreground">Aucune ligne d'activité.</td>
+                            <td colSpan={4} className="p-4 text-center text-muted-foreground">{t('activities.no_line_items', 'Aucune ligne d\'activité.')}</td>
                           </tr>
                         ) : (
                           act.lineItems?.map(item => (
@@ -362,38 +366,38 @@ export default function MemberDetail() {
           <div className="px-6 py-4 border-b border-border bg-muted/20">
             <h3 className="font-bold flex items-center gap-2 text-foreground">
               {isPhysique ? <User className="h-5 w-5 text-primary" /> : <Building className="h-5 w-5 text-primary" />}
-              Informations {isPhysique ? 'Personnelles' : 'de l\'Organisation'}
+              {isPhysique ? t('members.detail.personal_info', 'Informations Personnelles') : t('members.detail.org_info', 'Informations de l\'Organisation')}
             </h3>
           </div>
           <div className="p-6">
             <dl className="space-y-4 text-sm">
               {isPhysique ? (
                 <>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Civilité</dt><dd className="col-span-2 font-medium">{(info as any)?.civilite || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Sit. Matrimoniale</dt><dd className="col-span-2 font-medium">{(info as any)?.situationMatrimoniale || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Date de naiss.</dt><dd className="col-span-2 font-medium">{(info as any)?.dateNaissance || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Lieu de naiss.</dt><dd className="col-span-2 font-medium">{(info as any)?.lieuNaissance || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">N° CNI</dt><dd className="col-span-2 font-medium">{(info as any)?.numeroCni || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Lieu de rés.</dt><dd className="col-span-2 font-medium">{(info as any)?.lieuResidence || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Niveau d'études</dt><dd className="col-span-2 font-medium">{(info as any)?.niveauEtudes || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Principal (WhatsApp)</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone1 || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Secondaire</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone2 || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Email</dt><dd className="col-span-2 font-medium">{(info as any)?.email || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Personne à contacter</dt><dd className="col-span-2 font-medium">{(info as any)?.telephonePersonneAContacter || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.civilite', 'Civilité')}</dt><dd className="col-span-2 font-medium">{(info as any)?.civilite || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.matrimonial', 'Sit. Matrimoniale')}</dt><dd className="col-span-2 font-medium">{(info as any)?.situationMatrimoniale || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.birth_date', 'Date de naiss.')}</dt><dd className="col-span-2 font-medium">{(info as any)?.dateNaissance || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.birth_place', 'Lieu de naiss.')}</dt><dd className="col-span-2 font-medium">{(info as any)?.lieuNaissance || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('users.form.cni_number', 'N° CNI')}</dt><dd className="col-span-2 font-medium">{(info as any)?.numeroCni || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.residence', 'Lieu de rés.')}</dt><dd className="col-span-2 font-medium">{(info as any)?.lieuResidence || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.education', 'Niveau d\'études')}</dt><dd className="col-span-2 font-medium">{(info as any)?.niveauEtudes || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.phone_primary', 'Tél. Principal (WhatsApp)')}</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone1 || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.phone_secondary', 'Tél. Secondaire')}</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone2 || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('users.form.email', 'Email')}</dt><dd className="col-span-2 font-medium">{(info as any)?.email || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.contact_phone', 'Tél. Personne à contacter')}</dt><dd className="col-span-2 font-medium">{(info as any)?.telephonePersonneAContacter || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">BP</dt><dd className="col-span-2 font-medium">{(info as any)?.boitePostale || '-'}</dd></div>
                 </>
               ) : (
                 <>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Type</dt><dd className="col-span-2 font-medium">{(info as any)?.typeOrganisation || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">N° Immat.</dt><dd className="col-span-2 font-medium">{(info as any)?.numeroImmatriculation || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Date Immat.</dt><dd className="col-span-2 font-medium">{(info as any)?.dateImmatriculation || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Principal</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone1 || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Tél. Secondaire</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone2 || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Email</dt><dd className="col-span-2 font-medium">{(info as any)?.email || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.registration_number', 'N° Immat.')}</dt><dd className="col-span-2 font-medium">{(info as any)?.numeroImmatriculation || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.registration_date', 'Date Immat.')}</dt><dd className="col-span-2 font-medium">{(info as any)?.dateImmatriculation || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.phone_primary', 'Tél. Principal')}</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone1 || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.phone_secondary', 'Tél. Secondaire')}</dt><dd className="col-span-2 font-medium">{(info as any)?.telephone2 || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('users.form.email', 'Email')}</dt><dd className="col-span-2 font-medium">{(info as any)?.email || '-'}</dd></div>
                   <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">BP</dt><dd className="col-span-2 font-medium">{(info as any)?.boitePostale || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Site Web</dt><dd className="col-span-2 font-medium">{(info as any)?.website || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Nbr. Membres</dt><dd className="col-span-2 font-medium">{(info as any)?.nombreMembres || '-'}</dd></div>
-                  <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">Nbr. Femmes</dt><dd className="col-span-2 font-medium">{(info as any)?.nombreFemmes ?? '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.website', 'Site Web')}</dt><dd className="col-span-2 font-medium">{(info as any)?.website || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.members_count', 'Nbr. Membres')}</dt><dd className="col-span-2 font-medium">{(info as any)?.nombreMembres || '-'}</dd></div>
+                  <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">{t('members.detail.women_count', 'Nbr. Femmes')}</dt><dd className="col-span-2 font-medium">{(info as any)?.nombreFemmes ?? '-'}</dd></div>
                 </>
               )}
             </dl>
@@ -406,7 +410,7 @@ export default function MemberDetail() {
             <div className="px-6 py-4 border-b border-border bg-muted/20">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
                 <User className="h-5 w-5 text-primary" />
-                Représentants de l'Organisation
+                {t('members.detail.org_representatives', 'Représentants de l\'Organisation')}
               </h3>
             </div>
             <div className="p-6 space-y-6">
@@ -414,20 +418,20 @@ export default function MemberDetail() {
                 <div key={idx} className="border-b border-border/50 pb-6 last:border-0 last:pb-0">
                   <h4 className="font-bold text-foreground mb-3 text-sm flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-primary inline-block"></span>
-                    Représentant {rep.ordre || idx + 1} — {rep.civilite} {rep.nom} {rep.prenom}
+                    {t('members.detail.representative_num', 'Représentant {{num}}', { num: rep.ordre || idx + 1 })} — {rep.civilite} {rep.nom} {rep.prenom}
                   </h4>
                   <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                    <div><dt className="text-muted-foreground inline">Profession: </dt><dd className="inline font-medium">{rep.profession || '-'}</dd></div>
-                    <div><dt className="text-muted-foreground inline">Fonction: </dt><dd className="inline font-medium">{rep.fonction || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.detail.profession', 'Profession')}: </dt><dd className="inline font-medium">{rep.profession || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.detail.function', 'Fonction')}: </dt><dd className="inline font-medium">{rep.fonction || '-'}</dd></div>
                     <div><dt className="text-muted-foreground inline">Tél. 1: </dt><dd className="inline font-medium">{rep.telephone1 || '-'}</dd></div>
                     <div><dt className="text-muted-foreground inline">Tél. 2: </dt><dd className="inline font-medium">{rep.telephone2 || '-'}</dd></div>
                     <div><dt className="text-muted-foreground inline">Email: </dt><dd className="inline font-medium">{rep.email || '-'}</dd></div>
                     <div><dt className="text-muted-foreground inline">BP: </dt><dd className="inline font-medium">{rep.boitePostale || '-'}</dd></div>
-                    <div><dt className="text-muted-foreground inline">Région: </dt><dd className="inline font-medium">{regionNameById[rep.regionId] || '-'}</dd></div>
-                    <div><dt className="text-muted-foreground inline">Département: </dt><dd className="inline font-medium">{departmentNameById[rep.departmentId] || '-'}</dd></div>
-                    <div><dt className="text-muted-foreground inline">Arrondissement: </dt><dd className="inline font-medium">{arrondissementNameById[rep.arrondissementId] || '-'}</dd></div>
-                    <div><dt className="text-muted-foreground inline">Village/Quartier: </dt><dd className="inline font-medium">{rep.village || '-'}</dd></div>
-                    <div className="sm:col-span-2"><dt className="text-muted-foreground inline">Adresse détaillée: </dt><dd className="inline font-medium">{rep.adresseDetaillee || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.filters.region', 'Région')}: </dt><dd className="inline font-medium">{regionNameById[rep.regionId] || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.filters.department', 'Département')}: </dt><dd className="inline font-medium">{departmentNameById[rep.departmentId] || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.filters.arrondissement', 'Arrondissement')}: </dt><dd className="inline font-medium">{arrondissementNameById[rep.arrondissementId] || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.detail.village', 'Village/Quartier')}: </dt><dd className="inline font-medium">{rep.village || '-'}</dd></div>
+                    <div className="sm:col-span-2"><dt className="text-muted-foreground inline">{t('members.detail.detailed_address', 'Adresse détaillée')}: </dt><dd className="inline font-medium">{rep.adresseDetaillee || '-'}</dd></div>
                   </dl>
                 </div>
               ))}
@@ -440,16 +444,16 @@ export default function MemberDetail() {
           <div className="px-6 py-4 border-b border-border bg-muted/20">
             <h3 className="font-bold flex items-center gap-2 text-foreground">
               <MapPin className="h-5 w-5 text-primary" />
-              Localisation
+              {t('members.detail.location_title', 'Localisation')}
             </h3>
           </div>
           <div className="p-6">
             <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Région</dt><dd className="col-span-2 font-medium">{member.regionName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Département</dt><dd className="col-span-2 font-medium">{member.departmentName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Arrondissement</dt><dd className="col-span-2 font-medium">{member.arrondissementName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Village/Quartier</dt><dd className="col-span-2 font-medium">{member.village || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">GPS</dt><dd className="col-span-2 font-mono text-xs">{member.gpsLat ? `${member.gpsLat}, ${member.gpsLng}` : 'Non renseigné'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.region', 'Région')}</dt><dd className="col-span-2 font-medium">{member.regionName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.department', 'Département')}</dt><dd className="col-span-2 font-medium">{member.departmentName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.arrondissement', 'Arrondissement')}</dt><dd className="col-span-2 font-medium">{member.arrondissementName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village/Quartier')}</dt><dd className="col-span-2 font-medium">{member.village || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">GPS</dt><dd className="col-span-2 font-mono text-xs">{member.gpsLat ? `${member.gpsLat}, ${member.gpsLng}` : t('common.not_provided', 'Non renseigné')}</dd></div>
             </dl>
           </div>
         </div>
@@ -460,13 +464,13 @@ export default function MemberDetail() {
             <div className="px-6 py-4 border-b border-border bg-muted/20">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
                 <FileText className="h-5 w-5 text-primary" />
-                Documents & Signatures
+                {t('members.detail.documents_and_signatures', 'Documents & Signatures')}
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
               {(info as any)?.cniRectoUrl && (
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">CNI Recto</h4>
+                  <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{t('members.detail.cni_recto', 'CNI Recto')}</h4>
                   <div className="aspect-[3/2] rounded-lg border border-border overflow-hidden bg-muted/20">
                     <img src={(info as any).cniRectoUrl} alt="CNI Recto" className="h-full w-full object-cover" />
                   </div>
@@ -474,7 +478,7 @@ export default function MemberDetail() {
               )}
               {(info as any)?.cniVersoUrl && (
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">CNI Verso</h4>
+                  <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{t('members.detail.cni_verso', 'CNI Verso')}</h4>
                   <div className="aspect-[3/2] rounded-lg border border-border overflow-hidden bg-muted/20">
                     <img src={(info as any).cniVersoUrl} alt="CNI Verso" className="h-full w-full object-cover" />
                   </div>
@@ -482,7 +486,7 @@ export default function MemberDetail() {
               )}
               {(info as any)?.signatureUrl && (
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Signature Tactile</h4>
+                  <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{t('members.detail.touch_signature', 'Signature Tactile')}</h4>
                   <div className="aspect-[3/2] rounded-lg border border-border overflow-hidden bg-white flex items-center justify-center p-2">
                     <img src={(info as any).signatureUrl} alt="Signature" className="max-h-full max-w-full object-contain" />
                   </div>
@@ -498,12 +502,12 @@ export default function MemberDetail() {
             <div className="px-6 py-4 border-b border-border bg-muted/20">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
                 <FileText className="h-5 w-5 text-primary" />
-                Certificat de Conformité
+                {t('members.detail.conformity_cert', 'Certificat de Conformité')}
               </h3>
             </div>
             <div className="p-6">
               <div className="max-w-md space-y-2">
-                <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Certificat</h4>
+                <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{t('members.detail.certificate', 'Certificat')}</h4>
                 <div className="aspect-[3/2] rounded-lg border border-border overflow-hidden bg-muted/20">
                   <img src={(info as any).certificatUrl} alt="Certificat de Conformité" className="h-full w-full object-cover" />
                 </div>
@@ -517,13 +521,13 @@ export default function MemberDetail() {
           <div className="px-6 py-4 border-b border-border bg-muted/20">
             <h3 className="font-bold flex items-center gap-2 text-foreground">
               <Tag className="h-5 w-5 text-primary" />
-              Détails de l'Enrôlement
+              {t('members.detail.enrollment_details', 'Détails de l\'Enrôlement')}
             </h3>
           </div>
           <div className="p-6 grid grid-cols-1 gap-6">
             <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">Enregistré le</dt><dd className="col-span-2 font-medium">{format(new Date(member.createdAt || ''), 'dd MMMM yyyy HH:mm', { locale: fr })}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">Agent</dt><dd className="col-span-2 font-medium">{member.createdByName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.registered_on', 'Enregistré le')}</dt><dd className="col-span-2 font-medium">{format(new Date(member.createdAt || ''), 'dd MMMM yyyy HH:mm', { locale: dateLocale })}</dd></div>
+              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">{t('users.table.agent', 'Agent')}</dt><dd className="col-span-2 font-medium">{member.createdByName || '-'}</dd></div>
             </dl>
           </div>
         </div>

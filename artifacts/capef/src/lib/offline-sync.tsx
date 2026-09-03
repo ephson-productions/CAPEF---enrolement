@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { customFetch, ApiError } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
-import { offlineRepository, OfflineQueueItem } from './offline-repository';
+import { offlineRepository } from './offline-repository';
+import { useTranslation } from 'react-i18next';
 
 type OfflineQueueContextType = {
   isOnline: boolean;
@@ -21,6 +22,7 @@ type OfflineQueueContextType = {
 const OfflineQueueContext = createContext<OfflineQueueContextType | undefined>(undefined);
 
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueCount, setQueueCount] = useState(0);
@@ -36,20 +38,20 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     await offlineRepository.enqueue('create_member', member);
     await updateQueueCount();
     toast({
-      title: 'Enregistré hors ligne',
-      description: 'Les données d\'enrôlement seront synchronisées automatiquement.',
+      title: t('offline.toast.saved_offline_title', 'Enregistré hors ligne'),
+      description: t('offline.toast.saved_offline_desc', 'Les données d\'enrôlement seront synchronisées automatiquement.'),
     });
-  }, [toast, updateQueueCount]);
+  }, [toast, updateQueueCount, t]);
 
   const enqueueActivityAction = useCallback(async (action: any) => {
     const type = action.type;
     await offlineRepository.enqueue(type, action);
     await updateQueueCount();
     toast({
-      title: 'Action enregistrée hors ligne',
-      description: 'L\'activité/production sera synchronisée automatiquement.',
+      title: t('offline.toast.action_saved_title', 'Action enregistrée hors ligne'),
+      description: t('offline.toast.action_saved_desc', 'L\'activité/production sera synchronisée automatiquement.'),
     });
-  }, [toast, updateQueueCount]);
+  }, [toast, updateQueueCount, t]);
 
   const syncNow = useCallback(async () => {
     const pendingItems = await offlineRepository.getPending();
@@ -107,7 +109,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         await offlineRepository.remove(item.id);
         successCount++;
       } catch (err: any) {
-        const errorMsg = err?.message || 'Erreur de synchronisation';
+        const errorMsg = err?.message || t('offline.sync_error', 'Erreur de synchronisation');
         let status = 0;
         if (err instanceof ApiError) {
           status = err.status;
@@ -123,8 +125,8 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
           await offlineRepository.updateStatus(item.id, 'failed', errorMsg);
           toast({
             variant: 'destructive',
-            title: 'Échec de validation de l\'action',
-            description: `L'opération a été rejetée par le serveur (${errorMsg}).`,
+            title: t('offline.toast.val_failed_title', 'Échec de validation de l\'action'),
+            description: t('offline.toast.val_failed_desc', 'L\'opération a été rejetée par le serveur ({{error}}).', { error: errorMsg }),
           });
         } else {
           // Retryable network or 5xx server error: keep item, increment retry count, abort cycle
@@ -132,8 +134,8 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
           hasNetworkOrServerError = true;
           toast({
             variant: 'destructive',
-            title: 'Synchronisation différée',
-            description: 'Resynchronisation différée due à un problème réseau.',
+            title: t('offline.toast.sync_deferred_title', 'Synchronisation différée'),
+            description: t('offline.toast.sync_deferred_desc', 'Resynchronisation différée due à un problème réseau.'),
           });
           break; // Stop processing further items in this sync cycle
         }
@@ -145,11 +147,11 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
 
     if (successCount > 0 && !hasNetworkOrServerError) {
       toast({
-        title: 'Synchronisation réussie',
-        description: `${successCount} opération(s) synchronisée(s) avec succès.`,
+        title: t('offline.toast.sync_success_title', 'Synchronisation réussie'),
+        description: t('offline.toast.sync_success_desc', '{{count}} opération(s) synchronisée(s) avec succès.', { count: successCount }),
       });
     }
-  }, [toast, updateQueueCount]);
+  }, [toast, updateQueueCount, t]);
 
   useEffect(() => {
     updateQueueCount();
@@ -188,7 +190,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       {children}
       {!isOnline && (
         <div className="fixed bottom-0 left-0 right-0 bg-yellow-500 text-yellow-950 p-2 text-center text-sm font-semibold z-50">
-          Vous êtes actuellement hors ligne. Les enrôlements seront sauvegardés localement.
+          {t('offline.banner_offline', 'Vous êtes actuellement hors ligne. Les enrôlements seront sauvegardés localement.')}
         </div>
       )}
     </OfflineQueueContext.Provider>
