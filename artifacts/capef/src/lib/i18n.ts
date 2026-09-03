@@ -1,6 +1,7 @@
 import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
+import { initReactI18next, useTranslation } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import { fr, enUS } from 'date-fns/locale';
 
 import frTranslations from '../locales/fr.json';
 import enTranslations from '../locales/en.json';
@@ -26,5 +27,10 @@ i18n
       useSuspense: false,
     },
   });
+
+export function useDateLocale() {
+  const { i18n } = useTranslation();
+  return (i18n.language || 'fr').startsWith('en') ? enUS : fr;
+}
 
 export default i18n;

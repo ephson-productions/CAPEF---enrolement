@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useUpdateMyProfile, useUploadFile } from '@workspace/api-client-react';
-import { Calendar, Camera, CheckCircle2, Mail, MapPin, Shield } from 'lucide-react';
+import { Calendar, Camera, CheckCircle2, Mail, MapPin, Shield, Globe } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr, enUS } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
 import { useTranslation } from 'react-i18next';
+import { LanguageToggle } from '@/components/layout/LanguageToggle';
+import { useDateLocale } from '@/lib/i18n';
 
 function readImage(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -17,7 +18,8 @@ function readImage(file: File) {
 }
 
 export default function Profile() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const { user, isLoading } = useAuthContext();
   const { toast } = useToast();
   const updateProfile = useUpdateMyProfile();
@@ -25,8 +27,6 @@ export default function Profile() {
   const [cniNumber, setCniNumber] = useState(user?.cniNumber || '');
   const [cniPhotoUrl, setCniPhotoUrl] = useState(user?.cniPhotoUrl || '');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(user?.profilePhotoUrl || '');
-
-  const dateLocale = i18n.language.startsWith('en') ? enUS : fr;
 
   React.useEffect(() => {
     if (!user) return;
@@ -70,6 +70,17 @@ export default function Profile() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12">
       <div><h1 className="text-2xl font-bold text-foreground">{t('navigation.profile', 'Mon profil')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('profile.subtitle', 'Gérez uniquement vos documents et votre photo personnelle.')}</p></div>
+
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Globe className="h-5 w-5 text-primary" />
+          <div>
+            <h3 className="font-semibold text-sm text-foreground">{t('profile.preferences_title', 'Préférences de langue')}</h3>
+            <p className="text-xs text-muted-foreground">{t('profile.preferences_desc', 'Choisissez la langue d\'affichage de l\'application.')}</p>
+          </div>
+        </div>
+        <LanguageToggle />
+      </div>
 
       <form onSubmit={save} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-col items-center gap-6 border-b border-border bg-gradient-to-br from-primary/5 to-transparent p-8 sm:flex-row">
