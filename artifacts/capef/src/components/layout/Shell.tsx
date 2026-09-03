@@ -4,6 +4,8 @@ import { useAuthContext } from '@/lib/auth';
 import { useOfflineQueue } from '@/lib/offline-sync';
 import { useClerk } from '@clerk/react';
 import { useTheme } from '@/components/theme-provider';
+import { useTranslation } from 'react-i18next';
+import { LanguageToggle } from './LanguageToggle';
 import {
   LayoutDashboard,
   Users,
@@ -25,13 +27,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { isOnline, queueCount, syncNow, isSyncing } = useOfflineQueue();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const isDark = theme === 'dark';
 
   const navigation = [
-    { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Registre des membres', href: '/members', icon: Users },
-    { name: 'Nouvel Enrôlement', href: '/members/new', icon: UserPlus },
-    ...(isAdmin ? [{ name: 'Utilisateurs', href: '/users', icon: ShieldAlert }] : []),
+    { name: t('navigation.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: t('navigation.members'), href: '/members', icon: Users },
+    { name: t('navigation.new_enrollment'), href: '/members/new', icon: UserPlus },
+    ...(isAdmin ? [{ name: t('navigation.users'), href: '/users', icon: ShieldAlert }] : []),
   ];
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -56,7 +59,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       `}>
         <div className="h-16 flex items-center px-6 border-b border-sidebar-border bg-sidebar shrink-0">
           <img src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/logo.png`} alt="CAPEF" className="h-8 w-8 mr-3 object-contain" />
-          <span className="text-sidebar-foreground font-bold text-lg tracking-tight">CAPEF</span>
+          <span className="text-sidebar-foreground font-bold text-lg tracking-tight">{t('navigation.app_title')}</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
@@ -64,7 +67,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             const isActive = location === item.href || location.startsWith(`${item.href}/`);
             return (
               <Link
-                key={item.name}
+                key={item.href}
                 href={item.href}
                 onClick={closeMobileMenu}
                 className={`
@@ -95,8 +98,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               {user?.name?.charAt(0).toUpperCase() || <User size={16} />}
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-medium truncate">{user?.name || 'Chargement...'}</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate capitalize">{user?.role || ''}</p>
+              <p className="text-sm font-medium truncate">{user?.name || t('common.loading')}</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate capitalize">{user?.role ? t(`auth.roles.${user.role}`, user.role) : ''}</p>
             </div>
           </Link>
 
@@ -105,7 +108,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             className="group touch-manipulation w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-destructive-foreground/80 rounded-md transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:translate-x-1 focus:translate-x-1 hover:text-destructive-foreground focus:text-destructive-foreground hover:bg-destructive/20 focus:bg-destructive/20 hover:shadow-sm focus:shadow-sm active:translate-x-0 active:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <LogOut className="h-4 w-4 shrink-0 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0" />
-            Déconnexion
+            {t('navigation.sign_out')}
           </button>
         </div>
       </div>
@@ -130,12 +133,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               {isOnline ? (
                 <>
                   <Wifi className="h-4 w-4" />
-                  <span className="hidden sm:inline">En ligne</span>
+                  <span className="hidden sm:inline">{t('offline.online_status')}</span>
                   {queueCount > 0 && (
                     <button
                       onClick={() => syncNow()}
                       disabled={isSyncing}
-              className="ml-2 underline transition-colors duration-500 hover:no-underline font-bold"
+                      className="ml-2 underline transition-colors duration-500 hover:no-underline font-bold"
                     >
                       {isSyncing ? '...' : `Sync ${queueCount}`}
                     </button>
@@ -144,20 +147,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               ) : (
                 <>
                   <WifiOff className="h-4 w-4" />
-                  <span>Hors ligne {queueCount > 0 && `(${queueCount})`}</span>
+                  <span>{t('offline.offline_status')} {queueCount > 0 && `(${queueCount})`}</span>
                 </>
               )}
             </div>
 
+            <LanguageToggle />
+
             <button
               type="button"
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              aria-label={isDark ? 'Activer le thème clair' : 'Activer le thème sombre'}
-              title={isDark ? 'Passer au thème clair' : 'Passer au thème sombre'}
+              aria-label={isDark ? t('common.theme_light') : t('common.theme_dark')}
+              title={isDark ? t('common.theme_light') : t('common.theme_dark')}
               className="inline-flex touch-manipulation h-9 items-center gap-2 rounded-full border border-border bg-card px-3 text-muted-foreground shadow-sm transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:-translate-y-px focus:-translate-y-px hover:bg-accent focus:bg-accent hover:text-accent-foreground focus:text-accent-foreground hover:shadow-md focus:shadow-md active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              <span className="hidden md:inline text-xs font-semibold">{isDark ? 'Clair' : 'Sombre'}</span>
+              <span className="hidden md:inline text-xs font-semibold">{isDark ? t('common.light') : t('common.dark')}</span>
             </button>
           </div>
         </header>
