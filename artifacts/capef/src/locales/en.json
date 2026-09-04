@@ -54,7 +54,11 @@
     "recent_enrollments": "Recent Enrollments",
     "view_all": "View all",
     "distribution_by_type": "Distribution by Member Type",
-    "female_represented_orgs": "Organizations represented by women"
+    "female_represented_orgs": "Organizations represented by women",
+    "filter_by_status": "Filter by status",
+    "filter_by_activity": "Filter by activity",
+    "filter_by_region": "Filter by region",
+    "region_distribution": "Distribution by Region"
   },
   "members": {
     "title": "Member Registry",

@@ -12,7 +12,6 @@ import {
 } from '@workspace/api-client-react';
 import { useRoute, Link } from 'wouter';
 import { format } from 'date-fns';
-import { fr, enUS } from 'date-fns/locale';
 import {
   ArrowLeft, Edit, FileBadge, MapPin, Phone, Mail, Building, User, Tag, FileText, CheckSquare, Plus,
   CheckCircle, XCircle, RotateCcw, AlertOctagon
@@ -21,15 +20,16 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
 import ActivityWizard from '@/components/members/ActivityWizard';
 import { useTranslation } from 'react-i18next';
+import { useDateLocale } from '@/lib/i18n';
+import { getCategoryLabel, getStatusLabel } from '@/lib/i18n-helpers';
 
 export default function MemberDetail() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const [, params] = useRoute('/members/:id');
   const id = Number(params?.id);
   const { toast } = useToast();
   const { isAdmin } = useAuthContext();
-
-  const dateLocale = i18n.language.startsWith('en') ? enUS : fr;
 
   const { data: member, isLoading, error, refetch: refetchMember } = useGetMember(id, {
     query: { enabled: !!id, queryKey: ['member', id] }
@@ -270,10 +270,10 @@ export default function MemberDetail() {
                 : (info as any)?.nom}
             </h1>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getCategoryColor(member.category)} capitalize self-center md:self-auto`}>
-              {t(`members.categories.${member.category}`, member.category)}
+              {getCategoryLabel(member.category, t)}
             </span>
             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadgeColor(member.status)} capitalize self-center md:self-auto`}>
-              {t('members.detail.status_label', 'Statut:')} {t(`members.status.${member.status}`, member.status)}
+              {t('members.detail.status_label', 'Statut:')} {getStatusLabel(member.status, t)}
             </span>
           </div>
           <p className="text-muted-foreground font-mono text-lg mb-4">{member.memberNumber}</p>
@@ -301,7 +301,7 @@ export default function MemberDetail() {
                 <div key={act.id} className="pt-4 first:pt-0 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-bold capitalize text-primary text-base">
-                      {t(`members.categories.${act.activityType}`, act.activityType)} {act.isPrimary && <span className="text-xs bg-yellow-500/10 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full ml-1">{t('activities.primary_tag', 'Principale')}</span>}
+                      {getCategoryLabel(act.activityType, t)} {act.isPrimary && <span className="text-xs bg-yellow-500/10 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full ml-1">{t('activities.primary_tag', 'Principale')}</span>}
                     </span>
                     <span className="text-xs text-muted-foreground">{t('activities.entered_on', 'Saisie le {{date}}', { date: format(new Date(act.createdAt || ''), 'dd/MM/yyyy') })}</span>
                   </div>
