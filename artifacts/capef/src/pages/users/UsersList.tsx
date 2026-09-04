@@ -3,9 +3,9 @@ import { Link, Redirect, useLocation } from 'wouter';
 import { useListUsers } from '@workspace/api-client-react';
 import { Shield, ShieldAlert, User as UserIcon, Plus, MapPin, Ban, PauseCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr, enUS } from 'date-fns/locale';
 import { useAuthContext } from '@/lib/auth';
 import { useTranslation } from 'react-i18next';
+import { useDateLocale } from '@/lib/i18n';
 
 function RoleBadge({ role }: { role: string }) {
   const { t } = useTranslation();
@@ -30,14 +30,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function UsersList() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const { isAdmin } = useAuthContext();
   const [, setLocation] = useLocation();
   const { data: users, isLoading } = useListUsers(undefined, {
     query: { queryKey: ['users'], refetchOnMount: 'always', staleTime: 0 },
   });
-
-  const dateLocale = i18n.language.startsWith('en') ? enUS : fr;
 
   if (!isAdmin) return <Redirect to="/dashboard" />;
 

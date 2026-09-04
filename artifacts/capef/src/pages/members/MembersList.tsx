@@ -6,13 +6,15 @@ import {
   Search, Download, Plus, FileText, ChevronLeft, ChevronRight, User as UserIcon, Building2, Eye, Edit, MapPin
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr, enUS } from 'date-fns/locale';
 import { useAuthContext } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
+import { useDateLocale } from '@/lib/i18n';
+import { getCategoryLabel, getStatusLabel } from '@/lib/i18n-helpers';
 
 export default function MembersList() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const dateLocale = useDateLocale();
   const { isAdmin, isSupervisor } = useAuthContext();
   const { toast } = useToast();
   const [page, setPage] = useState(1);
@@ -22,8 +24,6 @@ export default function MembersList() {
   const [status, setStatus] = useState<ListMembersStatus | undefined>();
   const [agentId, setAgentId] = useState<number | undefined>(undefined);
   const [representantGenre, setRepresentantGenre] = useState<ListMembersRepresentantGenre | undefined>();
-
-  const dateLocale = i18n.language.startsWith('en') ? enUS : fr;
 
   // Reset representation filter if memberType is physique
   useEffect(() => {
@@ -269,12 +269,12 @@ export default function MembersList() {
                     <td className="px-6 py-4 font-mono text-xs">{member.memberNumber}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold border ${getCategoryColor(member.category)} capitalize`}>
-                        {t(`members.categories.${member.category}`, member.category)}
+                        {getCategoryLabel(member.category, t)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeColor(member.status)} capitalize`}>
-                        {t(`members.status.${member.status}`, member.status)}
+                        {getStatusLabel(member.status, t)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

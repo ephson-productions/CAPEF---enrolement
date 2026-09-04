@@ -4,6 +4,7 @@ import { Users, Building2, Trees, Droplets, Tractor, Hammer, ArrowRight, UserChe
 import { Link } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { CATEGORY_STYLES } from '@/lib/category-colors';
+import { getCategoryLabel, getStatusLabel } from '@/lib/i18n-helpers';
 
 export default function Dashboard() {
   const { t } = useTranslation();
@@ -56,17 +57,6 @@ export default function Dashboard() {
     }
   };
 
-  const getStatusLabel = (statVal: string) => {
-    switch (statVal) {
-      case 'incomplet': return t('members.status.incomplete');
-      case 'en_attente': return t('members.status.pending');
-      case 'valide': return t('members.status.valid');
-      case 'desactive': return t('members.status.deactivated');
-      case 'bloque': return t('members.status.blocked');
-      default: return statVal;
-    }
-  };
-
   const byCategory = stats?.byCategory || [];
   const byRegion = stats?.byRegion || [];
   const byStatus = stats?.byStatus || [];
@@ -92,7 +82,7 @@ export default function Dashboard() {
       <div className="bg-card rounded-xl p-4 border border-border shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4 transition-[box-shadow,border-color] duration-500 ease-out hover:shadow-md hover:border-primary/20">
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            {t('common.filter')} par {t('members.status.label')}
+            {t('dashboard.filter_by_status')}
           </label>
           <select
             value={status || ''}
@@ -100,17 +90,17 @@ export default function Dashboard() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
           >
             <option value="">{t('members.filters.all_statuses')}</option>
-            <option value="incomplet">{t('members.status.incomplete')}</option>
-            <option value="en_attente">{t('members.status.pending')}</option>
-            <option value="valide">{t('members.status.valid')}</option>
-            <option value="desactive">{t('members.status.deactivated')}</option>
-            <option value="bloque">{t('members.status.blocked')}</option>
+            <option value="incomplet">{t('members.status.incomplet')}</option>
+            <option value="en_attente">{t('members.status.en_attente')}</option>
+            <option value="valide">{t('members.status.valide')}</option>
+            <option value="desactive">{t('members.status.desactive')}</option>
+            <option value="bloque">{t('members.status.bloque')}</option>
           </select>
         </div>
 
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            {t('common.filter')} par {t('activities.activity_type')}
+            {t('dashboard.filter_by_activity')}
           </label>
           <select
             value={activity || ''}
@@ -118,17 +108,17 @@ export default function Dashboard() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
           >
             <option value="">{t('members.filters.all_categories')}</option>
-            <option value="agriculteur">{t('members.categories.agriculture')}</option>
-            <option value="pecheur">{t('members.categories.peche')}</option>
-            <option value="eleveur">{t('members.categories.elevage')}</option>
-            <option value="forestier">{t('members.categories.foret')}</option>
-            <option value="artisan">{t('members.categories.artisanat')}</option>
+            <option value="agriculteur">{t('members.categories.agriculteur')}</option>
+            <option value="pecheur">{t('members.categories.pecheur')}</option>
+            <option value="eleveur">{t('members.categories.eleveur')}</option>
+            <option value="forestier">{t('members.categories.forestier')}</option>
+            <option value="artisan">{t('members.categories.artisan')}</option>
           </select>
         </div>
 
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            {t('common.filter')} par {t('members.region')}
+            {t('dashboard.filter_by_region')}
           </label>
           <select
             value={regionId || ''}
@@ -220,7 +210,7 @@ export default function Dashboard() {
                         {getCategoryIcon(cat.category)}
                       </div>
                       <span className={`font-medium capitalize text-foreground transition-colors ${style?.groupHoverText ?? ''}`}>
-                        {cat.category}
+                        {getCategoryLabel(cat.category, t)}
                       </span>
                     </div>
                     <div className="flex items-center gap-4">
@@ -245,7 +235,7 @@ export default function Dashboard() {
         {/* Par Région */}
         <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1 hover:shadow-md hover:border-primary/25">
           <div className="px-6 py-4 border-b border-border bg-muted/20">
-            <h3 className="font-bold text-foreground">Répartition par Région</h3>
+            <h3 className="font-bold text-foreground">{t('dashboard.region_distribution')}</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
@@ -273,7 +263,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {byStatus.map((st) => (
                 <div tabIndex={0} key={st.status} className="group flex items-center justify-between rounded-lg border border-transparent p-2.5 transition-[background-color,transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-0.5 focus:-translate-y-0.5 hover:bg-muted/50 focus:bg-muted/50 hover:border-border focus:border-border hover:shadow-sm focus:shadow-sm active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <span className="font-medium text-foreground">{getStatusLabel(st.status)}</span>
+                  <span className="font-medium text-foreground">{getStatusLabel(st.status, t)}</span>
                   <div className="flex items-center gap-4">
                     <span className="font-semibold text-muted-foreground">{st.count}</span>
                   </div>
