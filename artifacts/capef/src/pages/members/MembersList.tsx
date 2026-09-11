@@ -169,11 +169,11 @@ export default function MembersList() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
           >
             <option value="">{t('members.filters.all_categories', 'Toutes les catégories')}</option>
-            <option value="agriculteur">{t('members.categories.agriculteur', 'Agriculteur')}</option>
-            <option value="pecheur">{t('members.categories.pecheur', 'Pêcheur')}</option>
-            <option value="eleveur">{t('members.categories.eleveur', 'Éleveur')}</option>
-            <option value="forestier">{t('members.categories.forestier', 'Exploitant Forestier')}</option>
-            <option value="artisan">{t('members.categories.artisan', 'Artisan')}</option>
+            <option value="agriculteur">{getCategoryLabel('agriculteur', t)}</option>
+            <option value="pecheur">{getCategoryLabel('pecheur', t)}</option>
+            <option value="eleveur">{getCategoryLabel('eleveur', t)}</option>
+            <option value="forestier">{getCategoryLabel('forestier', t)}</option>
+            <option value="artisan">{getCategoryLabel('artisan', t)}</option>
           </select>
 
           <select
@@ -182,11 +182,11 @@ export default function MembersList() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
           >
             <option value="">{t('members.filters.all_statuses', 'Tous les statuts')}</option>
-            <option value="incomplet">{t('members.status.incomplet', 'Incomplet')}</option>
-            <option value="en_attente">{t('members.status.en_attente', 'En attente')}</option>
-            <option value="valide">{t('members.status.valide', 'Validé')}</option>
-            <option value="desactive">{t('members.status.desactive', 'Désactivé')}</option>
-            <option value="bloque">{t('members.status.bloque', 'Bloqué')}</option>
+            <option value="incomplet">{getStatusLabel('incomplet', t)}</option>
+            <option value="en_attente">{getStatusLabel('en_attente', t)}</option>
+            <option value="valide">{getStatusLabel('valide', t)}</option>
+            <option value="desactive">{getStatusLabel('desactive', t)}</option>
+            <option value="bloque">{getStatusLabel('bloque', t)}</option>
           </select>
 
           {memberType !== 'physique' && (

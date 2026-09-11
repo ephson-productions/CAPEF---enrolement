@@ -90,11 +90,11 @@ export default function Dashboard() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
           >
             <option value="">{t('members.filters.all_statuses')}</option>
-            <option value="incomplet">{t('members.status.incomplet')}</option>
-            <option value="en_attente">{t('members.status.en_attente')}</option>
-            <option value="valide">{t('members.status.valide')}</option>
-            <option value="desactive">{t('members.status.desactive')}</option>
-            <option value="bloque">{t('members.status.bloque')}</option>
+            <option value="incomplet">{getStatusLabel('incomplet', t)}</option>
+            <option value="en_attente">{getStatusLabel('en_attente', t)}</option>
+            <option value="valide">{getStatusLabel('valide', t)}</option>
+            <option value="desactive">{getStatusLabel('desactive', t)}</option>
+            <option value="bloque">{getStatusLabel('bloque', t)}</option>
           </select>
         </div>
 
@@ -108,11 +108,11 @@ export default function Dashboard() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
           >
             <option value="">{t('members.filters.all_categories')}</option>
-            <option value="agriculteur">{t('members.categories.agriculteur')}</option>
-            <option value="pecheur">{t('members.categories.pecheur')}</option>
-            <option value="eleveur">{t('members.categories.eleveur')}</option>
-            <option value="forestier">{t('members.categories.forestier')}</option>
-            <option value="artisan">{t('members.categories.artisan')}</option>
+            <option value="agriculteur">{getCategoryLabel('agriculteur', t)}</option>
+            <option value="pecheur">{getCategoryLabel('pecheur', t)}</option>
+            <option value="eleveur">{getCategoryLabel('eleveur', t)}</option>
+            <option value="forestier">{getCategoryLabel('forestier', t)}</option>
+            <option value="artisan">{getCategoryLabel('artisan', t)}</option>
           </select>
         </div>
 
