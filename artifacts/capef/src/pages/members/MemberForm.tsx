@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { CATEGORY_STYLES } from '@/lib/category-colors';
 import { useTranslation } from 'react-i18next';
+import { getCategoryLabel } from '@/lib/i18n-helpers';
 
 const representativeSchema = z.object({
   ordre: z.number(),
@@ -1069,10 +1070,10 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
       {/* Stepper Header */}
       <div className="flex items-center mb-8 overflow-x-auto pb-2">
         {[
-          { num: 1, title: t('members.form.steps.step1', 'Type & Catégorie') },
-          { num: 2, title: t('members.form.steps.step2', 'Identité') },
-          { num: 3, title: t('members.form.steps.step3', 'Localisation') },
-          { num: 4, title: t('members.form.steps.step4', 'Détails Pro.') },
+          { num: 1, title: t('members.form.step_1', '1. Type & Catégorie') },
+          { num: 2, title: t('members.form.step_2', '2. Identité du Membre') },
+          { num: 3, title: t('members.form.step_3', '3. Localisation Géographique') },
+          { num: 4, title: t('members.form.step_4', '4. Activités & Productions') },
         ].map((s, idx) => (
           <React.Fragment key={s.num}>
             <div className={`flex items-center gap-2 shrink-0 ${step >= s.num ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -1124,11 +1125,11 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                   <h3 className="text-lg font-bold mb-4">{t('members.form.main_activity_category', 'Catégorie d\'activité principale')}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
-                      { id: 'agriculteur', label: t('members.categories.agriculteur', 'Agriculteur'), icon: Tractor, color: 'text-green-600' },
-                      { id: 'pecheur', label: t('members.categories.pecheur', 'Pêcheur / Aquaculteur'), icon: Droplets, color: 'text-blue-500' },
-                      { id: 'eleveur', label: t('members.categories.eleveur', 'Éleveur'), icon: Building2, color: 'text-orange-500' },
-                      { id: 'forestier', label: t('members.categories.forestier', 'Exploitant Forestier'), icon: Trees, color: 'text-emerald-700' },
-                      { id: 'artisan', label: t('members.categories.artisan', 'Artisan'), icon: Hammer, color: 'text-purple-500' },
+                      { id: 'agriculteur', label: getCategoryLabel('agriculteur', t), icon: Tractor, color: 'text-green-600' },
+                      { id: 'pecheur', label: getCategoryLabel('pecheur', t), icon: Droplets, color: 'text-blue-500' },
+                      { id: 'eleveur', label: getCategoryLabel('eleveur', t), icon: Building2, color: 'text-orange-500' },
+                      { id: 'forestier', label: getCategoryLabel('forestier', t), icon: Trees, color: 'text-emerald-700' },
+                      { id: 'artisan', label: getCategoryLabel('artisan', t), icon: Hammer, color: 'text-purple-500' },
                     ].map(cat => {
                       const style = CATEGORY_STYLES[cat.id];
                       return (

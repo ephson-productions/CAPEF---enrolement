@@ -6,6 +6,7 @@ import {
   MapPin, Phone, Mail, Building, User, Tag, FileText, CheckCircle2, AlertOctagon, XCircle, Clock
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { getCategoryLabel, getStatusLabel } from '@/lib/i18n-helpers';
 
 export default function BadgeVerify() {
   const { t } = useTranslation();
@@ -26,44 +27,33 @@ export default function BadgeVerify() {
       case 'valide':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-            <CheckCircle2 className="h-3.5 w-3.5" /> {t('badge.status.validated', 'Enrôlement Validé')}
+            <CheckCircle2 className="h-3.5 w-3.5" /> {getStatusLabel('valide', t)}
           </span>
         );
       case 'bloque':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-            <AlertOctagon className="h-3.5 w-3.5" /> {t('members.status.bloque', 'Bloqué')}
+            <AlertOctagon className="h-3.5 w-3.5" /> {getStatusLabel('bloque', t)}
           </span>
         );
       case 'desactive':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200">
-            <XCircle className="h-3.5 w-3.5" /> {t('members.status.desactive', 'Désactivé')}
+            <XCircle className="h-3.5 w-3.5" /> {getStatusLabel('desactive', t)}
           </span>
         );
       case 'en_attente':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
-            <Clock className="h-3.5 w-3.5" /> {t('badge.status.pending_validation', 'En Attente de Validation')}
+            <Clock className="h-3.5 w-3.5" /> {getStatusLabel('en_attente', t)}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-            <Clock className="h-3.5 w-3.5" /> {t('members.status.incomplet', 'Incomplet')}
+            <Clock className="h-3.5 w-3.5" /> {getStatusLabel('incomplet', t)}
           </span>
         );
-    }
-  };
-
-  const getCategoryLabel = (cat: string) => {
-    switch (cat.toLowerCase()) {
-      case 'agriculteur': return t('members.categories.agriculteur', 'Agriculteur');
-      case 'pecheur': return t('members.categories.pecheur', 'Pêcheur / Aquaculteur');
-      case 'eleveur': return t('members.categories.eleveur', 'Éleveur');
-      case 'forestier': return t('members.categories.forestier', 'Exploitant Forestier');
-      case 'artisan': return t('members.categories.artisan', 'Artisan');
-      default: return cat;
     }
   };
 
@@ -138,7 +128,7 @@ export default function BadgeVerify() {
               <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
                 <dt className="text-muted-foreground font-medium">{t('members.table.category', 'Catégorie')}</dt>
                 <dd className="col-span-2 font-semibold text-primary">
-                  {getCategoryLabel(member.category)}
+                  {getCategoryLabel(member.category, t)}
                 </dd>
               </div>
               <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
@@ -181,7 +171,7 @@ export default function BadgeVerify() {
                 <div key={act.id} className="space-y-3 last:border-b-0 pb-4 last:pb-0 border-b border-border/40">
                   <div className="flex justify-between items-center">
                     <h4 className="font-bold text-foreground text-sm uppercase">
-                      {getCategoryLabel(act.activityType)}
+                      {getCategoryLabel(act.activityType, t)}
                     </h4>
                     {act.isPrimary && (
                       <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">

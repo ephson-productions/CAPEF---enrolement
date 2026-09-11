@@ -13,6 +13,7 @@ import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, Trash2, Check, AlertTriangle, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { getCategoryLabel } from '@/lib/i18n-helpers';
 
 interface ActivityWizardProps {
   memberId: number;
@@ -301,11 +302,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   onChange={(e) => setSelectedType(e.target.value as any)}
                   className="w-full border rounded-md p-2 bg-background"
                 >
-                  <option value="agriculteur">{t('members.categories.agriculteur', 'Agriculteur / Agriculture')}</option>
-                  <option value="pecheur">{t('members.categories.pecheur', 'Pêcheur / Aquaculture')}</option>
-                  <option value="eleveur">{t('members.categories.eleveur', 'Éleveur / Élevage')}</option>
-                  <option value="forestier">{t('members.categories.forestier', 'Exploitant Forestier')}</option>
-                  <option value="artisan">{t('members.categories.artisan', 'Artisan / Artisanat')}</option>
+                  <option value="agriculteur">{getCategoryLabel('agriculteur', t)}</option>
+                  <option value="pecheur">{getCategoryLabel('pecheur', t)}</option>
+                  <option value="eleveur">{getCategoryLabel('eleveur', t)}</option>
+                  <option value="forestier">{getCategoryLabel('forestier', t)}</option>
+                  <option value="artisan">{getCategoryLabel('artisan', t)}</option>
                 </select>
               </div>
 
