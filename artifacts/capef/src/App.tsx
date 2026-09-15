@@ -6,7 +6,9 @@ import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, useQueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 
 import { AuthProvider, useAuthContext } from './lib/auth';
 import { OfflineQueueProvider } from './lib/offline-sync';
@@ -32,7 +34,23 @@ import Profile from './pages/Profile';
 import NotFound from './pages/not-found';
 import BadgeVerify from './pages/members/BadgeVerify';
 
-const queryClient = new QueryClient();
+// Configure TanStack QueryClient with reasonable offline-first options
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days cache survival for prolonged offline field usage
+      staleTime: 1000 * 60 * 5, // 5 minutes fresh window
+      networkMode: 'offlineFirst', // Always attempt cache first when offline
+      retry: 2,
+    },
+  },
+});
+
+// Configure localStorage/IndexedDB-compatible persister for reactive cache projection
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: 'capef_query_cache_v1',
+});
 
 const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkPubKey =
@@ -247,6 +265,11 @@ function ClerkQueryClientCacheInvalidator() {
         prevUserIdRef.current !== userId
       ) {
         queryClient.clear();
+        try {
+          window.localStorage.removeItem('capef_query_cache_v1');
+        } catch {
+          // ignore
+        }
       }
       prevUserIdRef.current = userId;
     });
@@ -292,7 +315,10 @@ function ClerkProviderWithRoutes() {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister }}
+      >
         <ClerkTokenInitializer />
         <ClerkQueryClientCacheInvalidator />
         <ClerkProvisioner />
@@ -322,7 +348,7 @@ function ClerkProviderWithRoutes() {
             </TooltipProvider>
           </OfflineQueueProvider>
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </ClerkProvider>
   );
 }
