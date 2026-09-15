@@ -17,15 +17,27 @@ import {
   User,
   ShieldAlert,
   Moon,
-  Sun
+  Sun,
+  AlertTriangle
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
-  const { user, isAdmin, isLoading } = useAuthContext();
+  const { user, isAdmin } = useAuthContext();
   const { isOnline, queueCount, syncNow, isSyncing } = useOfflineQueue();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { theme, setTheme } = useTheme();
   const { t } = useTranslation();
   const isDark = theme === 'dark';
@@ -39,6 +51,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  const handleLogoutClick = () => {
+    if (queueCount > 0) {
+      setShowLogoutConfirm(true);
+    } else {
+      signOut({ redirectUrl: import.meta.env.BASE_URL });
+    }
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    signOut({ redirectUrl: import.meta.env.BASE_URL });
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 flex">
@@ -104,7 +129,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </Link>
 
           <button
-            onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })}
+            onClick={handleLogoutClick}
             className="group touch-manipulation w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-destructive-foreground/80 rounded-md transition-[background-color,color,transform,box-shadow] duration-500 ease-out hover:translate-x-1 focus:translate-x-1 hover:text-destructive-foreground focus:text-destructive-foreground hover:bg-destructive/20 focus:bg-destructive/20 hover:shadow-sm focus:shadow-sm active:translate-x-0 active:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <LogOut className="h-4 w-4 shrink-0 transition-transform duration-500 ease-out group-hover:-translate-y-0.5 group-focus:-translate-y-0.5 group-active:translate-y-0" />
@@ -174,6 +199,44 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Logout Warning Dialog */}
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              {t('offline.logout_alert_title', 'Opérations en attente de synchronisation')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 pt-2">
+              <p>
+                {t(
+                  'offline.logout_alert_desc_1',
+                  'Vous avez {{count}} opération(s) enregistrée(s) hors ligne non encore synchronisée(s) sur le serveur.',
+                  { count: queueCount }
+                )}
+              </p>
+              <p className="font-semibold text-foreground">
+                {t(
+                  'offline.logout_alert_desc_2',
+                  'Vos données resteront conservées en toute sécurité sur cet appareil dans votre espace personnel. Elles seront synchronisées dès votre prochaine connexion.'
+                )}
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t('common.cancel', 'Annuler')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmLogout}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {t('offline.logout_confirm_btn', 'Se déconnecter quand même')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
