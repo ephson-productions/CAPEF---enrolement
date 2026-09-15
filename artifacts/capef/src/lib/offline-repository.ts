@@ -75,7 +75,7 @@ export class DexieOfflineQueueRepository implements IOfflineQueueRepository {
       };
     } catch (error) {
       console.error('[DexieOfflineQueueRepository] Error enqueuing operation:', error);
-      throw error; // CRITICAL: Propagate write errors to caller
+      throw error;
     }
   }
 

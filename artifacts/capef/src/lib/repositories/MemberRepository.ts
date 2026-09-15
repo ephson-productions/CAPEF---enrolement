@@ -28,7 +28,7 @@ export class DexieMemberRepository implements IMemberRepository {
       }
     } catch (error) {
       console.error('[MemberRepository] Error saving member:', error);
-      throw error; // CRITICAL: Propagate error to caller
+      throw error;
     }
   }
 

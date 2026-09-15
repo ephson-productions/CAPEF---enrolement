@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { useUser } from '@clerk/react';
 import { customFetch, ApiError } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { offlineRepository } from './offline-repository';
@@ -25,47 +24,37 @@ const OfflineQueueContext = createContext<OfflineQueueContextType | undefined>(u
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { user, isLoaded } = useUser();
-  const currentUserId = isLoaded ? user?.id ?? null : null;
-
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueCount, setQueueCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
-  const initialLoadDoneRef = useRef<string | null>(null);
+  const initialLoadDone = useRef(false);
 
   const updateQueueCount = useCallback(async () => {
-    if (!currentUserId) {
-      setQueueCount(0);
-      return;
-    }
-    const pending = await offlineRepository.getPending(currentUserId);
+    const pending = await offlineRepository.getPending();
     setQueueCount(pending.length);
-  }, [currentUserId]);
+  }, []);
 
   const enqueueMember = useCallback(async (member: any) => {
-    if (!currentUserId) return;
-    await offlineRepository.enqueue('create_member', member, currentUserId);
+    await offlineRepository.enqueue('create_member', member);
     await updateQueueCount();
     toast({
       title: t('offline.toast.saved_offline_title', 'Enregistré hors ligne'),
       description: t('offline.toast.saved_offline_desc', 'Les données d\'enrôlement seront synchronisées automatiquement.'),
     });
-  }, [currentUserId, toast, updateQueueCount, t]);
+  }, [toast, updateQueueCount, t]);
 
   const enqueueActivityAction = useCallback(async (action: any) => {
-    if (!currentUserId) return;
     const type = action.type;
-    await offlineRepository.enqueue(type, action, currentUserId);
+    await offlineRepository.enqueue(type, action);
     await updateQueueCount();
     toast({
       title: t('offline.toast.action_saved_title', 'Action enregistrée hors ligne'),
       description: t('offline.toast.action_saved_desc', 'L\'activité/production sera synchronisée automatiquement.'),
     });
-  }, [currentUserId, toast, updateQueueCount, t]);
+  }, [toast, updateQueueCount, t]);
 
   const syncNow = useCallback(async () => {
-    if (!currentUserId) return;
-    const pendingItems = await offlineRepository.getPending(currentUserId);
+    const pendingItems = await offlineRepository.getPending();
     if (pendingItems.length === 0) return;
 
     setIsSyncing(true);
@@ -73,7 +62,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     let hasNetworkOrServerError = false;
 
     for (const item of pendingItems) {
-      await offlineRepository.updateStatus(item.id, 'processing', undefined, currentUserId);
+      await offlineRepository.updateStatus(item.id, 'processing');
       try {
         const headers: Record<string, string> = {
           'X-Client-Operation-ID': item.clientOperationId,
@@ -117,7 +106,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         }
 
         // On HTTP 200/201 (Confirmed Server Acknowledgement): Purge item from queue
-        await offlineRepository.remove(item.id, currentUserId);
+        await offlineRepository.remove(item.id);
         successCount++;
       } catch (err: any) {
         const errorMsg = err?.message || t('offline.sync_error', 'Erreur de synchronisation');
@@ -133,7 +122,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
 
         if (isTerminalError) {
           // Terminal business / validation error: update status to 'failed' to prevent infinite retries
-          await offlineRepository.updateStatus(item.id, 'failed', errorMsg, currentUserId);
+          await offlineRepository.updateStatus(item.id, 'failed', errorMsg);
           toast({
             variant: 'destructive',
             title: t('offline.toast.val_failed_title', 'Échec de validation de l\'action'),
@@ -141,7 +130,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
           });
         } else {
           // Retryable network or 5xx server error: keep item, increment retry count, abort cycle
-          await offlineRepository.incrementRetry(item.id, errorMsg, currentUserId);
+          await offlineRepository.incrementRetry(item.id, errorMsg);
           hasNetworkOrServerError = true;
           toast({
             variant: 'destructive',
@@ -162,18 +151,16 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
         description: t('offline.toast.sync_success_desc', '{{count}} opération(s) synchronisée(s) avec succès.', { count: successCount }),
       });
     }
-  }, [currentUserId, toast, updateQueueCount, t]);
+  }, [toast, updateQueueCount, t]);
 
   useEffect(() => {
     updateQueueCount();
 
     const handleOnline = async () => {
       setIsOnline(true);
-      if (currentUserId) {
-        const pending = await offlineRepository.getPending(currentUserId);
-        if (pending.length > 0) {
-          syncNow();
-        }
+      const pending = await offlineRepository.getPending();
+      if (pending.length > 0) {
+        syncNow();
       }
     };
 
@@ -182,10 +169,10 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Initial sync for active user if online
-    if (navigator.onLine && currentUserId && initialLoadDoneRef.current !== currentUserId) {
-      initialLoadDoneRef.current = currentUserId;
-      offlineRepository.getPending(currentUserId).then((pending) => {
+    // Initial sync if online
+    if (navigator.onLine && !initialLoadDone.current) {
+      initialLoadDone.current = true;
+      offlineRepository.getPending().then((pending) => {
         if (pending.length > 0) {
           syncNow();
         }
@@ -196,7 +183,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [currentUserId, syncNow, updateQueueCount]);
+  }, [syncNow, updateQueueCount]);
 
   return (
     <OfflineQueueContext.Provider value={{ isOnline, queueCount, enqueueMember, enqueueActivityAction, syncNow, isSyncing }}>

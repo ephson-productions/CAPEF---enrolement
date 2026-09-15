@@ -119,10 +119,8 @@ describe('Phase 1 — IndexedDB Repository Layer & Error Propagation Tests', () 
       const queueRepo = new DexieOfflineQueueRepository(syncRepository);
       const userId = 'agent_123';
 
-      // Close the Dexie database to force an error on write operations
       db.close();
 
-      // Expect write operations to reject and throw an error rather than swallowing it silently
       await expect(
         queueRepo.enqueue('create_member', { name: 'Fail Member' }, userId)
       ).rejects.toThrow();

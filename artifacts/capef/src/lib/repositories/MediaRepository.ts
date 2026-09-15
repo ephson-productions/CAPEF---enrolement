@@ -21,7 +21,7 @@ export class DexieMediaRepository implements IMediaRepository {
       }
     } catch (error) {
       console.error('[MediaRepository] Error saving media:', error);
-      throw error; // CRITICAL: Propagate error
+      throw error;
     }
   }
 

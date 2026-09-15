@@ -190,7 +190,7 @@ Documenté selon le comportement réel du code :
 
 - **Comportement Client (@clerk/react)** : Le SDK Clerk gère les tokens JWT en mémoire et les rafraîchit périodiquement via les serveurs Clerk. En mode hors ligne prolongé, dès que le jeton JWT expire, le SDK ne peut plus en émettre de nouveau.
 - **Comportement Serveur (@clerk/express & `requireAppUser`)** : Sur le serveur API (`artifacts/api-server/src/lib/auth.ts`), le middleware `requireAppUser` authentifie le jeton Bearer JWT puis valide la présence de l'utilisateur dans la base PostgreSQL (`usersTable`).
-- **Risque / Menace Hors Ligne** : Si l'agent travaille hors ligne au-delà de la durée de validité de son jeton JWT, les requêtes de synchronisation envoyées au retour en ligne échoueront avec un code HTTP 401 si le token n'a pas pou être rafraîchi par Clerk. Aucune persistance sécurisée offline des identifiants/rôles n'existe localement.
+- **Risque / Menace Hors Ligne** : Si l'agent travaille hors ligne au-delà de la durée de validité de son jeton JWT, les requêtes de synchronisation envoyées au retour en ligne échoueront avec un code HTTP 401 si le token n'a pas pu être rafraîchi par Clerk. Aucune persistance sécurisée offline des identifiants/rôles n'existe localement.
 
 ---
 
@@ -235,9 +235,6 @@ const unsubscribe = addListener(({ user }) => {
 2. **Politique de Blocus avec Alerte & Dérogation (Hybride Option A + Alerte de secours) :**
    - **Comportement Standard :** Si l'agent tente de se déconnecter alors que des opérations sont en attente (`pendingOperations > 0`), le bouton de déconnexion active un blocus préventif (Option A) l'invitant à retrouver du réseau et à synchroniser.
    - **Procédure d'Alerte / Confirmation de Secours :** Si l'agent insiste et tente de forcer le logout après ce blocus, une modale d'alerte critique s'affiche déclarant explicitement que des données sont en attente. Si l'agent confirme l'action de forçage, les données restent conservées de manière sécurisée dans son store namespacé (`capef_offline_queue_${clerkUserId}`), prêtes à être resynchronisées lorsqu'il se reconnectera sur son compte.
-
-3. **Consigne d'Implémentation :**
-   - Lors de l'implémentation de la phase concernée (Phase 8A/8B), une clarification supplémentaire sera demandée à Ephraim avant le codage effectif de l'interface du blocus.
 
 ---
 

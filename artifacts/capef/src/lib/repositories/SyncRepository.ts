@@ -16,7 +16,7 @@ export class DexieSyncRepository implements ISyncRepository {
       return { ...operation, id };
     } catch (error) {
       console.error('[SyncRepository] Error enqueuing operation:', error);
-      throw error; // CRITICAL: Propagate error to caller
+      throw error;
     }
   }
 

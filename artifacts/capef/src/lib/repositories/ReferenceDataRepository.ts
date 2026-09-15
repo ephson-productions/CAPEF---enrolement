@@ -21,7 +21,7 @@ export class DexieReferenceDataRepository implements IReferenceDataRepository {
       await db.regions.bulkPut(regions);
     } catch (error) {
       console.error('[ReferenceDataRepository] Error saving regions:', error);
-      throw error; // CRITICAL: Propagate error
+      throw error;
     }
   }
 

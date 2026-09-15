@@ -8,9 +8,10 @@ import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 
-import { AuthProvider } from './lib/auth';
+import { AuthProvider, useAuthContext } from './lib/auth';
 import { OfflineQueueProvider } from './lib/offline-sync';
 import { ClerkProvisioner } from './components/auth/ClerkProvisioner';
+import { bootstrapService } from './lib/bootstrap-service';
 import { ThemeProvider } from './components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -33,7 +34,6 @@ import BadgeVerify from './pages/members/BadgeVerify';
 
 const queryClient = new QueryClient();
 
-// Safely resolve Clerk publishable key without calling publishableKeyFromHost on undefined
 const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkPubKey =
   (typeof rawClerkKey === "string" && rawClerkKey.trim().length > 0
@@ -133,6 +133,27 @@ class ErrorBoundary extends React.Component<
     }
     return this.props.children;
   }
+}
+
+function OfflineBootstrapTrigger() {
+  const { user } = useAuthContext();
+  const bootstrappedUserRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (user && user.clerkUserId && bootstrappedUserRef.current !== user.clerkUserId) {
+      bootstrappedUserRef.current = user.clerkUserId;
+      if (navigator.onLine) {
+        bootstrapService.runBootstrap({
+          id: user.id,
+          clerkUserId: user.clerkUserId,
+          role: user.role,
+          regionId: user.regionId,
+        }).catch(err => console.error('[OfflineBootstrapTrigger] Error:', err));
+      }
+    }
+  }, [user]);
+
+  return null;
 }
 
 function HomeLanding() {
@@ -276,6 +297,7 @@ function ClerkProviderWithRoutes() {
         <ClerkQueryClientCacheInvalidator />
         <ClerkProvisioner />
         <AuthProvider>
+          <OfflineBootstrapTrigger />
           <OfflineQueueProvider>
             <TooltipProvider>
               <Switch>
