@@ -1,29 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { LocalStorageQueueRepository } from '../offline-repository';
+import 'fake-indexeddb/auto';
+import { db } from '../repositories/CapefDexieDatabase';
+import { DexieOfflineQueueRepository } from '../offline-repository';
 
-// Simple in-memory localStorage mock for node environment
-const createLocalStorageMock = () => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString();
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-};
+describe('Phase 8A — Offline Multi-Agent Isolation Test (Dexie)', () => {
+  let repository: DexieOfflineQueueRepository;
 
-describe('Phase 8A — Offline Multi-Agent Isolation Test', () => {
-  let repository: LocalStorageQueueRepository;
-
-  beforeEach(() => {
-    (global as any).localStorage = createLocalStorageMock();
-    repository = new LocalStorageQueueRepository();
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
+    repository = new DexieOfflineQueueRepository();
   });
 
   it('isolates offline queue items by clerkUserId and prevents Agent B from reading or syncing Agent A items', async () => {
@@ -71,34 +57,5 @@ describe('Phase 8A — Offline Multi-Agent Isolation Test', () => {
     // Agent A's queue remains untouched with 2 items
     const agentAPendingFinal = await repository.getPending(agentAId);
     expect(agentAPendingFinal).toHaveLength(2);
-  });
-
-  it('migrates un-namespaced legacy queue items to active agent on first load', async () => {
-    const agentAId = 'user_clerk_agent_a_123';
-
-    // Simulate legacy un-namespaced items in capef_offline_queue_v2
-    localStorage.setItem(
-      'capef_offline_queue_v2',
-      JSON.stringify([
-        {
-          id: 'legacy_1',
-          clientOperationId: 'op_legacy_1',
-          operationType: 'create_member',
-          payload: { name: 'Membre Ancien' },
-          createdAt: new Date().toISOString(),
-          retryCount: 0,
-          status: 'pending',
-          lastError: null,
-        },
-      ])
-    );
-
-    // Agent A logs in and accesses queue
-    const agentAPending = await repository.getPending(agentAId);
-    expect(agentAPending).toHaveLength(1);
-    expect(agentAPending[0].payload.name).toBe('Membre Ancien');
-
-    // Un-namespaced legacy key should be cleared
-    expect(localStorage.getItem('capef_offline_queue_v2')).toBeNull();
   });
 });
