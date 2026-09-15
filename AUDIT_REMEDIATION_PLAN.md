@@ -1,7 +1,7 @@
 # AUDIT ARCHITECTURE OFFLINE & PLAN DE REMÉDIATION — CAPEF DIGITAL ENRÔLEMENT
 
 **Projet :** CAPEF DIGITAL ENRÔLEMENT
-**Document :** Rapport d'Audit Architecture Offline & Plan de Remédiation (Phase 0)
+**Document :** Rapport d'Audit Architecture Offline & Plan de Remédiation (Phase 0 & Phase 0.5)
 **Date :** 15 Septembre 2026
 **Auteur :** Principal Lead Full-Stack Software Engineer
 
@@ -44,7 +44,7 @@ L'architecture offline de l'application PWA CAPEF repose sur une file d'attente 
 |                                                                                                   |
 |  [ Routes Express ]                                                                               |
 |  - POST /api/members                                                                              |
-|  - POST /api/members/:id/activities                                                               signed  |
+|  - POST /api/members/:id/activities                                                               |
 |  - POST /api/members/:id/activities/:activityId/line-items                                       |
 |  - DELETE /api/members/:id/activities/:activityId/line-items/:itemId                             |
 |                                                                                                   |
@@ -204,7 +204,104 @@ Procédure de secours en cas d'anomalie bloquante en production :
    - Re-génération des contrats via `pnpm --filter @workspace/api-spec run codegen`.
    - Re-build complet (`pnpm run build`) pour valider la stabilité du bundle.
 3. **Rollback Base de Données (Schéma)** :
-   - Les migrations DDL sont strictement versionnées dans `lib/db/drizzle/`.
+   - Les migrations DDL sont strictly versionnées dans `lib/db/drizzle/`.
    - Le script de prévol `lib/db/src/preflight-check.ts` contrôle l'état de la base avant toute modification.
    - En cas d'échec de migration, `standalone-migrate.ts` interrompt l'exécution avec un code de sortie `process.exit(1)`, empêchant le lancement du serveur sur un schéma corrompu.
    - Restauration de la base via sauvegarde Point-In-Time Recovery (PITR) Supabase en cas d'anomalie de données critique.
+
+---
+
+## 11. Politique de Déconnexion (Logout) — Options & Risque Identifié
+
+### Risque Sécurité / Intégrité Confirmé dans le Code
+Dans `artifacts/capef/src/App.tsx`, le composant `ClerkQueryClientCacheInvalidator` s'abonne aux changements d'utilisateur Clerk :
+```ts
+const unsubscribe = addListener(({ user }) => {
+  const userId = user?.id ?? null;
+  if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
+    queryClient.clear();
+  }
+  prevUserIdRef.current = userId;
+});
+```
+**Constat :** Lors d'un changement d'utilisateur sur un appareil partagé, seul le cache React Query en mémoire (`queryClient.clear()`) est vidé. La file d'attente hors ligne stockée dans `localStorage` sous la clé `capef_offline_queue_v2` **n'est jamais nettoyée ou namespacée par utilisateur**.
+Si un Agent A enregistre des enrôlements hors ligne puis se déconnecte sans synchroniser, un Agent B se connectant ensuite sur le même appareil déclenchera la synchronisation de la queue `capef_offline_queue_v2`. Les enrôlements de l'Agent A seront alors envoyés au serveur avec le jeton d'authentification de l'Agent B, attribuant la paternité (`createdById`) de ces enrôlements à l'Agent B.
+
+### Options Documentées (Réservées à l'arbitrage d'Ephraim)
+
+* **Option A : Logout bloqué tant que `pendingOperations > 0`**
+  - **Comportement UI :** Bouton de déconnexion désactivé ou bloqué par une modal d'erreur impérative tant que `queueCount > 0`. L'utilisateur doit obligatoirement retrouver du réseau et synchroniser ses données avant de se déconnecter.
+  - **Implications Techniques :** Modification du composant de profil / shell (`Shell.tsx`, `Profile.tsx`, `App.tsx`) pour intercepter l'action de déconnexion Clerk (`signOut`). Impact limité au frontend.
+  - **Inconvénient :** Un agent bloqué en zone blanche sans réseau ne pourra pas se déconnecter de l'application.
+
+* **Option B : Logout forcé avec confirmation explicite de perte de données**
+  - **Comportement UI :** Une boîte de dialogue d'avertissement s'affiche en cas de tentatives de déconnexion avec des éléments en attente : *"Des données non synchronisées seront définitivement perdues. Purger et se déconnecter ?"*. Si l'utilisateur confirme, la queue `capef_offline_queue_v2` est vidée (`localStorage.removeItem`).
+  - **Implications Techniques :** Modification des boutons de déconnexion pour ajouter une modale d'alerte. Vidage explicite de `localStorage` lors de la déconnexion.
+  - **Inconvénient :** Risque de perte définitive de données d'enrôlement saisies sur le terrain si l'agent confirme par inadvertance.
+
+* **Option C : Isolation Multi-Agent (Namespacing par `clerkUserId`)**
+  - **Comportement UI :** La déconnexion est toujours autorisée. Les opérations non synchronisées restent conservées en local. Lorsque l'Agent A se re-connecte sur l'appareil, il retrouve sa propre queue. Si l'Agent B se connecte, il ne voit et ne synchronise que son propre store.
+  - **Implications Techniques :** Refonte de `LocalStorageQueueRepository` / `IndexedDBRepository` pour clisonner le stockage local par `clerkUserId` (ex: `capef_offline_queue_${clerkUserId}`).
+  - **Avantage :** Sécurité multi-agent totale, aucune perte de données, aucune pollution inter-agent.
+
+---
+
+## 12. Modèle d'Authentification Offline
+
+### Analyse du Code Serveur (`artifacts/api-server/src/lib/auth.ts`)
+Sur le backend API Express, l'accès à toutes les données et mutations protégées est régi par le middleware `requireAppUser` :
+```ts
+export const requireAppUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const auth = getAuth(req);
+  const clerkUserId = auth?.userId;
+  if (!clerkUserId) {
+    res.status(401).json({ error: "Non autorisé" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.clerkUserId, clerkUserId))
+    .limit(1);
+
+  if (!user) {
+    res.status(401).json({ error: "Utilisateur non enregistré dans l'application" });
+    return;
+  }
+  ...
+};
+```
+### Dépendances Exactes (`package.json`)
+- Serveur API (`artifacts/api-server/package.json`) : `@clerk/express ^2.1.46`, `@clerk/shared ^4.25.8`.
+- Frontend PWA (`artifacts/capef/package.json`) : `@clerk/react ^6.12.8`, `@clerk/localizations ^4.15.8`, `@clerk/themes ^2.4.57`.
+
+### Implication Architecturalement Non Négociable
+1. **Contrôle Serveur Systematique :** `getAuth(req)` est exécuté sur **CHAQUE** requête HTTP protégée backend, sans exception. Le serveur valide le jeton JWT d'arrière-plan et vérifie le statut actif de l'utilisateur dans PostgreSQL (`usersTable`).
+2. **Délimitation Réelle du Mode Hors Ligne :**
+   - Toute persistance locale des identifiants/rôles de l'agent ne concerne **EXCLUSIVEMENT QUE le gating de l'interface utilisateur frontend (UI)** (masquage/affichage de formulaires ou fonctionnalités selon le rôle mis en cache).
+   - Aucune persistance locale côté client ne peut contourner la vérification serveur au moment de la synchronisation réseau. Lors du retour de la connexion, le SDK Clerk doit émettre un jeton Bearer JWT valide. Si le jeton est expiré et ne peut être rafraîchi par les serveurs Clerk, le serveur API retournera HTTP 401 et la synchronisation échouera jusqu'à ré-authentification de l'agent.
+
+---
+
+## 13. Offline Capability Contract (Périmètre Cible après les 17 Phases)
+
+Reprise et formalisation de la matrice des capacités cibles visées à l'issue du plan de remédiation :
+
+| Écran / Fonction | Lecture Cible | Création Cible | Modification Cible | Suppression Cible | Médias Cible | Justification Architectural du Périmètre Cible |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Dashboard** | OUI (Cache) | N/A | N/A | N/A | N/A | Lecture hors ligne via données agrégées persistées en IndexedDB. |
+| **Members List** | OUI | N/A | N/A | N/A | N/A | Consultation hors ligne limitée au périmètre de l'agent (`createdById`) ou de sa région. |
+| **Member Detail** | OUI | N/A | N/A | N/A | OUI (Cache) | Affichage complet depuis IndexedDB. Visualisation du badge SVG pré-généré ou généré localement. |
+| **Member New** | OUI | OUI | N/A | N/A | OUI | Saisie 100% hors ligne avec référentiels géographiques pré-chargés. Photos compressées et stockées en Blob IndexedDB. |
+| **Member Edit** | OUI | N/A | OUI | N/A | OUI | Modification hors ligne supportée avec file d'attente d'update (`update_member`). |
+| **Activities / Line Items** | OUI | OUI | OUI | OUI | OUI | Gestion complète hors ligne des activités, parcelles, et spéculations avec identifiants locaux temporaires (`clientOperationId`). |
+| **Users / Agents** | NON | NON | NON | NON | NON | **Reste 100% Online.** La création et gestion des agents requiert les API Clerk et la sécurité Admin en direct. |
+| **Profile Agent** | OUI | N/A | OUI | N/A | OUI | Profil et zone d'affectation consultables hors ligne. Mises à jour de profil mises en file d'attente. |
+
+---
+
+## 14. Rappel Source de Vérité
+
+> **NOTE RÈGLE NON NÉGOCIABLE :**
+> Aucun chiffre cité dans ce document audit, dans la documentation de cadrage, ou dans les 17 phases d'implémentation suivantes ne doit être considéré comme source de vérité absolue tant qu'il n'a pas été recompté et vérifié directement depuis `artifacts/api-server/src/lib/seed.ts` ou la base de données réelle après exécution des migrations.
