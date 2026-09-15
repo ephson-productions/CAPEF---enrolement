@@ -190,7 +190,7 @@ Documenté selon le comportement réel du code :
 
 - **Comportement Client (@clerk/react)** : Le SDK Clerk gère les tokens JWT en mémoire et les rafraîchit périodiquement via les serveurs Clerk. En mode hors ligne prolongé, dès que le jeton JWT expire, le SDK ne peut plus en émettre de nouveau.
 - **Comportement Serveur (@clerk/express & `requireAppUser`)** : Sur le serveur API (`artifacts/api-server/src/lib/auth.ts`), le middleware `requireAppUser` authentifie le jeton Bearer JWT puis valide la présence de l'utilisateur dans la base PostgreSQL (`usersTable`).
-- **Risque / Menace Hors Ligne** : Si l'agent travaille hors ligne au-delà de la durée de validité de son jeton JWT, les requêtes de synchronisation envoyées au retour en ligne échoueront avec un code HTTP 401 si le token n'a pas pu être rafraîchi par Clerk. Aucune persistance sécurisée offline des identifiants/rôles n'existe localement.
+- **Risque / Menace Hors Ligne** : Si l'agent travaille hors ligne au-delà de la durée de validité de son jeton JWT, les requêtes de synchronisation envoyées au retour en ligne échoueront avec un code HTTP 401 si le token n'a pas pou être rafraîchi par Clerk. Aucune persistance sécurisée offline des identifiants/rôles n'existe localement.
 
 ---
 
@@ -211,7 +211,7 @@ Procédure de secours en cas d'anomalie bloquante en production :
 
 ---
 
-## 11. Politique de Déconnexion (Logout) — Options & Risque Identifié
+## 11. Politique de Déconnexion (Logout) — Décision d'Ephraim & Spécifications
 
 ### Risque Sécurité / Intégrité Confirmé dans le Code
 Dans `artifacts/capef/src/App.tsx`, le composant `ClerkQueryClientCacheInvalidator` s'abonne aux changements d'utilisateur Clerk :
@@ -225,62 +225,69 @@ const unsubscribe = addListener(({ user }) => {
 });
 ```
 **Constat :** Lors d'un changement d'utilisateur sur un appareil partagé, seul le cache React Query en mémoire (`queryClient.clear()`) est vidé. La file d'attente hors ligne stockée dans `localStorage` sous la clé `capef_offline_queue_v2` **n'est jamais nettoyée ou namespacée par utilisateur**.
-Si un Agent A enregistre des enrôlements hors ligne puis se déconnecte sans synchroniser, un Agent B se connectant ensuite sur le même appareil déclenchera la synchronisation de la queue `capef_offline_queue_v2`. Les enrôlements de l'Agent A seront alors envoyés au serveur avec le jeton d'authentification de l'Agent B, attribuant la paternité (`createdById`) de ces enrôlements à l'Agent B.
 
-### Options Documentées (Réservées à l'arbitrage d'Ephraim)
+### Décision Formelle d'Ephraim (Combinaison Hybride Option A + Option C)
 
-* **Option A : Logout bloqué tant que `pendingOperations > 0`**
-  - **Comportement UI :** Bouton de déconnexion désactivé ou bloqué par une modal d'erreur impérative tant que `queueCount > 0`. L'utilisateur doit obligatoirement retrouver du réseau et synchroniser ses données avant de se déconnecter.
-  - **Implications Techniques :** Modification du composant de profil / shell (`Shell.tsx`, `Profile.tsx`, `App.tsx`) pour intercepter l'action de déconnexion Clerk (`signOut`). Impact limité au frontend.
-  - **Inconvénient :** Un agent bloqué en zone blanche sans réseau ne pourra pas se déconnecter de l'application.
+1. **Namespacing Multi-Agent Obligatoire (Principe de l'Option C) :**
+   - La file d'attente locale et le cache IndexedDB seront **strictement namespacés par `clerkUserId`** (ex. `capef_offline_queue_${clerkUserId}`).
+   - Ainsi, aucun Agent B se connectant sur la tablette d'un Agent A ne verra ou ne synchronisera la file de l'Agent A.
 
-* **Option B : Logout forcé avec confirmation explicite de perte de données**
-  - **Comportement UI :** Une boîte de dialogue d'avertissement s'affiche en cas de tentatives de déconnexion avec des éléments en attente : *"Des données non synchronisées seront définitivement perdues. Purger et se déconnecter ?"*. Si l'utilisateur confirme, la queue `capef_offline_queue_v2` est vidée (`localStorage.removeItem`).
-  - **Implications Techniques :** Modification des boutons de déconnexion pour ajouter une modale d'alerte. Vidage explicite de `localStorage` lors de la déconnexion.
-  - **Inconvénient :** Risque de perte définitive de données d'enrôlement saisies sur le terrain si l'agent confirme par inadvertance.
+2. **Politique de Blocus avec Alerte & Dérogation (Hybride Option A + Alerte de secours) :**
+   - **Comportement Standard :** Si l'agent tente de se déconnecter alors que des opérations sont en attente (`pendingOperations > 0`), le bouton de déconnexion active un blocus préventif (Option A) l'invitant à retrouver du réseau et à synchroniser.
+   - **Procédure d'Alerte / Confirmation de Secours :** Si l'agent insiste et tente de forcer le logout après ce blocus, une modale d'alerte critique s'affiche déclarant explicitement que des données sont en attente. Si l'agent confirme l'action de forçage, les données restent conservées de manière sécurisée dans son store namespacé (`capef_offline_queue_${clerkUserId}`), prêtes à être resynchronisées lorsqu'il se reconnectera sur son compte.
 
-* **Option C : Isolation Multi-Agent (Namespacing par `clerkUserId`)**
-  - **Comportement UI :** La déconnexion est toujours autorisée. Les opérations non synchronisées restent conservées en local. Lorsque l'Agent A se re-connecte sur l'appareil, il retrouve sa propre queue. Si l'Agent B se connecte, il ne voit et ne synchronise que son propre store.
-  - **Implications Techniques :** Refonte de `LocalStorageQueueRepository` / `IndexedDBRepository` pour clisonner le stockage local par `clerkUserId` (ex: `capef_offline_queue_${clerkUserId}`).
-  - **Avantage :** Sécurité multi-agent totale, aucune perte de données, aucune pollution inter-agent.
+3. **Consigne d'Implémentation :**
+   - Lors de l'implémentation de la phase concernée (Phase 8A/8B), une clarification supplémentaire sera demandée à Ephraim avant le codage effectif de l'interface du blocus.
 
 ---
 
-## 12. Modèle d'Authentification Offline
+## 12. Modèle d'Authentification Offline — Validation & Fonctionnement Opérationnel
 
-### Analyse du Code Serveur (`artifacts/api-server/src/lib/auth.ts`)
-Sur le backend API Express, l'accès à toutes les données et mutations protégées est régi par le middleware `requireAppUser` :
-```ts
-export const requireAppUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const auth = getAuth(req);
-  const clerkUserId = auth?.userId;
-  if (!clerkUserId) {
-    res.status(401).json({ error: "Non autorisé" });
-    return;
-  }
+### Décision Formelle d'Ephraim
+Le modèle d'authentification offline est **formellement confirmé**.
 
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkUserId, clerkUserId))
-    .limit(1);
+### Déroulement Opérationnel Pratique ("Comment ça va se passer")
 
-  if (!user) {
-    res.status(401).json({ error: "Utilisateur non enregistré dans l'application" });
-    return;
-  }
-  ...
-};
 ```
-### Dépendances Exactes (`package.json`)
-- Serveur API (`artifacts/api-server/package.json`) : `@clerk/express ^2.1.46`, `@clerk/shared ^4.25.8`.
-- Frontend PWA (`artifacts/capef/package.json`) : `@clerk/react ^6.12.8`, `@clerk/localizations ^4.15.8`, `@clerk/themes ^2.4.57`.
-
-### Implication Architecturalement Non Négociable
-1. **Contrôle Serveur Systematique :** `getAuth(req)` est exécuté sur **CHAQUE** requête HTTP protégée backend, sans exception. Le serveur valide le jeton JWT d'arrière-plan et vérifie le statut actif de l'utilisateur dans PostgreSQL (`usersTable`).
-2. **Délimitation Réelle du Mode Hors Ligne :**
-   - Toute persistance locale des identifiants/rôles de l'agent ne concerne **EXCLUSIVEMENT QUE le gating de l'interface utilisateur frontend (UI)** (masquage/affichage de formulaires ou fonctionnalités selon le rôle mis en cache).
-   - Aucune persistance locale côté client ne peut contourner la vérification serveur au moment de la synchronisation réseau. Lors du retour de la connexion, le SDK Clerk doit émettre un jeton Bearer JWT valide. Si le jeton est expiré et ne peut être rafraîchi par les serveurs Clerk, le serveur API retournera HTTP 401 et la synchronisation échouera jusqu'à ré-authentification de l'agent.
++--------------------------------------------------------------------------------------------------+
+|                                  PHASE 1 : MODE CONNECTÉ (ONLINE)                                |
+|  1. L'agent s'authentifie via Clerk (Saisie identifiants).                                      |
+|  2. Le SDK Clerk émet un jeton JWT en mémoire et un refresh token.                                |
+|  3. L'application récupère le profil de l'agent (/api/auth/me) et met en cache localement         |
+|     (dans IndexedDB sécurisé) : { clerkUserId, name, role, regionId, assignedZones }.             |
++--------------------------------------------------------------------------------------------------+
+                                                 |
+                                                 v
++--------------------------------------------------------------------------------------------------+
+|                                PHASE 2 : PASSAGE HORS LIGNE (OFFLINE)                            |
+|  1. L'agent perd la connexion réseau (zone blanche).                                              |
+|  2. L'UI React utilise le profil mis en cache localement pour le GATING LOCAL :                   |
+|     - Rôle 'agent' : accès au formulaire d'enrôlement, masquage des fonctions admin.             |
+|     - Filtre automatique des formulaires par sa région/zone d'affectation mise en cache.          |
+|  3. Saisie des enrôlements : l'agent remplit les formulaires.                                    |
+|  4. Les enrôlements sont enregistrés localement dans IndexedDB dans la queue namespacée.          |
+|     AUCUN APPEL SERVEUR N'EST EFFECTUÉ À CE STADE.                                               |
++--------------------------------------------------------------------------------------------------+
+                                                 |
+                                                 v
++--------------------------------------------------------------------------------------------------+
+|                             PHASE 3 : RETOUR EN LIGNE (RESYNCHRONISATION)                         |
+|  1. L'appareil retrouve la connexion réseau.                                                     |
+|  2. Le SDK @clerk/react rafraîchit automatiquement le jeton JWT auprès des serveurs Clerk.       |
+|  3. Le moteur de synchronisation (syncNow) dépile les éléments localement stockés et envoie    |
+|     les requêtes HTTP POST avec l'en-tête Bearer JWT.                                            |
+|  4. Le serveur Express intercepte la requête via le middleware `requireAppUser` :                |
+|     - Validation dynamique de la signature du JWT via `getAuth(req)`.                            |
+|     - Vérification en temps réel dans PostgreSQL (usersTable) que l'agent est toujours 'active'    |
+|       (non suspendu / non banni).                                                                |
+|  5. Si l'agent est valide : la transaction d'enrôlement est commitée en BDD.                     |
+|  6. Si le jeton est expiré/invalide (ex: session de plus de 30 jours sans réseau) :                |
+|     - Le serveur retourne HTTP 401 Unauthorized.                                                  |
+|     - La synchronisation s'interrompt SANS SUPPRIMER les données locales.                        |
+|     - Une invitation à se ré-authentifier s'affiche. Dès que l'agent se re-connecte, la queue     |
+|       reprend la synchronisation en toute sécurité.                                               |
++--------------------------------------------------------------------------------------------------+
+```
 
 ---
 
