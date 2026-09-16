@@ -1,6 +1,6 @@
 import { syncRepository, type ISyncRepository } from './repositories/SyncRepository';
 
-export type OperationType = 'create_activity' | 'create_line_item' | 'delete_line_item' | 'create_member';
+export type OperationType = 'create_activity' | 'create_line_item' | 'delete_line_item' | 'create_member' | 'update_member';
 export type QueueItemStatus = 'pending' | 'processing' | 'failed' | 'completed';
 
 export interface OfflineQueueItem<T = any> {

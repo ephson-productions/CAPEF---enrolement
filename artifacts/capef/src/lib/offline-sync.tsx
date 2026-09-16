@@ -18,6 +18,7 @@ type OfflineQueueContextType = {
     itemId?: number;
     data?: any;
   }) => void;
+  enqueueUpdateMember: (id: number, payload: any) => Promise<void>;
 };
 
 const OfflineQueueContext = createContext<OfflineQueueContextType | undefined>(undefined);
@@ -63,6 +64,16 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     });
   }, [currentUserId, toast, updateQueueCount, t]);
 
+  const enqueueUpdateMember = useCallback(async (id: number, payload: any) => {
+    if (!currentUserId) return;
+    await offlineRepository.enqueue('update_member', { id, data: payload }, currentUserId);
+    await updateQueueCount();
+    toast({
+      title: t('offline.toast.saved_offline_title', 'Enregistré hors ligne'),
+      description: t('offline.toast.saved_offline_desc', 'Les modifications seront synchronisées automatiquement.'),
+    });
+  }, [currentUserId, toast, updateQueueCount, t]);
+
   const syncNow = useCallback(async () => {
     if (!currentUserId) return;
     const pendingItems = await offlineRepository.getPending(currentUserId);
@@ -85,6 +96,16 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
             headers,
             body: JSON.stringify({
               ...item.payload,
+              clientOperationId: item.clientOperationId,
+            }),
+          });
+        } else if (item.operationType === 'update_member') {
+          const { id, data } = item.payload;
+          await customFetch(`/api/members/${id}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              ...data,
               clientOperationId: item.clientOperationId,
             }),
           });
@@ -199,7 +220,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   }, [currentUserId, syncNow, updateQueueCount]);
 
   return (
-    <OfflineQueueContext.Provider value={{ isOnline, queueCount, enqueueMember, enqueueActivityAction, syncNow, isSyncing }}>
+    <OfflineQueueContext.Provider value={{ isOnline, queueCount, enqueueMember, enqueueActivityAction, enqueueUpdateMember, syncNow, isSyncing }}>
       {children}
       {!isOnline && (
         <div className="fixed bottom-0 left-0 right-0 bg-yellow-500 text-yellow-950 p-2 text-center text-sm font-semibold z-50">

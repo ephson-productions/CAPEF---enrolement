@@ -760,16 +760,6 @@ export interface MemberUpdate {
   badgeUrl?: string | null;
 }
 
-export interface SyncInput {
-  members: MemberInput[];
-}
-
-export interface SyncResult {
-  created: number;
-  failed: number;
-  errors?: string[];
-}
-
 export interface BadgeResult {
   badgeUrl: string;
   memberNumber: string;

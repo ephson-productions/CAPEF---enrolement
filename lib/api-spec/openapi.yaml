@@ -572,27 +572,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /members/sync:
-    post:
-      operationId: syncMembers
-      tags: [members]
-      summary: Bulk-sync offline-created members
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SyncInput"
-      responses:
-        "200":
-          description: Sync result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SyncResult"
-
   # ─── New Activities & Line-items endpoints (Phase 1 & Phase 3 status updates) ───
 
   /members/{id}/activities:
@@ -1621,28 +1600,6 @@ components:
           additionalProperties: true
         badgeUrl:
           type: ["string", "null"]
-
-    SyncInput:
-      type: object
-      required: [members]
-      properties:
-        members:
-          type: array
-          items:
-            $ref: "#/components/schemas/MemberInput"
-
-    SyncResult:
-      type: object
-      required: [created, failed]
-      properties:
-        created:
-          type: integer
-        failed:
-          type: integer
-        errors:
-          type: array
-          items:
-            type: string
 
     BadgeResult:
       type: object

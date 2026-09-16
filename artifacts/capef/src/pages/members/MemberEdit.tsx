@@ -5,6 +5,8 @@ import type { MemberUpdate } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import MemberForm, { type MemberFormValues } from './MemberForm';
 import { useTranslation } from 'react-i18next';
+import { useOfflineQueue } from '@/lib/offline-sync';
+import { memberRepository } from '@/lib/repositories/MemberRepository';
 
 export default function MemberEdit() {
   const { t } = useTranslation();
@@ -18,6 +20,7 @@ export default function MemberEdit() {
   });
 
   const updateMember = useUpdateMember();
+  const { isOnline, enqueueUpdateMember } = useOfflineQueue();
 
   const onSubmit = async (data: MemberFormValues) => {
     const payload: MemberUpdate = {
@@ -39,11 +42,40 @@ export default function MemberEdit() {
     }
 
     try {
-      await updateMember.mutateAsync({ id, data: payload });
-      toast({ title: t('common.success', 'Succès'), description: t('members.toast.updated', 'Enrôlement mis à jour avec succès.') });
-      setLocation(`/members/${id}`);
+      if (isOnline) {
+        await updateMember.mutateAsync({ id, data: payload });
+        // Update local Dexie record for consistency
+        await memberRepository.saveMember({
+          ...member,
+          ...payload,
+          id,
+          updatedAt: new Date().toISOString(),
+        } as any);
+        toast({ title: t('common.success', 'Succès'), description: t('members.toast.updated', 'Enrôlement mis à jour avec succès.') });
+        setLocation(`/members/${id}`);
+      } else {
+        await enqueueUpdateMember(id, payload);
+        await memberRepository.saveMember({
+          ...member,
+          ...payload,
+          id,
+          updatedAt: new Date().toISOString(),
+        } as any);
+        setLocation(`/members/${id}`);
+      }
     } catch (err) {
       console.error(err);
+      if (!isOnline || (err as any)?.name === 'TypeError' || (err as any)?.message === 'Failed to fetch') {
+        await enqueueUpdateMember(id, payload);
+        await memberRepository.saveMember({
+          ...member,
+          ...payload,
+          id,
+          updatedAt: new Date().toISOString(),
+        } as any);
+        setLocation(`/members/${id}`);
+        return;
+      }
       toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('members.toast.update_failed', 'Impossible de mettre à jour cet enrôlement.') });
     }
   };
