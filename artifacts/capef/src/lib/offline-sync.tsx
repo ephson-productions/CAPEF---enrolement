@@ -3,6 +3,7 @@ import { useUser } from '@clerk/react';
 import { customFetch, ApiError } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { offlineRepository } from './offline-repository';
+import { syncEngine } from './sync-engine';
 import { useTranslation } from 'react-i18next';
 
 type OfflineQueueContextType = {
@@ -75,104 +76,29 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   }, [currentUserId, toast, updateQueueCount, t]);
 
   const syncNow = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || syncEngine.isSyncing) return;
     const pendingItems = await offlineRepository.getPending(currentUserId);
     if (pendingItems.length === 0) return;
 
     setIsSyncing(true);
-    let successCount = 0;
-    let hasNetworkOrServerError = false;
 
-    for (const item of pendingItems) {
-      await offlineRepository.updateStatus(item.id, 'processing', undefined, currentUserId);
-      try {
-        const headers: Record<string, string> = {
-          'X-Client-Operation-ID': item.clientOperationId,
-        };
-
-        if (item.operationType === 'create_member') {
-          await customFetch('/api/members', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              ...item.payload,
-              clientOperationId: item.clientOperationId,
-            }),
-          });
-        } else if (item.operationType === 'update_member') {
-          const { id, data } = item.payload;
-          await customFetch(`/api/members/${id}`, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify({
-              ...data,
-              clientOperationId: item.clientOperationId,
-            }),
-          });
-        } else if (item.operationType === 'create_activity') {
-          const { memberId, data } = item.payload;
-          await customFetch(`/api/members/${memberId}/activities`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              ...data,
-              clientOperationId: item.clientOperationId,
-            }),
-          });
-        } else if (item.operationType === 'create_line_item') {
-          const { memberId, activityId, data } = item.payload;
-          await customFetch(`/api/members/${memberId}/activities/${activityId}/line-items`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              ...data,
-              clientOperationId: item.clientOperationId,
-            }),
-          });
-        } else if (item.operationType === 'delete_line_item') {
-          const { memberId, activityId, itemId } = item.payload;
-          await customFetch(`/api/members/${memberId}/activities/${activityId}/line-items/${itemId}`, {
-            method: 'DELETE',
-            headers,
-          });
-        }
-
-        // On HTTP 200/201 (Confirmed Server Acknowledgement): Purge item from queue
-        await offlineRepository.remove(item.id, currentUserId);
-        successCount++;
-      } catch (err: any) {
-        const errorMsg = err?.message || t('offline.sync_error', 'Erreur de synchronisation');
-        let status = 0;
-        if (err instanceof ApiError) {
-          status = err.status;
-        } else if (err?.status) {
-          status = err.status;
-        }
-
-        // Check if error is terminal (HTTP 400 / 409 / 422 business error) vs retryable (5xx, 0 / network failure)
-        const isTerminalError = status >= 400 && status < 500;
-
-        if (isTerminalError) {
-          // Terminal business / validation error: update status to 'failed' to prevent infinite retries
-          await offlineRepository.updateStatus(item.id, 'failed', errorMsg, currentUserId);
+    const { successCount, hasNetworkOrServerError } = await syncEngine.processQueue(currentUserId, {
+      onError: (_item, error, isTerminal) => {
+        if (isTerminal) {
           toast({
             variant: 'destructive',
             title: t('offline.toast.val_failed_title', 'Échec de validation de l\'action'),
-            description: t('offline.toast.val_failed_desc', 'L\'opération a été rejetée par le serveur ({{error}}).', { error: errorMsg }),
+            description: t('offline.toast.val_failed_desc', 'L\'opération a été rejetée par le serveur ({{error}}).', { error }),
           });
         } else {
-          // Retryable network or 5xx server error: keep item, increment retry count, abort cycle
-          await offlineRepository.incrementRetry(item.id, errorMsg, currentUserId);
-          hasNetworkOrServerError = true;
           toast({
             variant: 'destructive',
             title: t('offline.toast.sync_deferred_title', 'Synchronisation différée'),
             description: t('offline.toast.sync_deferred_desc', 'Resynchronisation différée due à un problème réseau.'),
           });
-          break; // Stop processing further items in this sync cycle
         }
-      }
-    }
+      },
+    });
 
     await updateQueueCount();
     setIsSyncing(false);
