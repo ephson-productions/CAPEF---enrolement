@@ -6,14 +6,11 @@ import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
-import { QueryClient, useQueryClient } from '@tanstack/react-query';
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 
-import { AuthProvider, useAuthContext } from './lib/auth';
+import { AuthProvider } from './lib/auth';
 import { OfflineQueueProvider } from './lib/offline-sync';
 import { ClerkProvisioner } from './components/auth/ClerkProvisioner';
-import { bootstrapService } from './lib/bootstrap-service';
 import { ThemeProvider } from './components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -34,24 +31,9 @@ import Profile from './pages/Profile';
 import NotFound from './pages/not-found';
 import BadgeVerify from './pages/members/BadgeVerify';
 
-// Configure TanStack QueryClient with reasonable offline-first options
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days cache survival for prolonged offline field usage
-      staleTime: 1000 * 60 * 5, // 5 minutes fresh window
-      networkMode: 'offlineFirst', // Always attempt cache first when offline
-      retry: 2,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
-// Configure localStorage/IndexedDB-compatible persister for reactive cache projection
-const persister = createSyncStoragePersister({
-  storage: window.localStorage,
-  key: 'capef_query_cache_v1',
-});
-
+// Safely resolve Clerk publishable key without calling publishableKeyFromHost on undefined
 const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkPubKey =
   (typeof rawClerkKey === "string" && rawClerkKey.trim().length > 0
@@ -153,27 +135,6 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-function OfflineBootstrapTrigger() {
-  const { user } = useAuthContext();
-  const bootstrappedUserRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (user && user.clerkUserId && bootstrappedUserRef.current !== user.clerkUserId) {
-      bootstrappedUserRef.current = user.clerkUserId;
-      if (navigator.onLine) {
-        bootstrapService.runBootstrap({
-          id: user.id,
-          clerkUserId: user.clerkUserId,
-          role: user.role,
-          regionId: user.regionId,
-        }).catch(err => console.error('[OfflineBootstrapTrigger] Error:', err));
-      }
-    }
-  }, [user]);
-
-  return null;
-}
-
 function HomeLanding() {
   const { t } = useTranslation();
 
@@ -265,11 +226,6 @@ function ClerkQueryClientCacheInvalidator() {
         prevUserIdRef.current !== userId
       ) {
         queryClient.clear();
-        try {
-          window.localStorage.removeItem('capef_query_cache_v1');
-        } catch {
-          // ignore
-        }
       }
       prevUserIdRef.current = userId;
     });
@@ -315,15 +271,11 @@ function ClerkProviderWithRoutes() {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{ persister }}
-      >
+      <QueryClientProvider client={queryClient}>
         <ClerkTokenInitializer />
         <ClerkQueryClientCacheInvalidator />
         <ClerkProvisioner />
         <AuthProvider>
-          <OfflineBootstrapTrigger />
           <OfflineQueueProvider>
             <TooltipProvider>
               <Switch>
@@ -348,7 +300,7 @@ function ClerkProviderWithRoutes() {
             </TooltipProvider>
           </OfflineQueueProvider>
         </AuthProvider>
-      </PersistQueryClientProvider>
+      </QueryClientProvider>
     </ClerkProvider>
   );
 }

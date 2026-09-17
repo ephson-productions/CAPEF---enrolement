@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider, Controller, useFieldArray, useFormContext } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useListRegions, useListDepartments, useListArrondissements } from '@workspace/api-client-react';
 import type { Member } from '@workspace/api-client-react';
-import { referenceDataRepository } from '@/lib/repositories/ReferenceDataRepository';
-import type { LocalReferenceRegion, LocalReferenceDepartment, LocalReferenceArrondissement } from '@/lib/repositories/CapefDexieDatabase';
 import { useToast } from '@/hooks/use-toast';
 import {
   User as UserIcon, Building2, MapPin, Tractor, Droplets, Trees, Hammer, CheckCircle2, ChevronRight, ChevronLeft, Save, Upload, PenTool
@@ -97,7 +96,7 @@ export const formSchema = z.object({
         message: "Le nom de l'organisation est requis",
       });
     }
-
+    // Chiffre d'affaires required if typeOrganisation is Exploitation
     if (data.moraleData?.typeOrganisation === "Exploitation") {
       if (!data.moraleData?.chiffreAffaires || data.moraleData.chiffreAffaires.trim() === "") {
         ctx.addIssue({
@@ -107,7 +106,7 @@ export const formSchema = z.object({
         });
       }
     }
-
+    // At least one representative is required (Représentant 1) with nom and prenom filled
     const reps = data.moraleData?.representants;
     if (!reps || reps.length === 0) {
       ctx.addIssue({
@@ -298,7 +297,7 @@ type RepresentativeRowProps = {
 
 function MoraleStepFields() {
   const { t } = useTranslation();
-  const { register, control, watch, formState: { errors } } = useFormContext<MemberFormValues>();
+  const { register, control, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
   const typeOrg = watch('moraleData.typeOrganisation');
 
   const { fields, append, remove } = useFieldArray({
@@ -309,6 +308,7 @@ function MoraleStepFields() {
   return (
     <div className="space-y-6 animate-in fade-in text-card-foreground">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Type d'organisation */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.form.org_type', 'Type d\'organisation')}</label>
           <select
@@ -329,6 +329,7 @@ function MoraleStepFields() {
           </select>
         </div>
 
+        {/* Nom de l'organisation */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.form.org_name', 'Nom de l\'organisation')} *</label>
           <input
@@ -341,6 +342,7 @@ function MoraleStepFields() {
           )}
         </div>
 
+        {/* N° Immatriculation & Date d'immatriculation */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.detail.registration_number', 'N° Immatriculation')}</label>
           <input
@@ -359,6 +361,7 @@ function MoraleStepFields() {
           />
         </div>
 
+        {/* Certificat de conformité / URL de preuve */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.form.conformity_cert_upload', 'Certificat de conformité (URL ou fichier)')}</label>
           <Controller
@@ -374,6 +377,7 @@ function MoraleStepFields() {
           />
         </div>
 
+        {/* Chiffre d'affaires - CONDITIONAL for Exploitation */}
         {typeOrg === 'Exploitation' && (
           <div className="space-y-2">
             <label className="text-sm font-semibold">{t('members.form.annual_turnover', 'Chiffre d\'affaires annuel')} *</label>
@@ -394,6 +398,7 @@ function MoraleStepFields() {
           </div>
         )}
 
+        {/* Téléphone 1 & Téléphone 2 */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.form.phone_primary', 'Téléphone principal')}</label>
           <input
@@ -412,6 +417,7 @@ function MoraleStepFields() {
           />
         </div>
 
+        {/* Email & Boîte Postale */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.form.org_email', 'Email de l\'organisation')}</label>
           <input
@@ -430,6 +436,7 @@ function MoraleStepFields() {
           />
         </div>
 
+        {/* Website / Site web */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.detail.website', 'Site Web / Réseaux sociaux')}</label>
           <input
@@ -440,6 +447,7 @@ function MoraleStepFields() {
           />
         </div>
 
+        {/* Nombre de membres & Nombre de femmes */}
         <div className="space-y-2">
           <label className="text-sm font-semibold">{t('members.form.total_members', 'Nombre total de membres')}</label>
           <input
@@ -459,6 +467,7 @@ function MoraleStepFields() {
         </div>
       </div>
 
+      {/* REPRÉSENTANTS SECTION */}
       <div className="space-y-4 pt-4 border-t border-border">
         <div className="flex justify-between items-center">
           <div>
@@ -513,32 +522,17 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
   const { t } = useTranslation();
   const { register, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
 
-  const [regions, setRegions] = useState<LocalReferenceRegion[]>([]);
-  const [departments, setDepartments] = useState<LocalReferenceDepartment[]>([]);
-  const [arrondissements, setArrondissements] = useState<LocalReferenceArrondissement[]>([]);
-
+  const regions = useListRegions();
   const selectedRegion = watch(`moraleData.representants.${index}.regionId`);
+  const departments = useListDepartments(
+    { regionId: selectedRegion as number },
+    { query: { enabled: !!selectedRegion, queryKey: ['departments', selectedRegion, index] } }
+  );
   const selectedDept = watch(`moraleData.representants.${index}.departmentId`);
-
-  useEffect(() => {
-    referenceDataRepository.getRegions().then(setRegions).catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    if (selectedRegion) {
-      referenceDataRepository.getDepartmentsByRegion(Number(selectedRegion)).then(setDepartments).catch(console.error);
-    } else {
-      setDepartments([]);
-    }
-  }, [selectedRegion]);
-
-  useEffect(() => {
-    if (selectedDept) {
-      referenceDataRepository.getArrondissementsByDepartment(Number(selectedDept)).then(setArrondissements).catch(console.error);
-    } else {
-      setArrondissements([]);
-    }
-  }, [selectedDept]);
+  const arrondissements = useListArrondissements(
+    { departmentId: selectedDept as number },
+    { query: { enabled: !!selectedDept, queryKey: ['arrondissements', selectedDept, index] } }
+  );
 
   const repErrors = (errors.moraleData as any)?.representants?.[index];
 
@@ -558,6 +552,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Civilité, Nom, Prénom */}
         <div className="space-y-1">
           <label className="text-xs font-semibold">{t('members.detail.civilite', 'Civilité')}</label>
           <select
@@ -590,6 +585,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           {repErrors?.prenom && <p className="text-red-500 text-[10px]">{repErrors.prenom.message as string}</p>}
         </div>
 
+        {/* Profession vs Fonction */}
         <div className="space-y-1">
           <label className="text-xs font-semibold">{t('members.detail.profession', 'Profession (métier personnel)')}</label>
           <input
@@ -612,6 +608,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           <span className="text-[10px] text-muted-foreground block">{t('members.form.function_hint', 'Rôle/titre officiel au sein du GIC/Coop.')}</span>
         </div>
 
+        {/* Téléphone 1, Téléphone 2, Email */}
         <div className="space-y-1">
           <label className="text-xs font-semibold">{t('members.form.phone_primary', 'Téléphone principal')}</label>
           <input
@@ -639,6 +636,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           />
         </div>
 
+        {/* Boîte postale */}
         <div className="space-y-1">
           <label className="text-xs font-semibold">{t('members.form.post_box', 'Boîte postale (optionnelle)')}</label>
           <input
@@ -648,6 +646,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           />
         </div>
 
+        {/* Address sub-block dropdowns */}
         <div className="space-y-1">
           <label className="text-xs font-semibold">{t('members.form.region_address', 'Région (Adresse)')}</label>
           <select
@@ -661,7 +660,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
             }}
           >
             <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-            {regions.map(r => (
+            {regions.data?.map(r => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
@@ -680,7 +679,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
             }}
           >
             <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-            {departments.map(d => (
+            {departments.data?.map(d => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
@@ -698,7 +697,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
             }}
           >
             <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-            {arrondissements.map(a => (
+            {arrondissements.data?.map(a => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
@@ -743,6 +742,7 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
       reader.onloadend = () => {
         const rawBase64 = reader.result as string;
 
+        // Compress image using HTML5 Canvas to prevent HTTP 413 Payload Too Large and LocalStorage QuotaExceededError
         const img = new Image();
         img.src = rawBase64;
         img.onload = () => {
@@ -982,10 +982,6 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
   const { toast } = useToast();
   const [step, setStep] = useState(1);
 
-  const [regions, setRegions] = useState<LocalReferenceRegion[]>([]);
-  const [departments, setDepartments] = useState<LocalReferenceDepartment[]>([]);
-  const [arrondissements, setArrondissements] = useState<LocalReferenceArrondissement[]>([]);
-
   const methods = useForm<MemberFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: toDefaultValues(member),
@@ -993,33 +989,10 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
 
   const { watch, setValue, handleSubmit, formState: { errors }, reset } = methods;
 
-  const selectedRegion = watch('regionId');
-  const selectedDept = watch('departmentId');
-
-  // Reading geographic dropdowns directly from Dexie ReferenceDataRepository (Local Offline Storage)
-  useEffect(() => {
-    referenceDataRepository.getRegions().then(setRegions).catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    if (selectedRegion) {
-      referenceDataRepository.getDepartmentsByRegion(Number(selectedRegion)).then(setDepartments).catch(console.error);
-    } else {
-      setDepartments([]);
-    }
-  }, [selectedRegion]);
-
-  useEffect(() => {
-    if (selectedDept) {
-      referenceDataRepository.getArrondissementsByDepartment(Number(selectedDept)).then(setArrondissements).catch(console.error);
-    } else {
-      setArrondissements([]);
-    }
-  }, [selectedDept]);
-
   const onInvalid = (formErrors: any) => {
     console.error("Form validation failed:", formErrors);
 
+    // Find the first error message to display
     let firstErrorMessage = t('members.form.check_required_fields', 'Veuillez vérifier tous les champs requis.');
 
     if (formErrors.physiqueData?.nom?.message) {
@@ -1027,6 +1000,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
     } else if (formErrors.moraleData?.nom?.message) {
       firstErrorMessage = formErrors.moraleData.nom.message;
     } else {
+      // Find any error message
       const findFirstError = (obj: any): string | null => {
         for (const key in obj) {
           if (obj[key]?.message) {
@@ -1066,6 +1040,18 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
       setValue('physiqueData.sexe', 'F');
     }
   }, [physiqueCivilite, setValue]);
+
+  const regions = useListRegions();
+  const selectedRegion = watch('regionId');
+  const departments = useListDepartments(
+    { regionId: selectedRegion as number },
+    { query: { enabled: !!selectedRegion, queryKey: ['departments', selectedRegion] } }
+  );
+  const selectedDept = watch('departmentId');
+  const arrondissements = useListArrondissements(
+    { departmentId: selectedDept as number },
+    { query: { enabled: !!selectedDept, queryKey: ['arrondissements', selectedDept] } }
+  );
 
   const getGPS = () => {
     if (navigator.geolocation) {
@@ -1149,7 +1135,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                       return (
                         <label
                           key={cat.id}
-                          className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 text-center transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${
+                            className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 text-center transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${
                             category === cat.id
                               ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm'
                               : `border-border ${style?.hoverBg ?? 'hover:bg-muted/50'} ${style?.hoverBorder ?? 'hover:border-primary/50'}`
@@ -1240,6 +1226,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     <input type="text" {...methods.register('physiqueData.numeroCni')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
 
+                  {/* Photo fields utilizing local offline-friendly conversion to base64 data url */}
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                     <Controller
                       name="physiqueData.photoUrl"
@@ -1293,59 +1280,33 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
               <MoraleStepFields />
             )}
 
-            {/* STEP 3: LOCATION (Reading directly from local Dexie ReferenceDataRepository) */}
+            {/* STEP 3: LOCATION */}
             {step === 3 && (
               <div className="space-y-6 animate-in fade-in">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.region', 'Région')}</label>
-                    <select
-                      {...methods.register('regionId')}
-                      className="w-full px-3 py-2 border border-input rounded-md"
-                      onChange={(e) => {
-                        const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                        setValue('regionId', val);
-                        setValue('departmentId', null);
-                        setValue('arrondissementId', null);
-                      }}
-                    >
+                    <select {...methods.register('regionId')} className="w-full px-3 py-2 border border-input rounded-md">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {regions.map(r => (
+                      {regions.data?.map(r => (
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.department', 'Département')}</label>
-                    <select
-                      {...methods.register('departmentId')}
-                      disabled={!selectedRegion}
-                      className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted"
-                      onChange={(e) => {
-                        const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                        setValue('departmentId', val);
-                        setValue('arrondissementId', null);
-                      }}
-                    >
+                    <select {...methods.register('departmentId')} disabled={!selectedRegion} className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {departments.map(d => (
+                      {departments.data?.map(d => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.arrondissement', 'Arrondissement')}</label>
-                    <select
-                      {...methods.register('arrondissementId')}
-                      disabled={!selectedDept}
-                      className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted"
-                      onChange={(e) => {
-                        const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                        setValue('arrondissementId', val);
-                      }}
-                    >
+                    <select {...methods.register('arrondissementId')} disabled={!selectedDept} className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {arrondissements.map(a => (
+                      {arrondissements.data?.map(a => (
                         <option key={a.id} value={a.id}>{a.name}</option>
                       ))}
                     </select>

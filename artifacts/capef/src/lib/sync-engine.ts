@@ -1,5 +1,6 @@
 import { customFetch, ApiError } from '@workspace/api-client-react';
 import { offlineRepository, type OfflineQueueItem } from './offline-repository';
+import { idReconciliationService } from './id-reconciliation-service';
 
 export interface SyncEngineOptions {
   onSuccess?: (item: OfflineQueueItem) => void;
@@ -69,7 +70,7 @@ export class SyncEngine {
           };
 
           if (item.operationType === 'create_member') {
-            await fetchFn('/api/members', {
+            const memberResponse: any = await fetchFn('/api/members', {
               method: 'POST',
               headers,
               body: JSON.stringify({
@@ -77,9 +78,16 @@ export class SyncEngine {
                 clientOperationId: item.clientOperationId,
               }),
             });
+
+            // Immediately record (localId, serverId) mapping in persistent IndexedDB before purging queue item
+            if (memberResponse && memberResponse.id) {
+              const localId = item.payload.localId || item.payload.id || item.clientOperationId;
+              await idReconciliationService.recordMapping('member', String(localId), memberResponse.id);
+            }
           } else if (item.operationType === 'update_member') {
             const { id, data } = item.payload;
-            await fetchFn(`/api/members/${id}`, {
+            const resolvedMemberId = await idReconciliationService.resolveServerId('member', id);
+            await fetchFn(`/api/members/${resolvedMemberId}`, {
               method: 'PUT',
               headers,
               body: JSON.stringify({
@@ -89,7 +97,8 @@ export class SyncEngine {
             });
           } else if (item.operationType === 'create_activity') {
             const { memberId, data } = item.payload;
-            await fetchFn(`/api/members/${memberId}/activities`, {
+            const resolvedMemberId = await idReconciliationService.resolveServerId('member', memberId);
+            const activityResponse: any = await fetchFn(`/api/members/${resolvedMemberId}/activities`, {
               method: 'POST',
               headers,
               body: JSON.stringify({
@@ -97,9 +106,17 @@ export class SyncEngine {
                 clientOperationId: item.clientOperationId,
               }),
             });
+
+            if (activityResponse && activityResponse.id) {
+              const localActivityId = data?.localId || data?.id || item.clientOperationId;
+              await idReconciliationService.recordMapping('activity', String(localActivityActivityId(data) || localActivityId), activityResponse.id);
+            }
           } else if (item.operationType === 'create_line_item') {
             const { memberId, activityId, data } = item.payload;
-            await fetchFn(`/api/members/${memberId}/activities/${activityId}/line-items`, {
+            const resolvedMemberId = await idReconciliationService.resolveServerId('member', memberId);
+            const resolvedActivityId = await idReconciliationService.resolveServerId('activity', activityId);
+
+            const itemResponse: any = await fetchFn(`/api/members/${resolvedMemberId}/activities/${resolvedActivityId}/line-items`, {
               method: 'POST',
               headers,
               body: JSON.stringify({
@@ -107,9 +124,18 @@ export class SyncEngine {
                 clientOperationId: item.clientOperationId,
               }),
             });
+
+            if (itemResponse && itemResponse.id) {
+              const localItemId = data?.localId || data?.id || item.clientOperationId;
+              await idReconciliationService.recordMapping('line_item', String(localItemId), itemResponse.id);
+            }
           } else if (item.operationType === 'delete_line_item') {
             const { memberId, activityId, itemId } = item.payload;
-            await fetchFn(`/api/members/${memberId}/activities/${activityId}/line-items/${itemId}`, {
+            const resolvedMemberId = await idReconciliationService.resolveServerId('member', memberId);
+            const resolvedActivityId = await idReconciliationService.resolveServerId('activity', activityId);
+            const resolvedItemId = await idReconciliationService.resolveServerId('line_item', itemId);
+
+            await fetchFn(`/api/members/${resolvedMemberId}/activities/${resolvedActivityId}/line-items/${resolvedItemId}`, {
               method: 'DELETE',
               headers,
             });
@@ -159,6 +185,10 @@ export class SyncEngine {
 
     return { successCount, hasNetworkOrServerError };
   }
+}
+
+function localActivityActivityId(data: any): string | undefined {
+  return data?.localId || data?.id;
 }
 
 export const syncEngine = new SyncEngine();

@@ -80,6 +80,8 @@ export * from './region';
 export * from './regionCount';
 export * from './representative';
 export * from './statusCount';
+export * from './syncInput';
+export * from './syncResult';
 export * from './uploadInput';
 export * from './uploadResult';
 export * from './zoneAssignment';

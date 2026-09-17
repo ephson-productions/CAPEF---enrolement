@@ -48,6 +48,8 @@ import type {
   MyProfileUpdate,
   ProvisionUserInput,
   Region,
+  SyncInput,
+  SyncResult,
   UploadInput,
   UploadResult
 } from './api.schemas';
@@ -1600,6 +1602,77 @@ export const useGenerateBadge = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getGenerateBadgeMutationOptions(options));
+    }
+
+export const getSyncMembersUrl = () => {
+
+
+
+
+  return `/api/members/sync`
+}
+
+/**
+ * @summary Bulk-sync offline-created members
+ */
+export const syncMembers = async (syncInput: SyncInput, options?: RequestInit): Promise<SyncResult> => {
+
+  return customFetch<SyncResult>(getSyncMembersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(syncInput)
+  }
+);}
+
+
+
+
+
+export const getSyncMembersMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncMembers>>, TError,{data: BodyType<SyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncMembers>>, TError,{data: BodyType<SyncInput>}, TContext> => {
+
+const mutationKey = ['syncMembers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncMembers>>, {data: BodyType<SyncInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncMembers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncMembersMutationResult = NonNullable<Awaited<ReturnType<typeof syncMembers>>>
+    export type SyncMembersMutationBody = BodyType<SyncInput>
+    export type SyncMembersMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Bulk-sync offline-created members
+ */
+export const useSyncMembers = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncMembers>>, TError,{data: BodyType<SyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncMembers>>,
+        TError,
+        {data: BodyType<SyncInput>},
+        TContext
+      > => {
+      return useMutation(getSyncMembersMutationOptions(options));
     }
 
 export const getListMemberActivitiesUrl = (id: number,) => {

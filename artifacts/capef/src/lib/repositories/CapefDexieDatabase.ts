@@ -66,6 +66,15 @@ export interface LocalOfflineOperation {
   createdAt: string;
 }
 
+export interface EntityMapping {
+  id?: number;
+  entityType: 'member' | 'activity' | 'line_item' | 'media';
+  localId: string;
+  serverId: number | string;
+  syncStatus: 'synced' | 'pending' | 'error';
+  createdAt: string;
+}
+
 export class CapefDexieDatabase extends Dexie {
   members!: Table<LocalMember, number>;
   regions!: Table<LocalReferenceRegion, number>;
@@ -73,6 +82,7 @@ export class CapefDexieDatabase extends Dexie {
   arrondissements!: Table<LocalReferenceArrondissement, number>;
   media!: Table<LocalMediaItem, number>;
   operations!: Table<LocalOfflineOperation, number>;
+  entityMappings!: Table<EntityMapping, number>;
 
   constructor() {
     super('CapefOfflineDB');
@@ -83,6 +93,16 @@ export class CapefDexieDatabase extends Dexie {
       arrondissements: 'id, departmentId, name',
       media: '++id, mediaId, userId, syncStatus, createdAt',
       operations: '++id, operationId, clientOperationId, userId, status, createdAt',
+    });
+
+    this.version(2).stores({
+      members: '++id, localId, userId, memberNumber, syncStatus, createdAt',
+      regions: 'id, name',
+      departments: 'id, regionId, name',
+      arrondissements: 'id, departmentId, name',
+      media: '++id, mediaId, userId, syncStatus, createdAt',
+      operations: '++id, operationId, clientOperationId, userId, status, createdAt',
+      entityMappings: '++id, [entityType+localId], entityType, localId, serverId, syncStatus, createdAt',
     });
   }
 }
