@@ -23,36 +23,6 @@ import ExcelJS from "exceljs";
 
 const router: IRouter = Router();
 
-// Cache for uploaded media deduplication
-const uploadedMediaCache = new Map<string, { mediaId: string; url: string; checksum: string }>();
-
-// POST /api/media/upload — Phase 7 Option A binary/base64 upload with SHA-256 checksum deduplication
-router.post("/media/upload", requireAppUser, async (req, res): Promise<void> => {
-  const { base64Data, checksum, clientOperationId } = req.body || {};
-
-  if (!checksum) {
-    res.status(400).json({ error: "checksum SHA-256 est requis" });
-    return;
-  }
-
-  // Deduplication check 1: Check clientOperationId or checksum cache
-  const dedupeKey = clientOperationId || checksum;
-  const existing = uploadedMediaCache.get(dedupeKey);
-  if (existing) {
-    res.status(200).json(existing);
-    return;
-  }
-
-  const mediaId = `media_${crypto.randomUUID()}`;
-  const mockUrl = `/uploads/${mediaId}.jpg`;
-  const result = { mediaId, url: mockUrl, checksum };
-
-  uploadedMediaCache.set(dedupeKey, result);
-  uploadedMediaCache.set(checksum, result);
-
-  res.status(201).json(result);
-});
-
 function getClientOperationId(req: any): string | undefined {
   const headerId = req.headers["x-client-operation-id"];
   const bodyId = req.body?.clientOperationId;

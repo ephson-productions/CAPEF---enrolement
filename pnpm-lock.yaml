@@ -254,7 +254,7 @@ importers:
         version: 3.1.0
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+        version: 4.1.11(@types/node@25.9.5)(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -270,12 +270,6 @@ importers:
       '@clerk/themes':
         specifier: ^2.4.57
         version: 2.4.57(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      dexie:
-        specifier: ^4.4.6
-        version: 4.4.6
-      dexie-react-hooks:
-        specifier: ^4.4.0
-        version: 4.4.0(dexie@4.4.6)(react@19.1.0)
       i18next:
         specifier: ^26.4.1
         version: 26.4.1(typescript@5.9.3)
@@ -418,9 +412,6 @@ importers:
       embla-carousel-react:
         specifier: ^8.6.0
         version: 8.6.0(react@19.1.0)
-      fake-indexeddb:
-        specifier: ^6.2.5
-        version: 6.2.5
       framer-motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -475,6 +466,9 @@ importers:
       vite-plugin-pwa:
         specifier: ^1.3.0
         version: 1.3.0(@types/babel__core@7.20.5)(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.9.5)(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
       wouter:
         specifier: ^3.3.5
         version: 3.10.0(react@19.1.0)
@@ -2878,15 +2872,6 @@ packages:
   detect-node-es@1.1.0:
     resolution: {integrity: sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==}
 
-  dexie-react-hooks@4.4.0:
-    resolution: {integrity: sha512-ObLXBS5+4BJU8vtSvBx6b9fY6zZYgniAtwxzjCHsUQadgbqYN6935X2/1TWw4Rf2N1aZV1io5/ziox4vKuxABA==}
-    peerDependencies:
-      dexie: '>=4.2.0-alpha.1 <5.0.0'
-      react: '>=16'
-
-  dexie@4.4.6:
-    resolution: {integrity: sha512-hJP/BO6mjB+tX6hToIO1kmxYLNmun90wYbfcoAoLpKEyDYal/k33dg0TAfoUe2TDsbbLoVIzljJ3BN2UbR5EOg==}
-
   dezalgo@1.0.4:
     resolution: {integrity: sha512-rXSP0bf+5n0Qonsb+SVVfNfIsimO4HEtmnIpPHY8Q1UCzKlQrDMfdobr8nJOOsRgWCyMRqeSBQzmWUMq7zvVig==}
 
@@ -3142,10 +3127,6 @@ packages:
   express@5.2.1:
     resolution: {integrity: sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==}
     engines: {node: '>= 18'}
-
-  fake-indexeddb@6.2.5:
-    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
-    engines: {node: '>=18'}
 
   fast-copy@4.0.4:
     resolution: {integrity: sha512-eVAiWVNPSEGIzDl5yPuLrx8fNMogScXvD9xp1Kzd41FjRIz2I3sSIcxsFeM5EzFfHAfobdvs8ZySffUopljvIA==}
@@ -4937,6 +4918,7 @@ packages:
       '@vitest/ui': 4.1.11
       happy-dom: '*'
       jsdom: '*'
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -7593,13 +7575,6 @@ snapshots:
 
   detect-node-es@1.1.0: {}
 
-  dexie-react-hooks@4.4.0(dexie@4.4.6)(react@19.1.0):
-    dependencies:
-      dexie: 4.4.6
-      react: 19.1.0
-
-  dexie@4.4.6: {}
-
   dezalgo@1.0.4:
     dependencies:
       asap: 2.0.6
@@ -7857,8 +7832,6 @@ snapshots:
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
-
-  fake-indexeddb@6.2.5: {}
 
   fast-copy@4.0.4: {}
 
@@ -9623,7 +9596,7 @@ snapshots:
       tsx: 4.23.1
       yaml: 2.9.0
 
-  vitest@4.1.11(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0):
+  vitest@4.1.11(@types/node@25.9.5)(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.11
       '@vitest/mocker': 4.1.11(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -9648,17 +9621,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.9.5
     transitivePeerDependencies:
-      - jiti
-      - less
-      - lightningcss
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
   which-boxed-primitive@1.1.1:
     dependencies:

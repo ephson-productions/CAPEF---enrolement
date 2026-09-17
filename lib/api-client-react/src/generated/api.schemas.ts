@@ -808,21 +808,6 @@ export interface UploadInput {
   fileName: string;
 }
 
-export interface MediaUploadInput {
-  /** Base64 or binary data */
-  base64Data?: string;
-  /** SHA-256 checksum of the file */
-  checksum: string;
-  /** UUID for idempotency tracking */
-  clientOperationId?: string;
-}
-
-export interface MediaUploadResult {
-  mediaId: string;
-  url: string;
-  checksum: string;
-}
-
 export interface UploadResult {
   url: string;
   fileName: string;

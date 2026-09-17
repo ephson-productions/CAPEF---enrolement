@@ -54,7 +54,6 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
-    "fake-indexeddb": "^6.2.5",
     "framer-motion": "catalog:",
     "input-otp": "^1.4.2",
     "lucide-react": "catalog:",
@@ -73,6 +72,7 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.11",
     "wouter": "^3.3.5",
     "zod": "catalog:"
   },
@@ -80,8 +80,6 @@
     "@clerk/localizations": "^4.15.8",
     "@clerk/react": "^6.12.8",
     "@clerk/themes": "^2.4.57",
-    "dexie": "^4.4.6",
-    "dexie-react-hooks": "^4.4.0",
     "i18next": "^26.4.1",
     "i18next-browser-languagedetector": "^8.2.1",
     "react-i18next": "^17.0.13"

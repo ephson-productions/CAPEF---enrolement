@@ -41,22 +41,6 @@ export const GetMeResponse = zod.object({
 
 
 /**
- * @summary Upload binary media (Blob/file) with checksum and clientOperationId deduplication (Phase 7 Option A)
- */
-export const UploadMediaBody = zod.object({
-  "base64Data": zod.string().describe('Base64-encoded file content'),
-  "mimeType": zod.string(),
-  "fileName": zod.string()
-})
-
-export const UploadMediaResponse = zod.object({
-  "mediaId": zod.string(),
-  "url": zod.string(),
-  "checksum": zod.string()
-})
-
-
-/**
  * @summary JIT-provision the Clerk user into the app DB on first login
  */
 export const ProvisionUserBody = zod.object({
