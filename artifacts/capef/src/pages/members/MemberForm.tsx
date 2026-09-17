@@ -11,6 +11,8 @@ import {
 import { CATEGORY_STYLES } from '@/lib/category-colors';
 import { useTranslation } from 'react-i18next';
 import { getCategoryLabel } from '@/lib/i18n-helpers';
+import { mediaRepository, calculateSHA256 } from '@/lib/repositories/MediaRepository';
+import { useUser } from '@clerk/react';
 
 const representativeSchema = z.object({
   ordre: z.number(),
@@ -735,6 +737,9 @@ type ImageUploadFieldProps = {
 
 function ImageUploadField({ label, value, onChange, required }: ImageUploadFieldProps) {
   const { t } = useTranslation();
+  const { user } = useUser();
+  const userId = user?.id || 'anonymous_user';
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -742,10 +747,10 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
       reader.onloadend = () => {
         const rawBase64 = reader.result as string;
 
-        // Compress image using HTML5 Canvas to prevent HTTP 413 Payload Too Large and LocalStorage QuotaExceededError
+        // Compress image using HTML5 Canvas to prevent excessive Blob size
         const img = new Image();
         img.src = rawBase64;
-        img.onload = () => {
+        img.onload = async () => {
           const canvas = document.createElement("canvas");
           const max_size = 1024;
           let width = img.width;
@@ -768,8 +773,27 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
           const ctx = canvas.getContext("2d");
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
-            onChange(compressedBase64);
+            canvas.toBlob(async (blob) => {
+              if (blob) {
+                const mediaId = `media_${crypto.randomUUID()}`;
+
+                // Store exclusively as binary Blob in Dexie MediaRepository
+                await mediaRepository.saveMedia({
+                  mediaId,
+                  userId,
+                  fileName: file.name,
+                  mimeType: 'image/jpeg',
+                  blob,
+                  syncStatus: 'pending',
+                  createdAt: new Date().toISOString(),
+                });
+
+                // Option A: Store media reference URL/ID in form values instead of base64
+                onChange(mediaId);
+              } else {
+                onChange(rawBase64);
+              }
+            }, "image/jpeg", 0.7);
           } else {
             onChange(rawBase64);
           }
@@ -788,11 +812,19 @@ function ImageUploadField({ label, value, onChange, required }: ImageUploadField
       <div className="flex flex-col sm:flex-row items-center gap-4 p-4 border border-dashed border-border rounded-lg bg-muted/10">
         {value ? (
           <div className="relative h-24 w-24 rounded border border-border overflow-hidden shrink-0 bg-background">
-            <img src={value} alt={label} className="h-full w-full object-cover" />
+            <img
+              src={value.startsWith('data:') || value.startsWith('http') || value.startsWith('blob:') ? value : `/api/media/preview/${value}`}
+              onError={(e) => {
+                // Fallback for mediaId references
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+              alt={label}
+              className="h-full w-full object-cover"
+            />
             <button
               type="button"
               onClick={() => onChange(null)}
-              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-[10px] h-5 w-5 flex items-center justify-center font-bold hover:bg-red-700 shadow"
+              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-[10px] h-5 w-5 flex items-center justify-center font-bold hover:bg-red-700 shadow z-10"
             >
               ×
             </button>

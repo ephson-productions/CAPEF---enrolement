@@ -42,6 +42,8 @@ export * from './listMembersRepresentantGenre';
 export * from './listMembersStatus';
 export * from './listUsersParams';
 export * from './listUsersRole';
+export * from './mediaUploadInput';
+export * from './mediaUploadResult';
 export * from './member';
 export * from './memberActivity';
 export * from './memberActivityActivityType';

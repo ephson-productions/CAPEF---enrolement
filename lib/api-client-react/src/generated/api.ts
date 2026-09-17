@@ -38,6 +38,8 @@ import type {
   ListDepartmentsParams,
   ListMembersParams,
   ListUsersParams,
+  MediaUploadInput,
+  MediaUploadResult,
   Member,
   MemberActivity,
   MemberActivityInput,
@@ -234,6 +236,77 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 
+
+export const getUploadMediaUrl = () => {
+
+
+
+
+  return `/api/media/upload`
+}
+
+/**
+ * @summary Upload binary media (Blob/file) with checksum and clientOperationId deduplication (Phase 7 Option A)
+ */
+export const uploadMedia = async (uploadMediaBody: MediaUploadInput | UploadInput, options?: RequestInit): Promise<MediaUploadResult> => {
+
+  return customFetch<MediaUploadResult>(getUploadMediaUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: JSON.stringify(uploadMediaBody)
+  }
+);}
+
+
+
+
+
+export const getUploadMediaMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMedia>>, TError,{data: BodyType<MediaUploadInput | UploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadMedia>>, TError,{data: BodyType<MediaUploadInput | UploadInput>}, TContext> => {
+
+const mutationKey = ['uploadMedia'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadMedia>>, {data: BodyType<MediaUploadInput | UploadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadMedia(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadMediaMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMedia>>>
+    export type UploadMediaMutationBody = BodyType<MediaUploadInput | UploadInput>
+    export type UploadMediaMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Upload binary media (Blob/file) with checksum and clientOperationId deduplication (Phase 7 Option A)
+ */
+export const useUploadMedia = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMedia>>, TError,{data: BodyType<MediaUploadInput | UploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadMedia>>,
+        TError,
+        {data: BodyType<MediaUploadInput | UploadInput>},
+        TContext
+      > => {
+      return useMutation(getUploadMediaMutationOptions(options));
+    }
 
 export const getProvisionUserUrl = () => {
 

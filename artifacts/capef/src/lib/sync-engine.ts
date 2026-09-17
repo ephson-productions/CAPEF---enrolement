@@ -1,6 +1,7 @@
 import { customFetch, ApiError } from '@workspace/api-client-react';
 import { offlineRepository, type OfflineQueueItem } from './offline-repository';
 import { idReconciliationService } from './id-reconciliation-service';
+import { mediaRepository, calculateSHA256 } from './repositories/MediaRepository';
 
 export interface SyncEngineOptions {
   onSuccess?: (item: OfflineQueueItem) => void;
@@ -60,6 +61,56 @@ export class SyncEngine {
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           hasNetworkOrServerError = true;
           break;
+        }
+
+        // Phase 7: Sync pending media Blobs for this user before submitting dependent enrollment operations
+        const pendingMedia = await mediaRepository.getPendingMediaByUser(userId);
+        for (const media of pendingMedia) {
+          try {
+            const checksum = await calculateSHA256(media.blob);
+            const arrayBuffer = await media.blob.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
+            const base64Data = typeof btoa !== 'undefined' ? btoa(binary) : Buffer.from(bytes).toString('base64');
+
+            const uploadRes: any = await fetchFn('/api/media/upload', {
+              method: 'POST',
+              body: JSON.stringify({
+                base64Data: `data:${media.mimeType};base64,${base64Data}`,
+                checksum,
+                clientOperationId: media.mediaId,
+              }),
+            });
+
+            if (uploadRes && uploadRes.url) {
+              await mediaRepository.updateMediaStatus(media.mediaId, userId, 'uploaded', uploadRes.url);
+              await idReconciliationService.recordMapping('media', media.mediaId, uploadRes.url);
+            } else {
+              throw new Error('Media upload returned invalid response');
+            }
+          } catch (mErr) {
+            console.error('[SyncEngine] Error uploading media Blob prior to enrollment sync:', mErr);
+            // Re-throw error to defer processing of dependent member operation if media upload fails
+            throw mErr;
+          }
+        }
+
+        // Dynamically resolve any media ID references in item.payload to server URLs before posting
+        if (item.payload) {
+          const payloadStr = JSON.stringify(item.payload);
+          let updatedStr = payloadStr;
+          const mediaMappings = await idReconciliationService.getAllMappings();
+          for (const map of mediaMappings) {
+            if (map.entityType === 'media' && map.serverId) {
+              updatedStr = updatedStr.replaceAll(map.localId, String(map.serverId));
+            }
+          }
+          if (updatedStr !== payloadStr) {
+            item.payload = JSON.parse(updatedStr);
+          }
         }
 
         await offlineRepository.updateStatus(item.id, 'processing', undefined, userId);
@@ -141,8 +192,15 @@ export class SyncEngine {
             });
           }
 
-          // Confirmed server acknowledgement: remove from local queue
+          // Confirmed server acknowledgement: remove from local queue and clean up local media Blobs
           await offlineRepository.remove(item.id, userId);
+
+          // Clean up local media Blobs for confirmed uploaded media
+          const uploadedMedia = await mediaRepository.getUploadedMediaByUser(userId);
+          for (const m of uploadedMedia) {
+            await mediaRepository.deleteMedia(m.mediaId, userId);
+          }
+
           successCount++;
           if (options.onSuccess) options.onSuccess(item);
 

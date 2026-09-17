@@ -47,7 +47,6 @@ export interface LocalMediaItem {
   fileName: string;
   mimeType: string;
   blob: Blob;
-  base64Data?: string | null;
   remoteUrl?: string | null;
   syncStatus: 'pending' | 'uploaded' | 'error';
   createdAt: string;

@@ -57,6 +57,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /media/upload:
+    post:
+      operationId: uploadMedia
+      tags: [uploads]
+      summary: Upload binary media (Blob/file) with checksum and clientOperationId deduplication (Phase 7 Option A)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/MediaUploadInput"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadInput"
+      responses:
+        "200":
+          description: Media already existing or previously confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaUploadResult"
+        "201":
+          description: Media uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaUploadResult"
+        "400":
+          description: Invalid media payload or checksum mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/provision:
     post:
       operationId: provisionUser
@@ -1721,6 +1757,31 @@ components:
         mimeType:
           type: string
         fileName:
+          type: string
+
+    MediaUploadInput:
+      type: object
+      required: [checksum]
+      properties:
+        base64Data:
+          type: string
+          description: Base64 or binary data
+        checksum:
+          type: string
+          description: SHA-256 checksum of the file
+        clientOperationId:
+          type: string
+          description: UUID for idempotency tracking
+
+    MediaUploadResult:
+      type: object
+      required: [mediaId, url, checksum]
+      properties:
+        mediaId:
+          type: string
+        url:
+          type: string
+        checksum:
           type: string
 
     UploadResult:
