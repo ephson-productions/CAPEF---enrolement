@@ -46,6 +46,35 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
+      },
+      workbox: {
+        // Instant activation upon shell updates without blocking agents on stale cached versions
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        navigateFallback: 'index.html',
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        runtimeCaching: [
+          {
+            // CRITICAL EXPLICIT RULE: API calls are NetworkOnly.
+            // Backend API requests must NEVER be cached in Service Worker storage.
+            // Offline data fallback is handled exclusively via Dexie IndexedDB (Phases 1-3).
+            urlPattern: /^\/api\/.*$/i,
+            handler: 'NetworkOnly',
+          },
+          {
+            // Optional StaleWhileRevalidate for external font assets if referenced
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+            },
+          },
+        ],
       }
     }),
     ...(process.env.NODE_ENV !== 'production' &&
