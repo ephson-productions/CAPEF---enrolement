@@ -117,10 +117,18 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
           status = err.status;
         }
 
-        // Check if error is terminal (HTTP 400 / 409 / 422 business error) vs retryable (5xx, 0 / network failure)
+        // Check if error is conflict (HTTP 409) vs terminal 4xx vs retryable (5xx, 0 / network failure)
+        const isConflictError = status === 409;
         const isTerminalError = status >= 400 && status < 500;
 
-        if (isTerminalError) {
+        if (isConflictError) {
+          await offlineRepository.updateStatus(item.id, 'failed', `Conflit OCC (409): ${errorMsg}`);
+          toast({
+            variant: 'destructive',
+            title: t('offline.toast.conflict_title', 'Conflit de modification (409)'),
+            description: t('offline.toast.conflict_desc', 'Le membre a été modifié sur le serveur par un autre agent. Veuillez réviser la fiche.'),
+          });
+        } else if (isTerminalError) {
           // Terminal business / validation error: update status to 'failed' to prevent infinite retries
           await offlineRepository.updateStatus(item.id, 'failed', errorMsg);
           toast({

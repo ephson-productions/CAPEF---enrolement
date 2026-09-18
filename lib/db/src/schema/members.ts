@@ -14,6 +14,7 @@ export const membersTable = pgTable("members", {
   memberNumber: text("member_number").notNull().unique(),
   memberType: text("member_type").notNull(), // physique | morale
   category: text("category").notNull(), // agriculteur | pecheur | eleveur | forestier | artisan
+  version: integer("version").default(1).notNull(),
   individualOrOrg: text("individual_or_org").notNull().default("individuel"), // individuel | organisation
   regionId: integer("region_id").references(() => regionsTable.id, { onDelete: "restrict" }),
   departmentId: integer("department_id").references(() => departmentsTable.id, { onDelete: "restrict" }),

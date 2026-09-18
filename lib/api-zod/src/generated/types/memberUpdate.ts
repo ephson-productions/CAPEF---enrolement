@@ -12,6 +12,8 @@ import type { MoraleData } from './moraleData';
 import type { PhysiqueData } from './physiqueData';
 
 export interface MemberUpdate {
+  /** Expected current version for Optimistic Concurrency Control (OCC) check */
+  version?: number;
   category?: MemberUpdateCategory;
   individualOrOrg?: MemberUpdateIndividualOrOrg;
   /** @nullable */
