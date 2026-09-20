@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import 'fake-indexeddb/auto';
 import { offlineRepository } from '../offline-repository';
 
 const createLocalStorageMock = () => {

@@ -1398,7 +1398,7 @@ function formatDate(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-// PUT /api/members/:id — Update a member with Optimistic Concurrency Control (OCC) & idempotency
+// POST /api/members/:id/badge — generate badge PDF with QR code
 router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
