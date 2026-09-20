@@ -3,20 +3,13 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error('PORT environment variable is required but was not provided.');
-}
+const rawPort = process.env.PORT || '3000';
 
 const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
 
 const basePath = process.env.BASE_PATH || '/';
 
@@ -25,7 +18,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss({ optimize: false }),
-    runtimeErrorOverlay(),
+    // runtimeErrorOverlay(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'favicon.png'],
@@ -48,7 +41,6 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Instant activation upon shell updates without blocking agents on stale cached versions
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
@@ -56,40 +48,30 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
-            // CRITICAL EXPLICIT RULE: API calls are NetworkOnly.
-            // Backend API requests must NEVER be cached in Service Worker storage.
-            // Offline data fallback is handled exclusively via Dexie IndexedDB (Phases 1-3).
             urlPattern: /^\/api\/.*$/i,
             handler: 'NetworkOnly',
           },
           {
-            // Optional StaleWhileRevalidate for external font assets if referenced
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*$/i,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },
           },
         ],
       }
     }),
-    ...(process.env.NODE_ENV !== 'production' &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import('@replit/vite-plugin-cartographer').then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, '..'),
-            }),
-          ),
-          await import('@replit/vite-plugin-dev-banner').then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
+    visualizer({
+      filename: './dist/stats.html',
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
+      template: 'raw-data'
+    }),
   ],
   resolve: {
     alias: {
@@ -107,6 +89,29 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@clerk')) {
+              return 'vendor-clerk';
+            }
+            if (id.includes('zod') || id.includes('react-hook-form')) {
+              return 'vendor-forms';
+            }
+            if (id.includes('dexie')) {
+              return 'vendor-dexie';
+            }
+            if (id.includes('i18next')) {
+              return 'vendor-i18n';
+            }
+            if (id.includes('date-fns')) {
+              return 'vendor-date-fns';
+            }
+          }
+        },
+      },
+    },
   },
   server: {
     port,

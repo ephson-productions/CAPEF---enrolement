@@ -18,18 +18,18 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import Shell from './components/layout/Shell';
 import { LanguageToggle } from './components/layout/LanguageToggle';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import MembersList from './pages/members/MembersList';
-import MemberNew from './pages/members/MemberNew';
-import MemberDetail from './pages/members/MemberDetail';
-import MemberEdit from './pages/members/MemberEdit';
-import UsersList from './pages/users/UsersList';
-import AddAgent from './pages/users/AddAgent';
-import UserDetail from './pages/users/UserDetail';
-import Profile from './pages/Profile';
-import NotFound from './pages/not-found';
-import BadgeVerify from './pages/members/BadgeVerify';
+// Lazy Loaded Pages for Code Splitting
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const MembersList = React.lazy(() => import('./pages/members/MembersList'));
+const MemberNew = React.lazy(() => import('./pages/members/MemberNew'));
+const MemberDetail = React.lazy(() => import('./pages/members/MemberDetail'));
+const MemberEdit = React.lazy(() => import('./pages/members/MemberEdit'));
+const UsersList = React.lazy(() => import('./pages/users/UsersList'));
+const AddAgent = React.lazy(() => import('./pages/users/AddAgent'));
+const UserDetail = React.lazy(() => import('./pages/users/UserDetail'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const NotFound = React.lazy(() => import('./pages/not-found'));
+const BadgeVerify = React.lazy(() => import('./pages/members/BadgeVerify'));
 
 const queryClient = new QueryClient();
 
@@ -238,7 +238,8 @@ function ClerkQueryClientCacheInvalidator() {
 function ProtectedRoutes() {
   return (
     <Shell>
-      <Switch>
+      <React.Suspense fallback={<div className="p-8 text-center text-muted-foreground">Chargement / Loading...</div>}>
+        <Switch>
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/members" component={MembersList} />
         <Route path="/members/new" component={MemberNew} />
@@ -250,6 +251,7 @@ function ProtectedRoutes() {
         <Route path="/profile" component={Profile} />
         <Route component={NotFound} />
       </Switch>
+      </React.Suspense>
     </Shell>
   );
 }
