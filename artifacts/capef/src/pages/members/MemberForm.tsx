@@ -313,7 +313,7 @@ function MoraleStepFields() {
           <label className="text-sm font-semibold">{t('members.form.org_type', 'Type d\'organisation')}</label>
           <select
             {...register('moraleData.typeOrganisation')}
-            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm"
           >
             <option value="OP">OP</option>
             <option value="GIC">GIC</option>
@@ -383,7 +383,7 @@ function MoraleStepFields() {
             <label className="text-sm font-semibold">{t('members.form.annual_turnover', 'Chiffre d\'affaires annuel')} *</label>
             <select
               {...register('moraleData.chiffreAffaires')}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm"
             >
               <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
               <option value="< 5m">&lt; 5m FCFA</option>
@@ -557,7 +557,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           <label className="text-xs font-semibold">{t('members.detail.civilite', 'Civilité')}</label>
           <select
             {...register(`moraleData.representants.${index}.civilite`)}
-            className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs"
+            className="w-full px-2 py-1.5 border border-input rounded bg-background text-foreground text-xs"
           >
             <option value="M.">M.</option>
             <option value="Mme.">Mme.</option>
@@ -651,7 +651,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           <label className="text-xs font-semibold">{t('members.form.region_address', 'Région (Adresse)')}</label>
           <select
             {...register(`moraleData.representants.${index}.regionId`)}
-            className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs"
+            className="w-full px-2 py-1.5 border border-input rounded bg-background text-foreground text-xs"
             onChange={(e) => {
               const val = e.target.value ? parseInt(e.target.value, 10) : null;
               setValue(`moraleData.representants.${index}.regionId`, val);
@@ -671,7 +671,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           <select
             {...register(`moraleData.representants.${index}.departmentId`)}
             disabled={!selectedRegion}
-            className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs disabled:bg-muted"
+            className="w-full px-2 py-1.5 border border-input rounded bg-background text-foreground text-xs disabled:bg-muted"
             onChange={(e) => {
               const val = e.target.value ? parseInt(e.target.value, 10) : null;
               setValue(`moraleData.representants.${index}.departmentId`, val);
@@ -690,7 +690,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
           <select
             {...register(`moraleData.representants.${index}.arrondissementId`)}
             disabled={!selectedDept}
-            className="w-full px-2 py-1.5 border border-input rounded bg-background text-xs disabled:bg-muted"
+            className="w-full px-2 py-1.5 border border-input rounded bg-background text-foreground text-xs disabled:bg-muted"
             onChange={(e) => {
               const val = e.target.value ? parseInt(e.target.value, 10) : null;
               setValue(`moraleData.representants.${index}.arrondissementId`, val);
@@ -1160,7 +1160,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.detail.civilite', 'Civilité')}</label>
-                    <select {...methods.register('physiqueData.civilite')} className="w-full px-3 py-2 border border-input rounded-md">
+                    <select {...methods.register('physiqueData.civilite')} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm">
                       <option value="M.">M.</option>
                       <option value="Mme.">Mme.</option>
                       <option value="Mlle.">Mlle.</option>
@@ -1177,7 +1177,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.detail.matrimonial', 'Situation matrimoniale')}</label>
-                    <select {...methods.register('physiqueData.situationMatrimoniale')} className="w-full px-3 py-2 border border-input rounded-md">
+                    <select {...methods.register('physiqueData.situationMatrimoniale')} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm">
                       <option value="Célibataire">Célibataire</option>
                       <option value="Marié(e)">Marié(e)</option>
                       <option value="Divorcé(e)">Divorcé(e)</option>
@@ -1194,7 +1194,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.detail.education', 'Niveau d\'études')}</label>
-                    <select {...methods.register('physiqueData.niveauEtudes')} className="w-full px-3 py-2 border border-input rounded-md">
+                    <select {...methods.register('physiqueData.niveauEtudes')} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm">
                       <option value="Autodidacte">Autodidacte</option>
                       <option value="Primaire">Primaire</option>
                       <option value="Complémentaire">Complémentaire</option>
@@ -1286,7 +1286,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.region', 'Région')}</label>
-                    <select {...methods.register('regionId')} className="w-full px-3 py-2 border border-input rounded-md">
+                    <select {...methods.register('regionId')} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
                       {regions.data?.map(r => (
                         <option key={r.id} value={r.id}>{r.name}</option>
@@ -1295,7 +1295,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.department', 'Département')}</label>
-                    <select {...methods.register('departmentId')} disabled={!selectedRegion} className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted">
+                    <select {...methods.register('departmentId')} disabled={!selectedRegion} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
                       {departments.data?.map(d => (
                         <option key={d.id} value={d.id}>{d.name}</option>
@@ -1304,7 +1304,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.arrondissement', 'Arrondissement')}</label>
-                    <select {...methods.register('arrondissementId')} disabled={!selectedDept} className="w-full px-3 py-2 border border-input rounded-md disabled:bg-muted">
+                    <select {...methods.register('arrondissementId')} disabled={!selectedDept} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
                       {arrondissements.data?.map(a => (
                         <option key={a.id} value={a.id}>{a.name}</option>

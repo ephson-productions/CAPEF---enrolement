@@ -238,8 +238,7 @@ function ClerkQueryClientCacheInvalidator() {
 function ProtectedRoutes() {
   return (
     <Shell>
-      <React.Suspense fallback={<div className="p-8 text-center text-muted-foreground">Chargement / Loading...</div>}>
-        <Switch>
+      <Switch>
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/members" component={MembersList} />
         <Route path="/members/new" component={MemberNew} />
@@ -251,7 +250,6 @@ function ProtectedRoutes() {
         <Route path="/profile" component={Profile} />
         <Route component={NotFound} />
       </Switch>
-      </React.Suspense>
     </Shell>
   );
 }
@@ -280,24 +278,26 @@ function ClerkProviderWithRoutes() {
         <AuthProvider>
           <OfflineQueueProvider>
             <TooltipProvider>
-              <Switch>
-                <Route path="/" component={HomeRedirect} />
-                <Route path="/sign-in/*?" component={SignInPage} />
-                <Route path="/sign-up/*?" component={SignUpPage} />
+              <React.Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center p-4 text-muted-foreground font-semibold">Chargement / Loading...</div>}>
+                <Switch>
+                  <Route path="/" component={HomeRedirect} />
+                  <Route path="/sign-in/*?" component={SignInPage} />
+                  <Route path="/sign-up/*?" component={SignUpPage} />
 
-                {/* Protected shell wrapper handles other routes */}
-                <Route>
-                  <Show when="signed-out">
-                    <Redirect to="/" />
-                  </Show>
-                  <Show when="signed-in">
-                    <Switch>
-                      <Route path="/badge-verify/:token" component={BadgeVerify} />
-                      <Route component={ProtectedRoutes} />
-                    </Switch>
-                  </Show>
-                </Route>
-              </Switch>
+                  {/* Protected shell wrapper handles other routes */}
+                  <Route>
+                    <Show when="signed-out">
+                      <Redirect to="/" />
+                    </Show>
+                    <Show when="signed-in">
+                      <Switch>
+                        <Route path="/badge-verify/:token" component={BadgeVerify} />
+                        <Route component={ProtectedRoutes} />
+                      </Switch>
+                    </Show>
+                  </Route>
+                </Switch>
+              </React.Suspense>
               <Toaster />
             </TooltipProvider>
           </OfflineQueueProvider>

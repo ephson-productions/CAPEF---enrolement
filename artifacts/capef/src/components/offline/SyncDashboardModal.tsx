@@ -198,10 +198,6 @@ export function SyncDashboardModal({ isOpen, onClose }: { isOpen: boolean; onClo
                 />
               </div>
             )}
-
-            <p className="text-[11px] text-muted-foreground leading-tight pt-1">
-              * {t('offline.dashboard.quota_note', 'Le quota de stockage est mesuré directement par le navigateur via navigator.storage.estimate() et varie dynamiquement selon l\'appareil, le navigateur et l\'espace disque disponible.')}
-            </p>
           </div>
         </div>
 
