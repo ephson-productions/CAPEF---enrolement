@@ -218,6 +218,21 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+
+  select {
+    color-scheme: light dark;
+  }
+
+  .dark select {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+  }
+
+  .dark select option {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
 }
 
 @layer utilities {

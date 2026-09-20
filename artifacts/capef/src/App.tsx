@@ -18,18 +18,18 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import Shell from './components/layout/Shell';
 import { LanguageToggle } from './components/layout/LanguageToggle';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import MembersList from './pages/members/MembersList';
-import MemberNew from './pages/members/MemberNew';
-import MemberDetail from './pages/members/MemberDetail';
-import MemberEdit from './pages/members/MemberEdit';
-import UsersList from './pages/users/UsersList';
-import AddAgent from './pages/users/AddAgent';
-import UserDetail from './pages/users/UserDetail';
-import Profile from './pages/Profile';
-import NotFound from './pages/not-found';
-import BadgeVerify from './pages/members/BadgeVerify';
+// Lazy Loaded Pages for Code Splitting
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const MembersList = React.lazy(() => import('./pages/members/MembersList'));
+const MemberNew = React.lazy(() => import('./pages/members/MemberNew'));
+const MemberDetail = React.lazy(() => import('./pages/members/MemberDetail'));
+const MemberEdit = React.lazy(() => import('./pages/members/MemberEdit'));
+const UsersList = React.lazy(() => import('./pages/users/UsersList'));
+const AddAgent = React.lazy(() => import('./pages/users/AddAgent'));
+const UserDetail = React.lazy(() => import('./pages/users/UserDetail'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const NotFound = React.lazy(() => import('./pages/not-found'));
+const BadgeVerify = React.lazy(() => import('./pages/members/BadgeVerify'));
 
 const queryClient = new QueryClient();
 
@@ -278,24 +278,26 @@ function ClerkProviderWithRoutes() {
         <AuthProvider>
           <OfflineQueueProvider>
             <TooltipProvider>
-              <Switch>
-                <Route path="/" component={HomeRedirect} />
-                <Route path="/sign-in/*?" component={SignInPage} />
-                <Route path="/sign-up/*?" component={SignUpPage} />
+              <React.Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center p-4 text-muted-foreground font-semibold">Chargement / Loading...</div>}>
+                <Switch>
+                  <Route path="/" component={HomeRedirect} />
+                  <Route path="/sign-in/*?" component={SignInPage} />
+                  <Route path="/sign-up/*?" component={SignUpPage} />
 
-                {/* Protected shell wrapper handles other routes */}
-                <Route>
-                  <Show when="signed-out">
-                    <Redirect to="/" />
-                  </Show>
-                  <Show when="signed-in">
-                    <Switch>
-                      <Route path="/badge-verify/:token" component={BadgeVerify} />
-                      <Route component={ProtectedRoutes} />
-                    </Switch>
-                  </Show>
-                </Route>
-              </Switch>
+                  {/* Protected shell wrapper handles other routes */}
+                  <Route>
+                    <Show when="signed-out">
+                      <Redirect to="/" />
+                    </Show>
+                    <Show when="signed-in">
+                      <Switch>
+                        <Route path="/badge-verify/:token" component={BadgeVerify} />
+                        <Route component={ProtectedRoutes} />
+                      </Switch>
+                    </Show>
+                  </Route>
+                </Switch>
+              </React.Suspense>
               <Toaster />
             </TooltipProvider>
           </OfflineQueueProvider>

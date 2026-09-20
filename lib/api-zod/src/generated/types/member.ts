@@ -16,6 +16,8 @@ import type { PhysiqueData } from './physiqueData';
 
 export interface Member {
   id: number;
+  /** Optimistic Concurrency Control (OCC) version counter */
+  version: number;
   memberNumber: string;
   memberType: MemberMemberType;
   category: MemberCategory;

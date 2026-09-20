@@ -60,6 +60,7 @@ memDb.public.none(`
     member_number TEXT NOT NULL UNIQUE,
     member_type TEXT NOT NULL,
     category TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
     individual_or_org TEXT NOT NULL DEFAULT 'individuel',
     region_id INTEGER,
     department_id INTEGER,

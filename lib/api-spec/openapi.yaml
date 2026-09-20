@@ -1443,10 +1443,14 @@ components:
 
     Member:
       type: object
-      required: [id, memberNumber, memberType, category, createdAt, createdById, status]
+      required: [id, memberNumber, memberType, category, version, createdAt, createdById, status]
       properties:
         id:
           type: integer
+        version:
+          type: integer
+          default: 1
+          description: Optimistic Concurrency Control (OCC) version counter
         memberNumber:
           type: string
         memberType:
@@ -1590,6 +1594,9 @@ components:
     MemberUpdate:
       type: object
       properties:
+        version:
+          type: integer
+          description: Expected current version for Optimistic Concurrency Control (OCC) check
         category:
           type: string
           enum: [agriculteur, pecheur, eleveur, forestier, artisan]

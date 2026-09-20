@@ -117,6 +117,7 @@ function formatPreJoinedMember(row: PreJoinedMemberRow, includeDetail = false) {
     memberNumber: m.memberNumber,
     memberType: m.memberType,
     category: m.category,
+    version: m.version ?? 1,
     displayName,
     regionName: row.regionName ?? null,
     createdByName: row.createdByName ?? null,
@@ -642,7 +643,7 @@ router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   res.json(await formatMember(member, true));
 });
 
-// PUT /api/members/:id
+// PUT /api/members/:id — Update a member with Optimistic Concurrency Control (OCC) & idempotency
 router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
@@ -651,6 +652,16 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
     return;
   }
   const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (clientOperationId) {
+    const existingOp = await getProcessedOperation(clientOperationId);
+    if (existingOp) {
+      console.log(`[Idempotency] Match found for clientOperationId (PUT /members/${id}): ${clientOperationId}`);
+      res.status(200).json(existingOp.resultPayload);
+      return;
+    }
+  }
 
   const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
   if (!existing) {
@@ -663,7 +674,25 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
     return;
   }
 
-  const updates: Record<string, unknown> = {};
+  // OCC Check: Compare expected version from client with current version in database
+  const clientVersion = req.body.version !== undefined && req.body.version !== null ? Number(req.body.version) : null;
+  const currentVersion = existing.version ?? 1;
+
+  if (clientVersion !== null && clientVersion !== currentVersion) {
+    const currentMemberState = await formatMember(existing, true);
+    res.status(409).json({
+      error: "Conflit de modification (OCC)",
+      message: `La version fournie (${clientVersion}) ne correspond pas à la version actuelle du serveur (${currentVersion}).`,
+      serverVersion: currentVersion,
+      currentMember: currentMemberState,
+    });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {
+    version: currentVersion + 1, // Increment version on update
+  };
+
   const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
   for (const f of fields) {
     if (req.body[f] !== undefined) updates[f] = req.body[f];
@@ -674,13 +703,44 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
     if (req.body[f] !== undefined) updates[f] = coerceNumeric(req.body[f]);
   }
 
-  const [updated] = await db
-    .update(membersTable)
-    .set(updates)
-    .where(eq(membersTable.id, id))
-    .returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(membersTable)
+        .set(updates)
+        .where(eq(membersTable.id, id))
+        .returning();
 
-  res.json(await formatMember(updated, true));
+      const formatted = await formatMember(updated, true, tx);
+
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          clientOperationId,
+          userId: appUser.id,
+          operationType: "update_member",
+          resourceId: id,
+          resultPayload: formatted,
+        });
+      }
+
+      return formatted;
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error("🚨 POSTGRES EXECUTION ERROR (PUT /members/:id):", {
+      code: error.code,
+      detail: error.detail,
+      message: error.message,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: "Échec de la mise à jour du membre",
+      code: error.code || "UNKNOWN_DB_ERROR",
+      message: error.message,
+    });
+  }
 });
 
 // DELETE /api/members/:id

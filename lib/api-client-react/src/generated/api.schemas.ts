@@ -566,6 +566,8 @@ export const MemberStatus = {
 
 export interface Member {
   id: number;
+  /** Optimistic Concurrency Control (OCC) version counter */
+  version: number;
   memberNumber: string;
   memberType: MemberMemberType;
   category: MemberCategory;
@@ -738,6 +740,8 @@ export const MemberUpdateIndividualOrOrg = {
 export type MemberUpdateCategoryData = { [key: string]: unknown } | null;
 
 export interface MemberUpdate {
+  /** Expected current version for Optimistic Concurrency Control (OCC) check */
+  version?: number;
   category?: MemberUpdateCategory;
   individualOrOrg?: MemberUpdateIndividualOrOrg;
   /** @nullable */

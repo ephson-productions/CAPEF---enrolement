@@ -403,6 +403,7 @@ export const CreateMemberBody = zod.object({
   "categoryData": zod.record(zod.string(), zod.unknown()).nullish()
 })
 
+export const createMemberResponseVersionDefault = 1;
 export const createMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const createMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -411,6 +412,7 @@ export const createMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const CreateMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(createMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -551,6 +553,7 @@ export const GetPublicMemberByBadgeTokenParams = zod.object({
   "badge_token": zod.coerce.string()
 })
 
+export const getPublicMemberByBadgeTokenResponseVersionDefault = 1;
 export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreMembresMin = 0;
 
 export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreFemmesMin = 0;
@@ -559,6 +562,7 @@ export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreFemmesMin = 0
 
 export const GetPublicMemberByBadgeTokenResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(getPublicMemberByBadgeTokenResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -685,6 +689,7 @@ export const GetMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getMemberResponseVersionDefault = 1;
 export const getMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const getMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -693,6 +698,7 @@ export const getMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const GetMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(getMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -826,6 +832,7 @@ export const updateMemberBodyMoraleDataOneNombreFemmesMin = 0;
 
 
 export const UpdateMemberBody = zod.object({
+  "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),
   "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
   "regionId": zod.number().nullish(),
@@ -891,6 +898,7 @@ export const UpdateMemberBody = zod.object({
   "badgeUrl": zod.string().nullish()
 })
 
+export const updateMemberResponseVersionDefault = 1;
 export const updateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const updateMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -899,6 +907,7 @@ export const updateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const UpdateMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(updateMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -1467,6 +1476,7 @@ export const ValidateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const validateMemberResponseVersionDefault = 1;
 export const validateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const validateMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -1475,6 +1485,7 @@ export const validateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const ValidateMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(validateMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -1601,6 +1612,7 @@ export const DeactivateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const deactivateMemberResponseVersionDefault = 1;
 export const deactivateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const deactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -1609,6 +1621,7 @@ export const deactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const DeactivateMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(deactivateMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -1735,6 +1748,7 @@ export const ReactivateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const reactivateMemberResponseVersionDefault = 1;
 export const reactivateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const reactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -1743,6 +1757,7 @@ export const reactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const ReactivateMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(reactivateMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
@@ -1869,6 +1884,7 @@ export const BlockMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const blockMemberResponseVersionDefault = 1;
 export const blockMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const blockMemberResponseMoraleDataOneNombreFemmesMin = 0;
@@ -1877,6 +1893,7 @@ export const blockMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
 export const BlockMemberResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(blockMemberResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
