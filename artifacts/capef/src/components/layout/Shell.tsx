@@ -6,6 +6,7 @@ import { useClerk } from '@clerk/react';
 import { useTheme } from '@/components/theme-provider';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from './LanguageToggle';
+import { SyncDashboardModal } from '../offline/SyncDashboardModal';
 import {
   LayoutDashboard,
   Users,
@@ -17,7 +18,8 @@ import {
   User,
   ShieldAlert,
   Moon,
-  Sun
+  Sun,
+  Activity
 } from 'lucide-react';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -26,6 +28,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, isLoading } = useAuthContext();
   const { isOnline, queueCount, syncNow, isSyncing } = useOfflineQueue();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const { t } = useTranslation();
   const isDark = theme === 'dark';
@@ -128,21 +131,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            {/* Sync Status Badge */}
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${isOnline ? (queueCount > 0 ? 'bg-secondary/20 text-secondary-foreground' : 'bg-primary/10 text-primary') : 'bg-destructive/10 text-destructive'}`}>
+            {/* Sync Status Badge & Dashboard Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsSyncModalOpen(true)}
+              title={t('offline.dashboard.open', 'Ouvrir l\'observabilité offline')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95 cursor-pointer ${isOnline ? (queueCount > 0 ? 'bg-secondary/20 text-secondary-foreground' : 'bg-primary/10 text-primary') : 'bg-destructive/10 text-destructive'}`}
+            >
               {isOnline ? (
                 <>
                   <Wifi className="h-4 w-4" />
                   <span className="hidden sm:inline">{t('offline.online_status')}</span>
-                  {queueCount > 0 && (
-                    <button
-                      onClick={() => syncNow()}
-                      disabled={isSyncing}
-                      className="ml-2 underline transition-colors duration-500 hover:no-underline font-bold"
-                    >
-                      {isSyncing ? '...' : `Sync ${queueCount}`}
-                    </button>
-                  )}
+                  {queueCount > 0 && <span className="ml-1 font-black bg-primary/20 px-1.5 py-0.5 rounded-full text-[10px]">{queueCount}</span>}
                 </>
               ) : (
                 <>
@@ -150,7 +150,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                   <span>{t('offline.offline_status')} {queueCount > 0 && `(${queueCount})`}</span>
                 </>
               )}
-            </div>
+              <Activity className="h-3.5 w-3.5 opacity-70 ml-1" />
+            </button>
 
             <LanguageToggle />
 
@@ -174,6 +175,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      <SyncDashboardModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+      />
     </div>
   );
 }
