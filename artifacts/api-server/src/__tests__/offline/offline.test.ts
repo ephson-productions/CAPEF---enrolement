@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
-import app from "../app";
+import app from "../../app";
 import { db, usersTable, membersTable, memberActivitiesTable, activityLineItemsTable, processedOperationsTable } from "@workspace/db";
 import crypto from "crypto";
 
