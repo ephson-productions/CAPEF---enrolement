@@ -21,7 +21,13 @@ import { useAuthContext } from '@/lib/auth';
 import ActivityWizard from '@/components/members/ActivityWizard';
 import { useTranslation } from 'react-i18next';
 import { useDateLocale } from '@/lib/i18n';
-import { getCategoryLabel, getStatusLabel } from '@/lib/i18n-helpers';
+import {
+  getCategoryLabel,
+  getStatusLabel,
+  getMaillonLabel,
+  formatLineItemTitle,
+  formatLineItemSpecifics
+} from '@/lib/i18n-helpers';
 
 export default function MemberDetail() {
   const { t } = useTranslation();
@@ -309,12 +315,12 @@ export default function MemberDetail() {
                   {act.maillons && act.maillons.length > 0 && (
                     <div className="flex gap-1.5 flex-wrap">
                       {act.maillons.map(m => (
-                        <span key={m} className="text-[11px] font-medium border bg-muted px-2 py-0.5 rounded-full">{m}</span>
+                        <span key={m} className="text-[11px] font-medium border border-border bg-muted px-2 py-0.5 rounded-full">{getMaillonLabel(act.activityType, m, t)}</span>
                       ))}
                     </div>
                   )}
 
-                  <div className="overflow-x-auto rounded-lg border">
+                  <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-muted text-muted-foreground font-semibold">
                         <tr>
@@ -324,7 +330,7 @@ export default function MemberDetail() {
                           <th className="p-2 text-right">{t('activities.table.value', 'Valeur (FCFA)')}</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y">
+                      <tbody className="divide-y divide-border">
                         {act.lineItems?.length === 0 ? (
                           <tr>
                             <td colSpan={4} className="p-4 text-center text-muted-foreground">{t('activities.no_line_items', 'Aucune ligne d\'activité.')}</td>
@@ -333,20 +339,13 @@ export default function MemberDetail() {
                           act.lineItems?.map(item => (
                             <tr key={item.id} className="hover:bg-muted/10">
                               <td className="p-2 font-medium">
-                                {act.activityType === 'agriculteur' && `${item.cropCategory || ''} - ${item.cropName || ''}`}
-                                {act.activityType === 'pecheur' && item.speciesPêche}
-                                {act.activityType === 'eleveur' && item.species}
-                                {act.activityType === 'forestier' && `${item.subCategory || ''} - ${item.essence || ''}`}
-                                {act.activityType === 'artisan' && item.artisanatProducts}
+                                {formatLineItemTitle(item, act.activityType, t)}
                               </td>
                               <td className="p-2 text-muted-foreground">
-                                {act.activityType === 'agriculteur' && `Type: ${item.cultureType || ''}, Superficie: ${item.superficieHa || 'N/A'} ha`}
-                                {act.activityType === 'eleveur' && `Cheptel: ${item.cheptelSize || 'N/A'}, Nourriture: ${item.foodType || 'N/A'}`}
-                                {act.activityType === 'forestier' && `Plantation: ${item.plantationType || 'N/A'}, Superficie: ${item.superficieHa || 'N/A'} ha`}
-                                {act.activityType === 'artisan' && `Matières: ${item.rawMaterials || ''}`}
+                                {formatLineItemSpecifics(item, act.activityType, t)}
                               </td>
                               <td className="p-2">
-                                {item.productionQuantity || 'N/A'} {item.productionUnit || ''}
+                                {item.productionQuantity || t('common.not_available', 'N/A')} {item.productionUnit || ''}
                               </td>
                               <td className="p-2 text-right font-mono font-medium">{item.productionFcfa?.toLocaleString() || '0'}</td>
                             </tr>
@@ -430,7 +429,7 @@ export default function MemberDetail() {
                     <div><dt className="text-muted-foreground inline">{t('members.filters.region', 'Région')}: </dt><dd className="inline font-medium">{regionNameById[rep.regionId] || '-'}</dd></div>
                     <div><dt className="text-muted-foreground inline">{t('members.filters.department', 'Département')}: </dt><dd className="inline font-medium">{departmentNameById[rep.departmentId] || '-'}</dd></div>
                     <div><dt className="text-muted-foreground inline">{t('members.filters.arrondissement', 'Arrondissement')}: </dt><dd className="inline font-medium">{arrondissementNameById[rep.arrondissementId] || '-'}</dd></div>
-                    <div><dt className="text-muted-foreground inline">{t('members.detail.village', 'Village/Quartier')}: </dt><dd className="inline font-medium">{rep.village || '-'}</dd></div>
+                    <div><dt className="text-muted-foreground inline">{t('members.detail.village', 'Village / Quartier')}: </dt><dd className="inline font-medium">{rep.village || '-'}</dd></div>
                     <div className="sm:col-span-2"><dt className="text-muted-foreground inline">{t('members.detail.detailed_address', 'Adresse détaillée')}: </dt><dd className="inline font-medium">{rep.adresseDetaillee || '-'}</dd></div>
                   </dl>
                 </div>
@@ -452,7 +451,7 @@ export default function MemberDetail() {
               <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.region', 'Région')}</dt><dd className="col-span-2 font-medium">{member.regionName || '-'}</dd></div>
               <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.department', 'Département')}</dt><dd className="col-span-2 font-medium">{member.departmentName || '-'}</dd></div>
               <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.arrondissement', 'Arrondissement')}</dt><dd className="col-span-2 font-medium">{member.arrondissementName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village/Quartier')}</dt><dd className="col-span-2 font-medium">{member.village || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village / Quartier')}</dt><dd className="col-span-2 font-medium">{member.village || '-'}</dd></div>
               <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">GPS</dt><dd className="col-span-2 font-mono text-xs">{member.gpsLat ? `${member.gpsLat}, ${member.gpsLng}` : t('common.not_provided', 'Non renseigné')}</dd></div>
             </dl>
           </div>

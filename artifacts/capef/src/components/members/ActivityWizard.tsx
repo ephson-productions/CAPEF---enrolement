@@ -13,7 +13,13 @@ import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, Trash2, Check, AlertTriangle, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getCategoryLabel } from '@/lib/i18n-helpers';
+import {
+  getCategoryLabel,
+  getOptionLabel,
+  formatLineItemTitle,
+  formatLineItemSpecifics
+} from '@/lib/i18n-helpers';
+import { ACTIVITY_OPTIONS, OptionGroup } from '@/lib/activity-options';
 
 interface ActivityWizardProps {
   memberId: number;
@@ -95,7 +101,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   const [species, setSpecies] = useState('');
   const [cheptelSize, setCheptelSize] = useState('');
   const [foodType, setFoodType] = useState('');
-  const [prodName, setProdName] = useState(''); // e.g. Lait/Viande/Oeufs
+  const [prodName, setProdName] = useState('');
   const [elevageProducts, setElevageProducts] = useState<Array<{ name: string; quantity: number; unit: string; fcfa: number }>>([]);
 
   // Forêts
@@ -112,7 +118,6 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
   const handleNextStep = async () => {
     if (step === 1) {
-      // Localisation & Type Setup
       try {
         if (!activeActivity) {
           await createActivity.mutateAsync({
@@ -149,7 +154,6 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
           toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.crop_req', 'Catégorie et culture principale requises.') });
           return;
         }
-        // Duplicate check
         const isDuplicate = activeActivity.lineItems?.some(
           item => item.cropName?.toLowerCase() === cropName.toLowerCase()
         );
@@ -257,6 +261,9 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
   const [wizardFinished, setWizardFinished] = useState(false);
 
+  const maillonGroup = `maillons_${selectedType}` as OptionGroup;
+  const currentMaillonOptions = ACTIVITY_OPTIONS[maillonGroup] || [];
+
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm max-w-4xl mx-auto overflow-hidden">
       <div className="bg-primary/5 p-6 border-b border-border flex justify-between items-center">
@@ -300,7 +307,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value as any)}
-                  className="w-full border rounded-md p-2 bg-background"
+                  className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                 >
                   <option value="agriculteur">{getCategoryLabel('agriculteur', t)}</option>
                   <option value="pecheur">{getCategoryLabel('pecheur', t)}</option>
@@ -319,7 +326,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     setSelectedDept(null);
                     setSelectedArr(null);
                   }}
-                  className="w-full border rounded-md p-2 bg-background"
+                  className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                 >
                   <option value="">{t('common.select_region', 'Sélectionner une région')}</option>
                   {regions?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -335,7 +342,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     setSelectedDept(e.target.value ? parseInt(e.target.value, 10) : null);
                     setSelectedArr(null);
                   }}
-                  className="w-full border rounded-md p-2 bg-background"
+                  className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm disabled:bg-muted"
                 >
                   <option value="">{t('common.select_department', 'Sélectionner un département')}</option>
                   {departments?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -348,7 +355,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   value={selectedArr || ''}
                   disabled={!selectedDept}
                   onChange={(e) => setSelectedArr(e.target.value ? parseInt(e.target.value, 10) : null)}
-                  className="w-full border rounded-md p-2 bg-background"
+                  className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm disabled:bg-muted"
                 >
                   <option value="">{t('common.select_arrondissement', 'Sélectionner un arrondissement')}</option>
                   {arrondissements?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -362,77 +369,25 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   value={village}
                   onChange={(e) => setVillage(e.target.value)}
                   placeholder={t('activities.village_placeholder', 'Nom du village ou quartier')}
-                  className="w-full border rounded-md p-2 bg-background"
+                  className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                 />
               </div>
             </div>
 
             <div className="space-y-2 mt-4">
               <label className="block text-sm font-medium">{t('activities.maillons_label', 'Maillons dans la filière (Sélection multiple)')}</label>
-              <div className="grid grid-cols-2 gap-2 border p-3 rounded-md bg-muted/20">
-                {selectedType === 'agriculteur' && ['Production', 'Transformation', 'Distribution', 'Prestation de service', 'Fourniture d\'intrants'].map(m => (
-                  <label key={m} className="flex items-center gap-2 text-sm">
+              <div className="grid grid-cols-2 gap-2 border border-border p-3 rounded-md bg-muted/20">
+                {currentMaillonOptions.map((mOpt) => (
+                  <label key={mOpt.value} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={selectedMaillons.includes(m)}
+                      checked={selectedMaillons.includes(mOpt.value)}
                       onChange={(e) => {
-                        if (e.target.checked) setSelectedMaillons([...selectedMaillons, m]);
-                        else setSelectedMaillons(selectedMaillons.filter(x => x !== m));
+                        if (e.target.checked) setSelectedMaillons([...selectedMaillons, mOpt.value]);
+                        else setSelectedMaillons(selectedMaillons.filter(x => x !== mOpt.value));
                       }}
                     />
-                    {m}
-                  </label>
-                ))}
-                {selectedType === 'pecheur' && ['Pêcheur artisanal', 'Pêcheur industriel', 'Aquaculteur d\'étang', 'Aquaculteur hors-sol', 'Aquaculteur sur cage flottante', 'Fournisseur d\'intrants', 'Équipementier', 'Producteur d\'alevins', 'Provendier', 'Autre'].map(m => (
-                  <label key={m} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedMaillons.includes(m)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedMaillons([...selectedMaillons, m]);
-                        else setSelectedMaillons(selectedMaillons.filter(x => x !== m));
-                      }}
-                    />
-                    {m}
-                  </label>
-                ))}
-                {selectedType === 'eleveur' && ['Éleveur naisseur', 'Engraisseur', 'Fournisseur de provendes', 'Producteur d\'intrants', 'Abattage', 'Boucher / Charcutier', 'Autre'].map(m => (
-                  <label key={m} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedMaillons.includes(m)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedMaillons([...selectedMaillons, m]);
-                        else setSelectedMaillons(selectedMaillons.filter(x => x !== m));
-                      }}
-                    />
-                    {m}
-                  </label>
-                ))}
-                {selectedType === 'forestier' && ['Exploitant forestier', 'Sylviculteur', 'Exploitant de produits de la faune', 'Exploitant de PFNL'].map(m => (
-                  <label key={m} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedMaillons.includes(m)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedMaillons([...selectedMaillons, m]);
-                        else setSelectedMaillons(selectedMaillons.filter(x => x !== m));
-                      }}
-                    />
-                    {m}
-                  </label>
-                ))}
-                {selectedType === 'artisan' && ['Artisan producteur', 'Distributeur d\'artisanat', 'Matières premières', 'Autre'].map(m => (
-                  <label key={m} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedMaillons.includes(m)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedMaillons([...selectedMaillons, m]);
-                        else setSelectedMaillons(selectedMaillons.filter(x => x !== m));
-                      }}
-                    />
-                    {m}
+                    {getOptionLabel(maillonGroup, mOpt.value, t)}
                   </label>
                 ))}
               </div>
@@ -441,7 +396,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             <div className="flex justify-end pt-4">
               <button
                 onClick={handleNextStep}
-                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2"
+                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2 text-sm"
               >
                 {t('common.next', 'Suivant')} <ArrowRight className="h-4 w-4" />
               </button>
@@ -460,11 +415,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={cropCategory}
                     onChange={(e) => setCropCategory(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
-                    {['Céréales', 'Oléagineux', 'Racines-tubercules', 'Légumes', 'Fruits et noix', 'Plantes stimulantes', 'Légumineuses', 'Cultures sucrières', 'Autres'].map(c => (
-                      <option key={c} value={c}>{c}</option>
+                    {ACTIVITY_OPTIONS.crop_category.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('crop_category', opt.value, t)}</option>
                     ))}
                   </select>
                 </div>
@@ -475,7 +430,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={cropName}
                     onChange={(e) => setCropName(e.target.value)}
                     placeholder={t('activities.crop_placeholder', 'Ex: Maïs, Manioc...')}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -483,10 +438,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={cultureType}
                     onChange={(e) => setCultureType(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
-                    <option value="Pure">Pure</option>
-                    <option value="Associée">Associée</option>
+                    {ACTIVITY_OPTIONS.culture_type.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('culture_type', opt.value, t)}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -496,7 +452,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={superficieHa}
                     onChange={(e) => setSuperficieHa(e.target.value)}
                     placeholder="Ex: 2.5"
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -506,7 +462,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={prodQuantity}
                     onChange={(e) => setProdQuantity(e.target.value)}
                     placeholder="Ex: 500"
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -516,7 +472,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
                     placeholder={t('activities.unit_placeholder', 'Ex: Tonnes, Sacs...')}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -526,7 +482,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={prodFcfa}
                     onChange={(e) => setProdFcfa(e.target.value)}
                     placeholder="Ex: 1500000"
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
               </div>
@@ -539,11 +495,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={pesceSpecies}
                     onChange={(e) => setPesceSpecies(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
-                    {['Poissons de mer', 'Crustacés', 'Poissons d\'eau douce Silure', 'Tilapia', 'Carpe', 'Autres'].map(e => (
-                      <option key={e} value={e}>{e}</option>
+                    {ACTIVITY_OPTIONS.fish_species.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('fish_species', opt.value, t)}</option>
                     ))}
                   </select>
                 </div>
@@ -553,7 +509,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodQuantity}
                     onChange={(e) => setProdQuantity(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -563,7 +519,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
                     placeholder="Ex: kg, tonnes"
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -572,7 +528,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodFcfa}
                     onChange={(e) => setProdFcfa(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
               </div>
@@ -585,11 +541,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={elevageType}
                     onChange={(e) => setElevageType(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
-                    {['Volaille', 'Apiculture', 'Bovins', 'Canins', 'Asins', 'Ovins', 'Caprins', 'Non-conventionnel'].map(tVal => (
-                      <option key={tVal} value={tVal}>{tVal}</option>
+                    {ACTIVITY_OPTIONS.livestock_type.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('livestock_type', opt.value, t)}</option>
                     ))}
                   </select>
                 </div>
@@ -600,7 +556,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
                     placeholder="Ex: Boeufs, Poulets pondeurs..."
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -609,7 +565,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={cheptelSize}
                     onChange={(e) => setCheptelSize(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -617,16 +573,16 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={foodType}
                     onChange={(e) => setFoodType(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
-                    {['Pâturage naturel', 'Céréales', 'Tourteaux', 'Autres'].map(f => (
-                      <option key={f} value={f}>{f}</option>
+                    {ACTIVITY_OPTIONS.feed_type.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('feed_type', opt.value, t)}</option>
                     ))}
                   </select>
                 </div>
 
-                <div className="md:col-span-2 border-t pt-4 mt-2">
+                <div className="md:col-span-2 border-t border-border pt-4 mt-2">
                   <h4 className="font-semibold text-sm mb-2 text-primary">{t('activities.elevage_products', 'Produits d\'élevage')}</h4>
                   <div className="grid grid-cols-4 gap-2 items-end">
                     <div className="col-span-2">
@@ -635,7 +591,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                         type="text"
                         value={prodName}
                         onChange={(e) => setProdName(e.target.value)}
-                        className="w-full border rounded p-1.5 text-sm"
+                        className="w-full border border-input rounded p-1.5 text-sm bg-background text-foreground"
                       />
                     </div>
                     <div>
@@ -644,7 +600,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                         type="number"
                         placeholder="Ex: 100"
                         id="elev_prod_qty"
-                        className="w-full border rounded p-1.5 text-sm"
+                        className="w-full border border-input rounded p-1.5 text-sm bg-background text-foreground"
                       />
                     </div>
                     <div>
@@ -669,7 +625,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     </div>
                   </div>
                   {elevageProducts.length > 0 && (
-                    <ul className="mt-2 text-xs divide-y bg-muted/20 p-2 rounded">
+                    <ul className="mt-2 text-xs divide-y divide-border bg-muted/20 p-2 rounded">
                       {elevageProducts.map((p, i) => (
                         <li key={i} className="py-1 flex justify-between">
                           <span>{p.name} : {p.quantity} {p.unit}</span>
@@ -689,12 +645,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={foretSub}
                     onChange={(e) => setForetSub(e.target.value as any)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
-                    <option value="exploité">Exploité (Ayous, Azobé, Bubinga, Okok, Djansan)</option>
-                    <option value="cultivé">Cultivé (Mango, Kolatier, Bitter kola, Noisette)</option>
-                    <option value="faune">Exploitant de produits de la faune</option>
-                    <option value="non-ligneux">Exploitant de PFNL</option>
+                    {ACTIVITY_OPTIONS.forestry_subcategory.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('forestry_subcategory', opt.value, t)}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -704,7 +659,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={essence}
                     onChange={(e) => setEssence(e.target.value)}
                     placeholder="Ex: Bubinga, Moringa..."
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 {foretSub === 'cultivé' && (
@@ -713,10 +668,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     <select
                       value={plantationType}
                       onChange={(e) => setPlantationType(e.target.value)}
-                      className="w-full border rounded-md p-2 bg-background"
+                      className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                     >
-                      <option value="Monospécifique">Monospécifique</option>
-                      <option value="Plurispécifique">Plurispécifique</option>
+                      {ACTIVITY_OPTIONS.plantation_type.map(opt => (
+                        <option key={opt.value} value={opt.value}>{getOptionLabel('plantation_type', opt.value, t)}</option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -726,7 +682,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={superficieHa}
                     onChange={(e) => setSuperficieHa(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -735,7 +691,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodFcfa}
                     onChange={(e) => setProdFcfa(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
               </div>
@@ -748,11 +704,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={artProd}
                     onChange={(e) => setArtProd(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
-                    {['Boissons', 'Farines', 'Confiserie', 'Biscuiterie', 'Chips', 'Huiles alimentaires', 'Tissus', 'Cosmétiques', 'Bijoux', 'Autres'].map(p => (
-                      <option key={p} value={p}>{p}</option>
+                    {ACTIVITY_OPTIONS.artisan_product.map(opt => (
+                      <option key={opt.value} value={opt.value}>{getOptionLabel('artisan_product', opt.value, t)}</option>
                     ))}
                   </select>
                 </div>
@@ -763,7 +719,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={rawMat}
                     onChange={(e) => setRawMat(e.target.value)}
                     placeholder="Ex: Tronc de plantain, Tissus, Bamboo..."
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -772,16 +728,16 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodFcfa}
                     onChange={(e) => setProdFcfa(e.target.value)}
-                    className="w-full border rounded-md p-2 bg-background"
+                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   />
                 </div>
               </div>
             )}
 
-            <div className="flex gap-4 pt-4 border-t justify-between">
+            <div className="flex gap-4 pt-4 border-t border-border justify-between">
               <button
                 onClick={() => setStep(1)}
-                className="border border-input bg-background hover:bg-muted font-semibold px-4 py-2 rounded-md flex items-center gap-2"
+                className="border border-input bg-background hover:bg-muted font-semibold px-4 py-2 rounded-md flex items-center gap-2 text-sm"
               >
                 <ArrowLeft className="h-4 w-4" /> {t('common.previous', 'Précédent')}
               </button>
@@ -790,7 +746,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 <button
                   onClick={handleAddLineItem}
                   disabled={createLineItem.isPending}
-                  className="bg-secondary text-secondary-foreground font-semibold px-4 py-2 rounded-md hover:bg-secondary/90 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-secondary text-secondary-foreground font-semibold px-4 py-2 rounded-md hover:bg-secondary/90 flex items-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {createLineItem.isPending ? (
                     <>{t('common.saving', 'Enregistrement...')}</>
@@ -802,7 +758,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 </button>
                 <button
                   onClick={handleNextStep}
-                  className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5"
+                  className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5 text-sm"
                 >
                   {t('common.next', 'Suivant')} <ArrowRight className="h-4 w-4" />
                 </button>
@@ -834,21 +790,14 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   ) : (
                     activeActivity?.lineItems?.map((item) => (
                       <tr key={item.id} className="hover:bg-muted/10">
-                        <td className="p-3">
-                          {selectedType === 'agriculteur' && `${item.cropCategory || ''} - ${item.cropName || ''}`}
-                          {selectedType === 'pecheur' && item.speciesPêche}
-                          {selectedType === 'eleveur' && item.species}
-                          {selectedType === 'forestier' && `${item.subCategory || ''} - ${item.essence || ''}`}
-                          {selectedType === 'artisan' && item.artisanatProducts}
+                        <td className="p-3 font-medium">
+                          {formatLineItemTitle(item, selectedType, t)}
                         </td>
                         <td className="p-3 text-xs text-muted-foreground">
-                          {selectedType === 'agriculteur' && `Type: ${item.cultureType || ''}, Superficie: ${item.superficieHa || 'N/A'} ha`}
-                          {selectedType === 'eleveur' && `Cheptel: ${item.cheptelSize || 'N/A'}, Nourriture: ${item.foodType || 'N/A'}`}
-                          {selectedType === 'forestier' && `Plantation: ${item.plantationType || 'N/A'}, Superficie: ${item.superficieHa || 'N/A'} ha`}
-                          {selectedType === 'artisan' && `Matières: ${item.rawMaterials || ''}`}
+                          {formatLineItemSpecifics(item, selectedType, t)}
                         </td>
                         <td className="p-3">
-                          {item.productionQuantity || 'N/A'} {item.productionUnit || ''}
+                          {item.productionQuantity || t('common.not_available', 'N/A')} {item.productionUnit || ''}
                         </td>
                         <td className="p-3 text-right font-mono text-xs">{item.productionFcfa?.toLocaleString() || '0'}</td>
                         <td className="p-3 text-right">
@@ -873,10 +822,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
               </div>
             </div>
 
-            <div className="flex justify-between pt-4 border-t">
+            <div className="flex justify-between pt-4 border-t border-border">
               <button
                 onClick={() => setStep(2)}
-                className="border border-input bg-background hover:bg-muted font-semibold px-4 py-2 rounded-md flex items-center gap-2"
+                className="border border-input bg-background hover:bg-muted font-semibold px-4 py-2 rounded-md flex items-center gap-2 text-sm"
               >
                 <ArrowLeft className="h-4 w-4" /> {t('activities.back_to_form', 'Retour au formulaire')}
               </button>
@@ -891,7 +840,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     toast({ title: t('activities.toast.validated_title', 'Questionnaire Validé'), description: t('activities.toast.validated_desc', 'Le questionnaire de l\'activité a été validé et finalisé.') });
                   }
                 }}
-                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5"
+                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5 text-sm"
               >
                 {t('common.validate_and_finish', 'Valider & Terminer')} <Check className="h-4 w-4" />
               </button>
@@ -900,7 +849,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         )}
 
         {wizardFinished && (
-          <div className="border-t pt-6 text-center space-y-4">
+          <div className="border-t border-border pt-6 text-center space-y-4">
             <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center mx-auto">
               <Check className="h-6 w-6" />
             </div>

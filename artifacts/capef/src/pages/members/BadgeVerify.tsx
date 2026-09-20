@@ -6,7 +6,7 @@ import {
   MapPin, Phone, Mail, Building, User, Tag, FileText, CheckCircle2, AlertOctagon, XCircle, Clock
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getCategoryLabel, getStatusLabel } from '@/lib/i18n-helpers';
+import { getCategoryLabel, getStatusLabel, getOptionLabel } from '@/lib/i18n-helpers';
 
 export default function BadgeVerify() {
   const { t } = useTranslation();
@@ -144,7 +144,7 @@ export default function BadgeVerify() {
                 <dd className="col-span-2 font-medium">{member.arrondissementName || '-'}</dd>
               </div>
               <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
-                <dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village/Quartier')}</dt>
+                <dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village / Quartier')}</dt>
                 <dd className="col-span-2 font-medium">{member.village || '-'}</dd>
               </div>
               <div className="grid grid-cols-3 gap-2 pb-1">
@@ -185,16 +185,16 @@ export default function BadgeVerify() {
                         <div key={item.id} className="bg-muted/30 border border-border/40 rounded-xl p-3 text-xs space-y-2">
                           {act.activityType === 'agriculteur' && (
                             <>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.crop_label', 'Culture :')}</span><span className="font-bold">{item.cropName || '-'} ({item.cropCategory || '-'})</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">Type :</span><span>{item.cultureType || '-'}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa ? `${item.superficieHa} Ha` : '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.crop_label', 'Culture :')}</span><span className="font-bold">{item.cropName || '-'} ({getOptionLabel('crop_category', item.cropCategory, t) || '-'})</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.culture_type_short', 'Type :')}</span><span>{getOptionLabel('culture_type', item.cultureType, t) || '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa ? `${item.superficieHa} ${t('activities.unit_ha', 'ha')}` : '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.production_short', 'Production :')}</span><span>{item.productionQuantity ? `${item.productionQuantity} ${item.productionUnit || ''}` : '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur :')}</span><span className="font-semibold text-primary">{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>
                             </>
                           )}
                           {act.activityType === 'pecheur' && (
                             <>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.species_label', 'Espèce :')}</span><span className="font-bold">{item.speciesPêche || '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.species_label', 'Espèce :')}</span><span className="font-bold">{getOptionLabel('fish_species', item.speciesPêche, t) || '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.production_short', 'Production :')}</span><span>{item.productionQuantity ? `${item.productionQuantity} ${item.productionUnit || ''}` : '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur :')}</span><span className="font-semibold text-primary">{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>
                             </>
@@ -203,21 +203,21 @@ export default function BadgeVerify() {
                             <>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.species_label', 'Espèce :')}</span><span className="font-bold">{item.species || '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.cheptel_short', 'Taille cheptel :')}</span><span>{item.cheptelSize || '-'} {t('activities.heads', 'têtes')}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.food_short', 'Nourriture :')}</span><span>{item.foodType || '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.food_short', 'Nourriture :')}</span><span>{getOptionLabel('feed_type', item.foodType, t) || '-'}</span></div>
                             </>
                           )}
                           {act.activityType === 'forestier' && (
                             <>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.essence_label', 'Essence :')}</span><span className="font-bold">{item.essence || '-'} ({item.subCategory || '-'})</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.plantation_type_short', 'Type plantation :')}</span><span>{item.plantationType || '-'}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa ? `${item.superficieHa} Ha` : '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.essence_label', 'Essence :')}</span><span className="font-bold">{item.essence || '-'} ({getOptionLabel('forestry_subcategory', item.subCategory, t) || '-'})</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.plantation_type_short', 'Type plantation :')}</span><span>{getOptionLabel('plantation_type', item.plantationType, t) || '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa ? `${item.superficieHa} ${t('activities.unit_ha', 'ha')}` : '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.production_short', 'Production :')}</span><span>{item.productionQuantity ? `${item.productionQuantity} ${item.productionUnit || ''}` : '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur :')}</span><span className="font-semibold text-primary">{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>
                             </>
                           )}
                           {act.activityType === 'artisan' && (
                             <>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.product_label', 'Produit :')}</span><span className="font-bold">{item.artisanatProducts || '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.product_label', 'Produit :')}</span><span className="font-bold">{getOptionLabel('artisan_product', item.artisanatProducts, t) || '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.raw_mat_short', 'Matières Prem. :')}</span><span>{item.rawMaterials || '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.production_short', 'Production :')}</span><span>{item.productionQuantity ? `${item.productionQuantity} ${item.productionUnit || ''}` : '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur :')}</span><span className="font-semibold text-primary">{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>

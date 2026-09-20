@@ -55,7 +55,8 @@
     "select_department": "Sélectionner un département",
     "select_region": "Sélectionner une région",
     "upload_photo": "Téléverser la photo",
-    "validate_and_finish": "Valider & Terminer"
+    "validate_and_finish": "Valider & Terminer",
+    "not_available": "N/A"
   },
   "navigation": {
     "app_title": "CAPEF",
@@ -256,7 +257,8 @@
       "matrimonial": "Sit. Matrimoniale",
       "region_not_defined": "Région non définie",
       "residence": "Lieu de rés.",
-      "status_label": "Statut:"
+      "status_label": "Statut:",
+      "village": "Village / Quartier"
     },
     "export_csv": "Exporter CSV",
     "export_error": "Impossible d'exporter les membres. Veuillez réessayer.",
@@ -400,7 +402,112 @@
     "unit_placeholder": "Ex: Tonnes, Sacs...",
     "value_fcfa": "Valeur (FCFA)",
     "village_label": "Village / Quartier de l'activité",
-    "village_placeholder": "Nom du village ou quartier"
+    "village_placeholder": "Nom du village ou quartier",
+    "culture_type_short": "Type:",
+    "unit_ha": "ha",
+    "options": {
+      "maillons_agriculteur": {
+        "production": "Production",
+        "transformation": "Transformation",
+        "distribution": "Distribution",
+        "prestation_service": "Prestation de service",
+        "fourniture_intrants": "Fourniture d'intrants"
+      },
+      "maillons_pecheur": {
+        "pecheur_artisanal": "Pêcheur artisanal",
+        "pecheur_industriel": "Pêcheur industriel",
+        "aquaculteur_etang": "Aquaculteur d'étang",
+        "aquaculteur_hors_sol": "Aquaculteur hors-sol",
+        "aquaculteur_cage_flottante": "Aquaculteur sur cage flottante",
+        "fournisseur_intrants": "Fournisseur d'intrants",
+        "equipementier": "Équipementier",
+        "producteur_alevins": "Producteur d'alevins",
+        "provendier": "Provendier",
+        "autre": "Autre"
+      },
+      "maillons_eleveur": {
+        "eleveur_naisseur": "Éleveur naisseur",
+        "engraisseur": "Engraisseur",
+        "fournisseur_provendes": "Fournisseur de provendes",
+        "producteur_intrants": "Producteur d'intrants",
+        "abattage": "Abattage",
+        "boucher_charcutier": "Boucher / Charcutier",
+        "autre": "Autre"
+      },
+      "maillons_forestier": {
+        "exploitant_forestier": "Exploitant forestier",
+        "sylviculteur": "Sylviculteur",
+        "exploitant_faune": "Exploitant de produits de la faune",
+        "exploitant_pfnl": "Exploitant de PFNL"
+      },
+      "maillons_artisan": {
+        "artisan_producteur": "Artisan producteur",
+        "distributeur_artisanat": "Distributeur d'artisanat",
+        "matieres_premieres": "Matières premières",
+        "autre": "Autre"
+      },
+      "crop_category": {
+        "cereales": "Céréales",
+        "oleagineux": "Oléagineux",
+        "racines_tubercules": "Racines-tubercules",
+        "legumes": "Légumes",
+        "fruits_noix": "Fruits et noix",
+        "plantes_stimulantes": "Plantes stimulantes",
+        "legumineuses": "Légumineuses",
+        "cultures_sucrieres": "Cultures sucrières",
+        "autres": "Autres"
+      },
+      "culture_type": {
+        "pure": "Pure",
+        "associee": "Associée"
+      },
+      "fish_species": {
+        "poissons_mer": "Poissons de mer",
+        "crustaces": "Crustacés",
+        "silure": "Poissons d'eau douce Silure",
+        "tilapia": "Tilapia",
+        "carpe": "Carpe",
+        "autres": "Autres"
+      },
+      "livestock_type": {
+        "volaille": "Volaille",
+        "apiculture": "Apiculture",
+        "bovins": "Bovins",
+        "canins": "Canins",
+        "asins": "Asins",
+        "ovins": "Ovins",
+        "caprins": "Caprins",
+        "non_conventionnel": "Non-conventionnel"
+      },
+      "feed_type": {
+        "paturage_naturel": "Pâturage naturel",
+        "cereales": "Céréales",
+        "tourteaux": "Tourteaux",
+        "autres": "Autres"
+      },
+      "forestry_subcategory": {
+        "exploite": "Exploité (Ayous, Azobé, Bubinga, Okok, Djansan)",
+        "cultive": "Cultivé (Mango, Kolatier, Bitter kola, Noisette)",
+        "faune": "Exploitant de produits de la faune",
+        "non_ligneux": "Exploitant de PFNL"
+      },
+      "plantation_type": {
+        "monospecifique": "Monospécifique",
+        "plurispecifique": "Plurispécifique"
+      },
+      "artisan_product": {
+        "boissons": "Boissons",
+        "farines": "Farines",
+        "confiserie": "Confiserie",
+        "biscuiterie": "Biscuiterie",
+        "chips": "Chips",
+        "huiles_alimentaires": "Huiles alimentaires",
+        "tissus": "Tissus",
+        "cosmetiques": "Cosmétiques",
+        "bijoux": "Bijoux",
+        "autres": "Autres"
+      }
+    }
   },
   "badge": {
     "title": "Badge Officiel du Membre",

@@ -55,7 +55,8 @@
     "select_department": "Select division",
     "select_region": "Select region",
     "upload_photo": "Upload photo",
-    "validate_and_finish": "Validate & Finish"
+    "validate_and_finish": "Validate & Finish",
+    "not_available": "N/A"
   },
   "navigation": {
     "app_title": "CAPEF",
@@ -256,7 +257,8 @@
       "matrimonial": "Marital Status",
       "region_not_defined": "Region not defined",
       "residence": "Place of Residence",
-      "status_label": "Status:"
+      "status_label": "Status:",
+      "village": "Village / Neighborhood"
     },
     "export_csv": "Export CSV",
     "export_error": "Failed to export members. Please try again.",
@@ -400,7 +402,112 @@
     "unit_placeholder": "Ex: Tons, Bags...",
     "value_fcfa": "Value (FCFA)",
     "village_label": "Activity Village / Neighborhood",
-    "village_placeholder": "Name of village or neighborhood"
+    "village_placeholder": "Name of village or neighborhood",
+    "culture_type_short": "Type:",
+    "unit_ha": "ha",
+    "options": {
+      "maillons_agriculteur": {
+        "production": "Production",
+        "transformation": "Processing",
+        "distribution": "Distribution",
+        "prestation_service": "Service provision",
+        "fourniture_intrants": "Input supply"
+      },
+      "maillons_pecheur": {
+        "pecheur_artisanal": "Artisanal fisher",
+        "pecheur_industriel": "Industrial fisher",
+        "aquaculteur_etang": "Pond fish farmer",
+        "aquaculteur_hors_sol": "Off-ground (tank) fish farmer",
+        "aquaculteur_cage_flottante": "Floating-cage fish farmer",
+        "fournisseur_intrants": "Input supplier",
+        "equipementier": "Equipment supplier",
+        "producteur_alevins": "Fingerling producer",
+        "provendier": "Feed producer (provendier)",
+        "autre": "Other"
+      },
+      "maillons_eleveur": {
+        "eleveur_naisseur": "Breeder (naisseur)",
+        "engraisseur": "Fattener",
+        "fournisseur_provendes": "Feed supplier",
+        "producteur_intrants": "Input producer",
+        "abattage": "Slaughtering",
+        "boucher_charcutier": "Butcher / Pork butcher",
+        "autre": "Other"
+      },
+      "maillons_forestier": {
+        "exploitant_forestier": "Forest operator",
+        "sylviculteur": "Silviculturist",
+        "exploitant_faune": "Wildlife products operator",
+        "exploitant_pfnl": "NTFP operator"
+      },
+      "maillons_artisan": {
+        "artisan_producteur": "Craft producer",
+        "distributeur_artisanat": "Craft distributor",
+        "matieres_premieres": "Raw materials",
+        "autre": "Other"
+      },
+      "crop_category": {
+        "cereales": "Cereals",
+        "oleagineux": "Oilseeds",
+        "racines_tubercules": "Roots & tubers",
+        "legumes": "Vegetables",
+        "fruits_noix": "Fruits & nuts",
+        "plantes_stimulantes": "Stimulant crops",
+        "legumineuses": "Legumes (pulses)",
+        "cultures_sucrieres": "Sugar crops",
+        "autres": "Other"
+      },
+      "culture_type": {
+        "pure": "Pure (sole crop)",
+        "associee": "Intercropped"
+      },
+      "fish_species": {
+        "poissons_mer": "Sea fish",
+        "crustaces": "Crustaceans",
+        "silure": "Freshwater fish (catfish)",
+        "tilapia": "Tilapia",
+        "carpe": "Carp",
+        "autres": "Other"
+      },
+      "livestock_type": {
+        "volaille": "Poultry",
+        "apiculture": "Beekeeping",
+        "bovins": "Cattle",
+        "canins": "Dogs",
+        "asins": "Donkeys",
+        "ovins": "Sheep",
+        "caprins": "Goats",
+        "non_conventionnel": "Non-conventional"
+      },
+      "feed_type": {
+        "paturage_naturel": "Natural pasture",
+        "cereales": "Cereals",
+        "tourteaux": "Oilcakes",
+        "autres": "Other"
+      },
+      "forestry_subcategory": {
+        "exploite": "Harvested (Ayous, Azobé, Bubinga, Okok, Djansan)",
+        "cultive": "Cultivated (Mango, Kolatier, Bitter kola, Noisette)",
+        "faune": "Wildlife products operator",
+        "non_ligneux": "Non-timber forest products (NTFP)"
+      },
+      "plantation_type": {
+        "monospecifique": "Single-species",
+        "plurispecifique": "Multi-species"
+      },
+      "artisan_product": {
+        "boissons": "Beverages",
+        "farines": "Flours",
+        "confiserie": "Confectionery",
+        "biscuiterie": "Biscuits & bakery",
+        "chips": "Chips",
+        "huiles_alimentaires": "Edible oils",
+        "tissus": "Textiles",
+        "cosmetiques": "Cosmetics",
+        "bijoux": "Jewellery",
+        "autres": "Other"
+      }
+    }
   },
   "badge": {
     "title": "Official Member Badge",
