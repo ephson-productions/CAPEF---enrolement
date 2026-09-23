@@ -31,14 +31,24 @@ function getClientOperationId(req: any): string | undefined {
   return Array.isArray(rawId) ? rawId[0] : String(rawId);
 }
 
-async function getProcessedOperation(clientOperationId?: string) {
-  if (!clientOperationId) return null;
+async function checkProcessedOperation(clientOperationId: string | undefined, appUserId: number, res: any): Promise<boolean> {
+  if (!clientOperationId) return false;
   const [existing] = await db
     .select()
     .from(processedOperationsTable)
     .where(eq(processedOperationsTable.clientOperationId, clientOperationId))
     .limit(1);
-  return existing || null;
+
+  if (existing) {
+    if (existing.userId !== appUserId) {
+      res.status(409).json({ error: "Operation processed under a different user identity" });
+      return true;
+    }
+    console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
+    res.status(200).json(existing.resultPayload ?? { success: true });
+    return true;
+  }
+  return false;
 }
 
 function coerceNumeric(val: any): number | null {
@@ -326,13 +336,8 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
   const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
   const clientOperationId = getClientOperationId(req);
 
-  if (clientOperationId) {
-    const existing = await getProcessedOperation(clientOperationId);
-    if (existing) {
-      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
-      res.status(200).json(existing.resultPayload);
-      return;
-    }
+  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+    return;
   }
 
   if (!memberType || !category) {
@@ -654,13 +659,8 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
   const clientOperationId = getClientOperationId(req);
 
-  if (clientOperationId) {
-    const existingOp = await getProcessedOperation(clientOperationId);
-    if (existingOp) {
-      console.log(`[Idempotency] Match found for clientOperationId (PUT /members/${id}): ${clientOperationId}`);
-      res.status(200).json(existingOp.resultPayload);
-      return;
-    }
+  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+    return;
   }
 
   const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
@@ -811,13 +811,8 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
   const clientOperationId = getClientOperationId(req);
 
-  if (clientOperationId) {
-    const existing = await getProcessedOperation(clientOperationId);
-    if (existing) {
-      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
-      res.status(200).json(existing.resultPayload);
-      return;
-    }
+  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+    return;
   }
 
   if (!activityType) {
@@ -1063,13 +1058,8 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
 
   const clientOperationId = getClientOperationId(req);
 
-  if (clientOperationId) {
-    const existing = await getProcessedOperation(clientOperationId);
-    if (existing) {
-      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
-      res.status(200).json(existing.resultPayload);
-      return;
-    }
+  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+    return;
   }
 
   const [activity] = await db
@@ -1210,13 +1200,8 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
   const appUser = (req as any).appUser;
   const clientOperationId = getClientOperationId(req);
 
-  if (clientOperationId) {
-    const existing = await getProcessedOperation(clientOperationId);
-    if (existing) {
-      console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
-      res.status(200).json(existing.resultPayload ?? { success: true });
-      return;
-    }
+  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+    return;
   }
 
   try {

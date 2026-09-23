@@ -22,7 +22,8 @@ export class DexieSyncRepository implements ISyncRepository {
 
   async getOperationsByUser(userId: string): Promise<LocalOfflineOperation[]> {
     try {
-      return await db.operations.where('userId').equals(userId).toArray();
+      const ops = await db.operations.where('userId').equals(userId).toArray();
+      return ops.sort((a, b) => (a.id && b.id ? a.id - b.id : a.createdAt.localeCompare(b.createdAt)));
     } catch (error) {
       console.error('[SyncRepository] Error fetching operations:', error);
       throw error;
@@ -31,11 +32,12 @@ export class DexieSyncRepository implements ISyncRepository {
 
   async getPendingOperationsByUser(userId: string): Promise<LocalOfflineOperation[]> {
     try {
-      return await db.operations
+      const ops = await db.operations
         .where('userId')
         .equals(userId)
         .and((op) => op.status === 'pending' || op.status === 'processing')
         .toArray();
+      return ops.sort((a, b) => (a.id && b.id ? a.id - b.id : a.createdAt.localeCompare(b.createdAt)));
     } catch (error) {
       console.error('[SyncRepository] Error fetching pending operations:', error);
       throw error;
