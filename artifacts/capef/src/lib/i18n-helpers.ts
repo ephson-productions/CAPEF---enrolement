@@ -137,32 +137,39 @@ export function formatLineItemSpecifics(
   t: TFunction
 ): string {
   if (!item) return '';
-  const notAvail = t('common.not_available', 'N/A');
+  const unitLabel = activityType === 'artisan' ? 'm²' : t('activities.unit_ha', 'ha');
+
+  const areaStr = item.parentLineItemId || item.cultureType === 'Associée'
+    ? `${t('activities.superficie_short', 'Superficie:')} ${t('activities.inherited_area', 'Superficie héritée')}`
+    : item.superficieHa !== null && item.superficieHa !== undefined
+      ? `${t('activities.superficie_short', 'Superficie:')} ${item.superficieHa} ${unitLabel}`
+      : `${t('activities.superficie_short', 'Superficie:')} —`;
 
   if (activityType === 'agriculteur') {
-    const typeLabel = item.cultureType ? getOptionLabel('culture_type', item.cultureType, t) : '';
-    const typeStr = `${t('activities.culture_type_short', 'Type:')} ${typeLabel || notAvail}`;
-    const supStr = `${t('activities.superficie_short', 'Superficie:')} ${item.superficieHa || notAvail} ${t('activities.unit_ha', 'ha')}`;
-    return `${typeStr}, ${supStr}`;
+    const typeLabel = item.cultureType ? getOptionLabel('culture_type', item.cultureType, t) : '—';
+    return `${areaStr}, ${t('activities.culture_type_short', 'Type:')} ${typeLabel}`;
   }
 
   if (activityType === 'eleveur') {
-    const cheptelStr = `${t('activities.cheptel_short', 'Cheptel:')} ${item.cheptelSize || notAvail}`;
-    const foodLabel = item.foodType ? getOptionLabel('feed_type', item.foodType, t) : notAvail;
-    const foodStr = `${t('activities.food_short', 'Nourriture:')} ${foodLabel}`;
-    return `${cheptelStr}, ${foodStr}`;
+    const cheptelStr = item.cheptelSize !== null && item.cheptelSize !== undefined ? item.cheptelSize : '—';
+    const foodLabel = item.foodType ? getOptionLabel('feed_type', item.foodType, t) : '—';
+    return `${areaStr}, ${t('activities.cheptel_short', 'Cheptel:')} ${cheptelStr}, ${t('activities.food_short', 'Nourriture:')} ${foodLabel}`;
   }
 
   if (activityType === 'forestier') {
-    const plantLabel = item.plantationType ? getOptionLabel('plantation_type', item.plantationType, t) : notAvail;
-    const plantStr = `${t('activities.plantation_type_short', 'Plantation:')} ${plantLabel}`;
-    const supStr = `${t('activities.superficie_short', 'Superficie:')} ${item.superficieHa || notAvail} ${t('activities.unit_ha', 'ha')}`;
-    return `${plantStr}, ${supStr}`;
+    if (item.subCategory === 'cultivé') {
+      const plantLabel = item.plantationType ? getOptionLabel('plantation_type', item.plantationType, t) : '—';
+      return `${areaStr}, ${t('activities.plantation_type_short', 'Plantation:')} ${plantLabel}`;
+    }
+    return areaStr;
   }
 
   if (activityType === 'artisan') {
-    return `${t('activities.raw_mat_short', 'Matières:')} ${item.rawMaterials || ''}`;
+    const rawTokens = item.rawMaterials
+      ? item.rawMaterials.split(';').map((tok: string) => getOptionLabel('raw_materials', tok.trim(), t)).join(', ')
+      : '—';
+    return `${areaStr}, ${t('activities.raw_mat_short', 'Matières:')} ${rawTokens}`;
   }
 
-  return '';
+  return areaStr;
 }

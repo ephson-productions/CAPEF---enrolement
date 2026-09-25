@@ -397,7 +397,8 @@
       "livestock_req": "Espèce et taille du cheptel requises.",
       "species_req": "Espèce principale requise.",
       "validated_desc": "Le questionnaire de l'activité a été validé.",
-      "validated_title": "Questionnaire Validé"
+      "validated_title": "Questionnaire Validé",
+      "invalid_form": "Formulaire invalide"
     },
     "unit_placeholder": "Ex: Tonnes, Sacs...",
     "value_fcfa": "Valeur (FCFA)",
@@ -506,7 +507,53 @@
         "cosmetiques": "Cosmétiques",
         "bijoux": "Bijoux",
         "autres": "Autres"
+      },
+      "production_units": {
+        "kg": "kg",
+        "t": "t",
+        "sac": "sac",
+        "L": "L",
+        "unite": "unité",
+        "m2": "m²",
+        "m3": "m³",
+        "autre": "Autre (préciser)"
+      },
+      "livestock_product": {
+        "lait": "Lait",
+        "viande": "Viande",
+        "oeufs": "Œufs",
+        "cire": "Cire",
+        "miel": "Miel",
+        "autres": "Autres (préciser)"
+      },
+      "forestry_product": {
+        "grumes": "Grumes",
+        "planches": "Planches",
+        "autre": "Autre (préciser)"
+      },
+      "raw_materials": {
+        "tronc_plantain": "Tronc de plantain",
+        "tissus": "Tissus",
+        "bamboo": "Bamboo",
+        "autres": "Autres (préciser)"
       }
+    },
+    "fisheries": {
+      "area_ha_label": "Superficie du site d'aquaculture (ha)"
+    },
+    "livestock": {
+      "area_ha_label": "Superficie de l'enclos / pâturage (ha)"
+    },
+    "craft": {
+      "area_label": "Superficie / espace de production (m²)",
+      "quantity_label": "Production annuelle (Quantité)",
+      "unit_label": "Unité de production"
+    },
+    "hint_zero_if_na": "Saisir 0 si non applicable",
+    "validation": {
+      "required": "Ce champ est requis",
+      "must_be_zero_or_positive": "La valeur doit être supérieure ou égale à 0",
+      "min_one_product_row": "Au moins une ligne produit est requise"
     }
   },
   "badge": {

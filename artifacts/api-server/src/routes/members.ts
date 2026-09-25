@@ -988,6 +988,58 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
   res.sendStatus(204);
 });
 
+function validateActivityLineItem(activityType: string, payload: any) {
+  const errors: Array<{ field: string; code: string }> = [];
+
+  const isNum = (val: any) => typeof val === "number" && !isNaN(val) && Number.isFinite(val);
+  const isStr = (val: any) => typeof val === "string" && val.trim().length > 0;
+
+  // 1. Superficie validation (area >= 0 required for all 5 categories unless associated crop)
+  const isAssociatedCrop = activityType === "agriculteur" && (payload.cultureType === "Associée" || payload.isPrincipalCrop === false);
+  if (!isAssociatedCrop) {
+    if (!isNum(payload.superficieHa)) {
+      errors.push({ field: "superficieHa", code: "required" });
+    } else if (payload.superficieHa < 0) {
+      errors.push({ field: "superficieHa", code: "negative" });
+    }
+  }
+
+  // 2. Production fields or Products array
+  if (activityType === "eleveur" || activityType === "forestier") {
+    if (!Array.isArray(payload.products) || payload.products.length === 0 || payload.products.length > 20) {
+      errors.push({ field: "products", code: "min_one_product_required" });
+    } else {
+      payload.products.forEach((p: any, idx: number) => {
+        if (!isStr(p.name) || p.name.length > 100) {
+          errors.push({ field: `products.${idx}.name`, code: "required_and_max_100" });
+        }
+        if (!isNum(p.quantity) || p.quantity < 0) {
+          errors.push({ field: `products.${idx}.quantity`, code: "invalid_quantity" });
+        }
+        if (!isStr(p.unit)) {
+          errors.push({ field: `products.${idx}.unit`, code: "required_unit" });
+        }
+        if (!isNum(p.fcfa) || p.fcfa < 0) {
+          errors.push({ field: `products.${idx}.fcfa`, code: "invalid_fcfa" });
+        }
+      });
+    }
+  } else {
+    // Single productionQuantity, productionUnit, productionFcfa
+    if (!isNum(payload.productionQuantity) || payload.productionQuantity < 0) {
+      errors.push({ field: "productionQuantity", code: "invalid_quantity" });
+    }
+    if (!isStr(payload.productionUnit)) {
+      errors.push({ field: "productionUnit", code: "required_unit" });
+    }
+    if (!isNum(payload.productionFcfa) || payload.productionFcfa < 0) {
+      errors.push({ field: "productionFcfa", code: "invalid_fcfa" });
+    }
+  }
+
+  return errors;
+}
+
 function normalizeLineItemPayload(body: any) {
   const payload: Record<string, any> = {};
 

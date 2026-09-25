@@ -123,6 +123,6 @@ describe('Activity Options & i18n Translation Integrity', () => {
     };
 
     expect(formatLineItemTitle(agItem, 'agriculteur', mockTEn)).toBe('Cereals - Maïs');
-    expect(formatLineItemSpecifics(agItem, 'agriculteur', mockTEn)).toBe('Type: Pure (sole crop), Area: 2.5 ha');
+    expect(formatLineItemSpecifics(agItem, 'agriculteur', mockTEn)).toBe('Area: 2.5 ha, Type: Pure (sole crop)');
   });
 });
