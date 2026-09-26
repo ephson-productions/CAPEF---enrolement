@@ -7,7 +7,8 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -44,7 +45,9 @@
     "@replit/vite-plugin-runtime-error-modal": "catalog:",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/query-sync-storage-persister": "^5.90.2",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-query-persist-client": "^5.90.3",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

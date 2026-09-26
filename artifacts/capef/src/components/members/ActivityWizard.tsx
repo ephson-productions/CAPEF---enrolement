@@ -4,11 +4,13 @@ import {
   useCreateActivityLineItem,
   useDeleteActivityLineItem,
   useListMemberActivities,
-  useListRegions,
-  useListDepartments,
-  useListArrondissements,
   useGetMember
 } from '@workspace/api-client-react';
+import {
+  useOfflineFallbackRegions,
+  useOfflineFallbackDepartments,
+  useOfflineFallbackArrondissements,
+} from '@/lib/offline-hooks';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, Trash2, Check, AlertTriangle, Plus } from 'lucide-react';
@@ -35,10 +37,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   const { data: activities, refetch: refetchActivities } = useListMemberActivities(memberId);
 
   // Geographic ref data for activity localisation
-  const { data: regions } = useListRegions();
+  const { data: regions } = useOfflineFallbackRegions();
   const [selectedReg, setSelectedReg] = useState<number | null>(null);
 
-  const { data: departments } = useListDepartments(
+  const { data: departments } = useOfflineFallbackDepartments(
     { regionId: selectedReg || undefined },
     {
       query: {
@@ -50,7 +52,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
 
-  const { data: arrondissements } = useListArrondissements(
+  const { data: arrondissements } = useOfflineFallbackArrondissements(
     { departmentId: selectedDept || undefined },
     {
       query: {
@@ -329,7 +331,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                 >
                   <option value="">{t('common.select_region', 'Sélectionner une région')}</option>
-                  {regions?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {regions?.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </div>
 
@@ -345,7 +347,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm disabled:bg-muted"
                 >
                   <option value="">{t('common.select_department', 'Sélectionner un département')}</option>
-                  {departments?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {departments?.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
 
@@ -358,7 +360,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm disabled:bg-muted"
                 >
                   <option value="">{t('common.select_arrondissement', 'Sélectionner un arrondissement')}</option>
-                  {arrondissements?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {arrondissements?.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
 
