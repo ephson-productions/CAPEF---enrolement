@@ -12,9 +12,12 @@ const __dirname = path.dirname(__filename);
 const migrationsFolder = path.join(__dirname, "../drizzle");
 
 async function runMigrations() {
-  let connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  let connectionString =
+    process.env.SUPABASE_DATABASE_URL ||
+    process.env.DIRECT_URL ||
+    process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error("❌ Missing database connection string (DIRECT_URL or DATABASE_URL) for migration execution.");
+    console.error("❌ Missing database connection string (SUPABASE_DATABASE_URL, DIRECT_URL, or DATABASE_URL) for migration execution.");
     process.exit(1);
   }
 

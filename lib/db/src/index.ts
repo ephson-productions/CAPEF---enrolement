@@ -4,13 +4,18 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
+const configuredDatabaseUrl =
+  process.env.SUPABASE_DATABASE_URL ||
+  process.env.DIRECT_URL ||
+  process.env.DATABASE_URL;
+
+if (!configuredDatabaseUrl) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "SUPABASE_DATABASE_URL, DIRECT_URL, or DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
-let connectionString = process.env.DATABASE_URL;
+let connectionString = configuredDatabaseUrl;
 try {
   const url = new URL(connectionString);
   url.searchParams.delete("sslmode");
