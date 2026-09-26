@@ -16,7 +16,13 @@ export type OptionGroup =
   | 'feed_type'
   | 'forestry_subcategory'
   | 'plantation_type'
-  | 'artisan_product';
+  | 'artisan_product'
+  | 'production_units'
+  | 'livestock_product'
+  | 'forestry_product'
+  | 'raw_materials';
+
+export const UNCONVENTIONAL_LIVESTOCK_EXTENSIONS = ['Porcs', 'Chevaux'] as const;
 
 export const ACTIVITY_OPTIONS: Record<OptionGroup, readonly ActivityOption[]> = {
   maillons_agriculteur: [
@@ -119,5 +125,34 @@ export const ACTIVITY_OPTIONS: Record<OptionGroup, readonly ActivityOption[]> = 
     { value: 'Cosmétiques', key: 'cosmetiques' },
     { value: 'Bijoux', key: 'bijoux' },
     { value: 'Autres', key: 'autres' },
+  ],
+  production_units: [
+    { value: 'kg', key: 'kg' },
+    { value: 't', key: 't' },
+    { value: 'sac', key: 'sac' },
+    { value: 'L', key: 'L' },
+    { value: 'unité', key: 'unite' },
+    { value: 'm²', key: 'm2' },
+    { value: 'm³', key: 'm3' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  livestock_product: [
+    { value: 'Lait', key: 'lait' },
+    { value: 'Viande', key: 'viande' },
+    { value: 'Œufs', key: 'oeufs' },
+    { value: 'Cire', key: 'cire' },
+    { value: 'Miel', key: 'miel' },
+    { value: 'Autres (préciser)', key: 'autres' },
+  ],
+  forestry_product: [
+    { value: 'Grumes', key: 'grumes' },
+    { value: 'Planches', key: 'planches' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  raw_materials: [
+    { value: 'Tronc de plantain', key: 'tronc_plantain' },
+    { value: 'Tissus', key: 'tissus' },
+    { value: 'Bamboo', key: 'bamboo' },
+    { value: 'Autres (préciser)', key: 'autres' },
   ],
 };
