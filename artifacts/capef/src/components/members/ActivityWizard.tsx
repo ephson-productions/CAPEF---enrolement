@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   useCreateMemberActivity,
+  useUpdateMemberActivity,
   useCreateActivityLineItem,
   useDeleteActivityLineItem,
   useListMemberActivities,
@@ -22,6 +23,9 @@ import {
   formatLineItemSpecifics
 } from '@/lib/i18n-helpers';
 import { ACTIVITY_OPTIONS, OptionGroup } from '@/lib/activity-options';
+import { ProductRowsEditor, ProductRow } from './activity-fields/ProductRowsEditor';
+import { AreaField } from './activity-fields/AreaField';
+import { ProductionFields } from './activity-fields/ProductionFields';
 
 interface ActivityWizardProps {
   memberId: number;
@@ -73,6 +77,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
   // Create hooks
   const createActivity = useCreateMemberActivity();
+  const updateActivity = useUpdateMemberActivity();
   const createLineItem = useCreateActivityLineItem();
 
   useEffect(() => {
@@ -103,17 +108,20 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   const [species, setSpecies] = useState('');
   const [cheptelSize, setCheptelSize] = useState('');
   const [foodType, setFoodType] = useState('');
-  const [prodName, setProdName] = useState('');
   const [elevageProducts, setElevageProducts] = useState<Array<{ name: string; quantity: number; unit: string; fcfa: number }>>([]);
 
   // Forêts
   const [foretSub, setForetSub] = useState<'exploité' | 'cultivé' | 'faune' | 'non-ligneux'>('exploité');
   const [essence, setEssence] = useState('');
   const [plantationType, setPlantationType] = useState('Monospécifique');
+  const [forestryProducts, setForestryProducts] = useState<ProductRow[]>([]);
 
   // Artisanat
   const [artProd, setArtProd] = useState('');
   const [rawMat, setRawMat] = useState('');
+  const [lineItemErrors, setLineItemErrors] = useState<Record<string, string>>({});
+  const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const productEditorRef = useRef<HTMLDivElement | null>(null);
 
   // Find active activity of the current selected type for this member if exists
   const activeActivity = activities?.find(act => act.activityType === selectedType);
@@ -134,6 +142,20 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
               maillons: selectedMaillons,
             }
           });
+        } else {
+          await updateActivity.mutateAsync({
+            id: memberId,
+            activityId: activeActivity.id,
+            data: {
+              activityType: selectedType,
+              isPrimary: activeActivity.isPrimary,
+              regionId: selectedReg,
+              departmentId: selectedDept,
+              arrondissementId: selectedArr,
+              village,
+              maillons: selectedMaillons,
+            },
+          });
         }
         await refetchActivities();
         setStep(2);
@@ -150,71 +172,112 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
     try {
       const payload: any = {};
+      const errors: Record<string, string> = {};
+      const numberError = (value: string, field: string) => {
+        if (value.trim() === '') {
+          errors[field] = t('activities.validation.required', 'Ce champ est requis');
+        } else if (!Number.isFinite(Number(value)) || Number(value) < 0) {
+          errors[field] = t('activities.validation.must_be_zero_or_positive', 'La valeur doit être supérieure ou égale à 0');
+        }
+      };
+      const requiredString = (value: string, field: string) => {
+        if (!value.trim()) errors[field] = t('activities.validation.required', 'Ce champ est requis');
+      };
 
       if (selectedType === 'agriculteur') {
-        if (!cropCategory || !cropName) {
-          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.crop_req', 'Catégorie et culture principale requises.') });
-          return;
-        }
+        requiredString(cropCategory, 'cropCategory');
+        requiredString(cropName, 'cropName');
+        numberError(superficieHa, 'superficieHa');
+        numberError(prodQuantity, 'productionQuantity');
+        requiredString(prodUnit, 'productionUnit');
+        numberError(prodFcfa, 'productionFcfa');
         const isDuplicate = activeActivity.lineItems?.some(
           item => item.cropName?.toLowerCase() === cropName.toLowerCase()
         );
         if (isDuplicate) {
-          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.duplicate_crop', 'Cette culture a déjà été ajoutée pour ce membre.') });
-          return;
+          errors.cropName = t('activities.toast.duplicate_crop', 'Cette culture a déjà été ajoutée pour ce membre.');
+        } else {
+          payload.cropCategory = cropCategory;
+          payload.cropName = cropName;
+          payload.cultureType = cultureType;
+          payload.superficieHa = parseFloat(superficieHa);
+          payload.productionQuantity = parseFloat(prodQuantity);
+          payload.productionUnit = prodUnit.trim();
+          payload.productionFcfa = parseFloat(prodFcfa);
         }
-
-        payload.cropCategory = cropCategory;
-        payload.cropName = cropName;
-        payload.cultureType = cultureType;
-        payload.superficieHa = superficieHa ? parseFloat(superficieHa) : null;
-        payload.productionQuantity = prodQuantity ? parseFloat(prodQuantity) : null;
-        payload.productionUnit = prodUnit || null;
-        payload.productionFcfa = prodFcfa ? parseFloat(prodFcfa) : null;
       }
       else if (selectedType === 'pecheur') {
-        if (!pesceSpecies) {
-          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.species_req', 'Espèce principale requise.') });
-          return;
-        }
+        requiredString(pesceSpecies, 'speciesPêche');
+        numberError(superficieHa, 'superficieHa');
+        numberError(prodQuantity, 'productionQuantity');
+        requiredString(prodUnit, 'productionUnit');
+        numberError(prodFcfa, 'productionFcfa');
         payload.speciesPêche = pesceSpecies;
-        payload.productionQuantity = prodQuantity ? parseFloat(prodQuantity) : null;
-        payload.productionUnit = prodUnit || null;
-        payload.productionFcfa = prodFcfa ? parseFloat(prodFcfa) : null;
+        payload.superficieHa = parseFloat(superficieHa);
+        payload.productionQuantity = parseFloat(prodQuantity);
+        payload.productionUnit = prodUnit.trim();
+        payload.productionFcfa = parseFloat(prodFcfa);
       }
       else if (selectedType === 'eleveur') {
-        if (!species || !cheptelSize) {
-          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.livestock_req', 'Espèce et taille du cheptel requises.') });
-          return;
+        requiredString(species, 'species');
+        numberError(cheptelSize, 'cheptelSize');
+        numberError(superficieHa, 'superficieHa');
+        if (elevageProducts.length === 0) {
+          errors.products = t('activities.validation.min_one_product_row', 'Au moins une ligne produit est requise');
         }
         payload.species = species;
         payload.cheptelSize = parseInt(cheptelSize, 10);
         payload.foodType = foodType || null;
+        payload.superficieHa = parseFloat(superficieHa);
         payload.products = elevageProducts;
+        payload.productionQuantity = null;
+        payload.productionUnit = null;
+        payload.productionFcfa = elevageProducts.reduce((sum, product) => sum + product.fcfa, 0);
       }
       else if (selectedType === 'forestier') {
-        if (!essence) {
-          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.essence_req', 'Essence forestière requise.') });
-          return;
+        requiredString(essence, 'essence');
+        numberError(superficieHa, 'superficieHa');
+        if (forestryProducts.length === 0) {
+          errors.products = t('activities.validation.min_one_product_row', 'Au moins une ligne produit est requise');
         }
         payload.subCategory = foretSub;
         payload.essence = essence;
         payload.plantationType = foretSub === 'cultivé' ? plantationType : null;
-        payload.superficieHa = superficieHa ? parseFloat(superficieHa) : null;
-        payload.productionQuantity = prodQuantity ? parseFloat(prodQuantity) : null;
-        payload.productionUnit = prodUnit || null;
-        payload.productionFcfa = prodFcfa ? parseFloat(prodFcfa) : null;
+        payload.superficieHa = parseFloat(superficieHa);
+        payload.products = forestryProducts;
+        payload.productionQuantity = null;
+        payload.productionUnit = null;
+        payload.productionFcfa = forestryProducts.reduce((sum, product) => sum + product.fcfa, 0);
       }
       else if (selectedType === 'artisan') {
-        if (!artProd || !rawMat) {
-          toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('activities.toast.artisan_req', 'Produits et matières premières requis.') });
-          return;
-        }
+        requiredString(artProd, 'artisanatProducts');
+        requiredString(rawMat, 'rawMaterials');
+        numberError(superficieHa, 'superficieHa');
+        numberError(prodQuantity, 'productionQuantity');
+        requiredString(prodUnit, 'productionUnit');
+        numberError(prodFcfa, 'productionFcfa');
         payload.artisanatProducts = artProd;
         payload.rawMaterials = rawMat;
-        payload.productionQuantity = prodQuantity ? parseFloat(prodQuantity) : null;
-        payload.productionUnit = prodUnit || null;
-        payload.productionFcfa = prodFcfa ? parseFloat(prodFcfa) : null;
+        payload.superficieHa = parseFloat(superficieHa);
+        payload.productionQuantity = parseFloat(prodQuantity);
+        payload.productionUnit = prodUnit.trim();
+        payload.productionFcfa = parseFloat(prodFcfa);
+      }
+
+      setLineItemErrors(errors);
+      if (Object.keys(errors).length > 0) {
+        toast({
+          variant: 'destructive',
+          title: t('activities.toast.invalid_form', 'Formulaire invalide'),
+          description: t('activities.toast.invalid_form', 'Formulaire invalide'),
+        });
+        const firstField = Object.keys(errors)[0];
+        if (firstField === 'products') {
+          (productEditorRef.current?.querySelector('select, input') as HTMLElement | null)?.focus();
+        } else {
+          fieldRefs.current[firstField]?.focus();
+        }
+        return;
       }
 
       await createLineItem.mutateAsync({
@@ -235,9 +298,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       setCheptelSize('');
       setFoodType('');
       setElevageProducts([]);
+      setForestryProducts([]);
       setEssence('');
       setArtProd('');
       setRawMat('');
+      setLineItemErrors({});
 
       toast({ title: t('common.success', 'Succès'), description: t('activities.toast.line_added', 'Ligne ajoutée avec succès.') });
     } catch (err) {
@@ -417,6 +482,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={cropCategory}
                     onChange={(e) => setCropCategory(e.target.value)}
+                    ref={(element) => { fieldRefs.current.cropCategory = element; }}
                     className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
@@ -424,6 +490,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                       <option key={opt.value} value={opt.value}>{getOptionLabel('crop_category', opt.value, t)}</option>
                     ))}
                   </select>
+                  {lineItemErrors.cropCategory && <p className="text-xs text-destructive mt-1">{lineItemErrors.cropCategory}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.crop_name', 'Culture précise')}</label>
@@ -431,9 +498,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="text"
                     value={cropName}
                     onChange={(e) => setCropName(e.target.value)}
+                    ref={(element) => { fieldRefs.current.cropName = element; }}
                     placeholder={t('activities.crop_placeholder', 'Ex: Maïs, Manioc...')}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.cropName ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.cropName && <p className="text-xs text-destructive mt-1">{lineItemErrors.cropName}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.culture_type', 'Type de culture')}</label>
@@ -453,9 +522,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={superficieHa}
                     onChange={(e) => setSuperficieHa(e.target.value)}
+                    ref={(element) => { fieldRefs.current.superficieHa = element; }}
                     placeholder="Ex: 2.5"
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.superficieHa ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.superficieHa && <p className="text-xs text-destructive mt-1">{lineItemErrors.superficieHa}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.prod_quantity', 'Production annuelle (Quantité)')}</label>
@@ -463,9 +534,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodQuantity}
                     onChange={(e) => setProdQuantity(e.target.value)}
+                    ref={(element) => { fieldRefs.current.productionQuantity = element; }}
                     placeholder="Ex: 500"
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.productionQuantity ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.productionQuantity && <p className="text-xs text-destructive mt-1">{lineItemErrors.productionQuantity}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.prod_unit', 'Unité de production')}</label>
@@ -473,9 +546,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="text"
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
+                    ref={(element) => { fieldRefs.current.productionUnit = element; }}
                     placeholder={t('activities.unit_placeholder', 'Ex: Tonnes, Sacs...')}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.productionUnit ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.productionUnit && <p className="text-xs text-destructive mt-1">{lineItemErrors.productionUnit}</p>}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium mb-1">{t('activities.prod_fcfa', 'Valeur de la production (FCFA)')}</label>
@@ -483,9 +558,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodFcfa}
                     onChange={(e) => setProdFcfa(e.target.value)}
+                    ref={(element) => { fieldRefs.current.productionFcfa = element; }}
                     placeholder="Ex: 1500000"
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.productionFcfa ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.productionFcfa && <p className="text-xs text-destructive mt-1">{lineItemErrors.productionFcfa}</p>}
                 </div>
               </div>
             )}
@@ -497,13 +574,30 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={pesceSpecies}
                     onChange={(e) => setPesceSpecies(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.speciesPêche = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.speciesPêche ? 'border-destructive' : 'border-input'}`}
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
                     {ACTIVITY_OPTIONS.fish_species.map(opt => (
                       <option key={opt.value} value={opt.value}>{getOptionLabel('fish_species', opt.value, t)}</option>
                     ))}
                   </select>
+                  {lineItemErrors.speciesPêche && <p className="text-xs text-destructive mt-1">{lineItemErrors.speciesPêche}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('activities.fisheries.area_ha_label', "Superficie du site d'aquaculture (ha)")} <span className="text-destructive">*</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={superficieHa}
+                    onChange={(e) => setSuperficieHa(e.target.value)}
+                    ref={(element) => { fieldRefs.current.superficieHa = element; }}
+                    placeholder="Ex: 0.5"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.superficieHa ? 'border-destructive' : 'border-input'}`}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('activities.hint_zero_if_na', 'Saisir 0 si non applicable')}</p>
+                  {lineItemErrors.superficieHa && <p className="text-xs text-destructive mt-1">{lineItemErrors.superficieHa}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.prod_quantity', 'Production annuelle (Quantité)')}</label>
@@ -511,8 +605,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodQuantity}
                     onChange={(e) => setProdQuantity(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.productionQuantity = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.productionQuantity ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.productionQuantity && <p className="text-xs text-destructive mt-1">{lineItemErrors.productionQuantity}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.prod_unit', 'Unité de production')}</label>
@@ -521,8 +617,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     value={prodUnit}
                     onChange={(e) => setProdUnit(e.target.value)}
                     placeholder="Ex: kg, tonnes"
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.productionUnit = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.productionUnit ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.productionUnit && <p className="text-xs text-destructive mt-1">{lineItemErrors.productionUnit}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.value_fcfa', 'Valeur (FCFA)')}</label>
@@ -530,8 +628,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={prodFcfa}
                     onChange={(e) => setProdFcfa(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.productionFcfa = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.productionFcfa ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.productionFcfa && <p className="text-xs text-destructive mt-1">{lineItemErrors.productionFcfa}</p>}
                 </div>
               </div>
             )}
@@ -557,9 +657,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="text"
                     value={species}
                     onChange={(e) => setSpecies(e.target.value)}
+                    ref={(element) => { fieldRefs.current.species = element; }}
                     placeholder="Ex: Boeufs, Poulets pondeurs..."
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.species ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.species && <p className="text-xs text-destructive mt-1">{lineItemErrors.species}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.cheptel_size', 'Taille du cheptel (Têtes)')}</label>
@@ -567,8 +669,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={cheptelSize}
                     onChange={(e) => setCheptelSize(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.cheptelSize = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.cheptelSize ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.cheptelSize && <p className="text-xs text-destructive mt-1">{lineItemErrors.cheptelSize}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.food_type', 'Type de nourriture')}</label>
@@ -584,58 +688,25 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   </select>
                 </div>
 
-                <div className="md:col-span-2 border-t border-border pt-4 mt-2">
-                  <h4 className="font-semibold text-sm mb-2 text-primary">{t('activities.elevage_products', 'Produits d\'élevage')}</h4>
-                  <div className="grid grid-cols-4 gap-2 items-end">
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium mb-1">{t('activities.product_name', 'Nom du produit (Ex: Lait, Miel, Œufs)')}</label>
-                      <input
-                        type="text"
-                        value={prodName}
-                        onChange={(e) => setProdName(e.target.value)}
-                        className="w-full border border-input rounded p-1.5 text-sm bg-background text-foreground"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">{t('activities.quantity', 'Quantité')}</label>
-                      <input
-                        type="number"
-                        placeholder="Ex: 100"
-                        id="elev_prod_qty"
-                        className="w-full border border-input rounded p-1.5 text-sm bg-background text-foreground"
-                      />
-                    </div>
-                    <div>
-                      <button
-                        onClick={() => {
-                          const qtyEl = document.getElementById('elev_prod_qty') as HTMLInputElement;
-                          if (prodName && qtyEl?.value) {
-                            setElevageProducts([...elevageProducts, {
-                              name: prodName,
-                              quantity: parseFloat(qtyEl.value),
-                              unit: 'Unités',
-                              fcfa: 0
-                            }]);
-                            setProdName('');
-                            qtyEl.value = '';
-                          }
-                        }}
-                        className="bg-secondary text-secondary-foreground font-semibold px-3 py-1.5 text-xs rounded hover:bg-secondary/90 w-full"
-                      >
-                        {t('activities.add_product', 'Ajouter Produit')}
-                      </button>
-                    </div>
-                  </div>
-                  {elevageProducts.length > 0 && (
-                    <ul className="mt-2 text-xs divide-y divide-border bg-muted/20 p-2 rounded">
-                      {elevageProducts.map((p, i) => (
-                        <li key={i} className="py-1 flex justify-between">
-                          <span>{p.name} : {p.quantity} {p.unit}</span>
-                          <button onClick={() => setElevageProducts(elevageProducts.filter((_, j) => j !== i))} className="text-destructive hover:underline">{t('common.remove', 'Retirer')}</button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <AreaField
+                  value={superficieHa}
+                  onChange={setSuperficieHa}
+                  inputRef={(element) => { fieldRefs.current.superficieHa = element; }}
+                  labelKey="activities.livestock.area_ha_label"
+                  labelFallback="Superficie de l'enclos / pâturage (ha)"
+                  error={lineItemErrors.superficieHa}
+                  helperText={t('activities.hint_zero_if_na', 'Saisir 0 si non applicable')}
+                />
+                <div className="md:col-span-2" ref={productEditorRef}>
+                  <ProductRowsEditor
+                    productGroup="livestock_product"
+                    rows={elevageProducts}
+                    onChange={setElevageProducts}
+                    error={lineItemErrors.products}
+                    unitOptions={ACTIVITY_OPTIONS.production_units.filter((option) =>
+                      ['kg', 'L', 'unité', 'sac', 'Autre (préciser)'].includes(option.value)
+                    )}
+                  />
                 </div>
               </div>
             )}
@@ -660,9 +731,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="text"
                     value={essence}
                     onChange={(e) => setEssence(e.target.value)}
+                    ref={(element) => { fieldRefs.current.essence = element; }}
                     placeholder="Ex: Bubinga, Moringa..."
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.essence ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.essence && <p className="text-xs text-destructive mt-1">{lineItemErrors.essence}</p>}
                 </div>
                 {foretSub === 'cultivé' && (
                   <div>
@@ -684,16 +757,21 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="number"
                     value={superficieHa}
                     onChange={(e) => setSuperficieHa(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.superficieHa = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.superficieHa ? 'border-destructive' : 'border-input'}`}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">{t('activities.hint_zero_if_na', 'Saisir 0 si non applicable')}</p>
+                  {lineItemErrors.superficieHa && <p className="text-xs text-destructive mt-1">{lineItemErrors.superficieHa}</p>}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">{t('activities.forest_value', 'Produits obtenus / Grumes, Planches (FCFA)')}</label>
-                  <input
-                    type="number"
-                    value={prodFcfa}
-                    onChange={(e) => setProdFcfa(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                <div className="md:col-span-2" ref={productEditorRef}>
+                  <ProductRowsEditor
+                    productGroup="forestry_product"
+                    rows={forestryProducts}
+                    onChange={setForestryProducts}
+                    error={lineItemErrors.products}
+                    unitOptions={ACTIVITY_OPTIONS.production_units.filter((option) =>
+                      ['m³', 'kg', 'unité', 'Autre (préciser)'].includes(option.value)
+                    )}
                   />
                 </div>
               </div>
@@ -706,13 +784,15 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                   <select
                     value={artProd}
                     onChange={(e) => setArtProd(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    ref={(element) => { fieldRefs.current.artisanatProducts = element; }}
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.artisanatProducts ? 'border-destructive' : 'border-input'}`}
                   >
                     <option value="">{t('common.select', 'Sélectionner')}</option>
                     {ACTIVITY_OPTIONS.artisan_product.map(opt => (
                       <option key={opt.value} value={opt.value}>{getOptionLabel('artisan_product', opt.value, t)}</option>
                     ))}
                   </select>
+                  {lineItemErrors.artisanatProducts && <p className="text-xs text-destructive mt-1">{lineItemErrors.artisanatProducts}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{t('activities.raw_mat', 'Matières premières utilisées')}</label>
@@ -720,17 +800,32 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     type="text"
                     value={rawMat}
                     onChange={(e) => setRawMat(e.target.value)}
+                    ref={(element) => { fieldRefs.current.rawMaterials = element; }}
                     placeholder="Ex: Tronc de plantain, Tissus, Bamboo..."
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                    className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${lineItemErrors.rawMaterials ? 'border-destructive' : 'border-input'}`}
                   />
+                  {lineItemErrors.rawMaterials && <p className="text-xs text-destructive mt-1">{lineItemErrors.rawMaterials}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">{t('activities.prod_fcfa', 'Valeur de la production annuelle (FCFA)')}</label>
-                  <input
-                    type="number"
-                    value={prodFcfa}
-                    onChange={(e) => setProdFcfa(e.target.value)}
-                    className="w-full border border-input rounded-md p-2 bg-background text-foreground text-sm"
+                  <AreaField
+                    value={superficieHa}
+                    onChange={setSuperficieHa}
+                    inputRef={(element) => { fieldRefs.current.superficieHa = element; }}
+                    unitLabel="m²"
+                    labelKey="activities.craft.area_label"
+                    error={lineItemErrors.superficieHa}
+                    helperText={t('activities.hint_zero_if_na', 'Saisir 0 si non applicable')}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <ProductionFields
+                    quantity={prodQuantity}
+                    onQuantityChange={setProdQuantity}
+                    unit={prodUnit}
+                    onUnitChange={setProdUnit}
+                    fcfa={prodFcfa}
+                    onFcfaChange={setProdFcfa}
+                    errors={lineItemErrors}
                   />
                 </div>
               </div>
@@ -799,9 +894,15 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                           {formatLineItemSpecifics(item, selectedType, t)}
                         </td>
                         <td className="p-3">
-                          {item.productionQuantity || t('common.not_available', 'N/A')} {item.productionUnit || ''}
+                          {selectedType === 'eleveur' || selectedType === 'forestier'
+                            ? '—'
+                            : `${item.productionQuantity ?? '—'} ${item.productionUnit ?? ''}`}
                         </td>
-                        <td className="p-3 text-right font-mono text-xs">{item.productionFcfa?.toLocaleString() || '0'}</td>
+                        <td className="p-3 text-right font-mono text-xs">
+                          {(item.productionFcfa ?? (Array.isArray(item.products)
+                            ? item.products.reduce((sum: number, product: any) => sum + (Number(product.fcfa) || 0), 0)
+                            : null))?.toLocaleString() ?? '—'}
+                        </td>
                         <td className="p-3 text-right">
                           <button
                             onClick={() => handleDeleteLine(item.id)}

@@ -144,6 +144,11 @@ export function formatLineItemSpecifics(
     : item.superficieHa !== null && item.superficieHa !== undefined
       ? `${t('activities.superficie_short', 'Superficie:')} ${item.superficieHa} ${unitLabel}`
       : `${t('activities.superficie_short', 'Superficie:')} —`;
+  const productsStr = Array.isArray(item.products) && item.products.length > 0
+    ? item.products
+      .map((product: any) => `${product.name}: ${product.quantity ?? '—'} ${product.unit || ''}`.trim())
+      .join('; ')
+    : '';
 
   if (activityType === 'agriculteur') {
     const typeLabel = item.cultureType ? getOptionLabel('culture_type', item.cultureType, t) : '—';
@@ -153,15 +158,16 @@ export function formatLineItemSpecifics(
   if (activityType === 'eleveur') {
     const cheptelStr = item.cheptelSize !== null && item.cheptelSize !== undefined ? item.cheptelSize : '—';
     const foodLabel = item.foodType ? getOptionLabel('feed_type', item.foodType, t) : '—';
-    return `${areaStr}, ${t('activities.cheptel_short', 'Cheptel:')} ${cheptelStr}, ${t('activities.food_short', 'Nourriture:')} ${foodLabel}`;
+    return `${areaStr}, ${t('activities.cheptel_short', 'Cheptel:')} ${cheptelStr}, ${t('activities.food_short', 'Nourriture:')} ${foodLabel}${productsStr ? `, ${t('activities.products_short', 'Produits:')} ${productsStr}` : ''}`;
   }
 
   if (activityType === 'forestier') {
+    const productsSuffix = productsStr ? `, ${t('activities.products_short', 'Produits:')} ${productsStr}` : '';
     if (item.subCategory === 'cultivé') {
       const plantLabel = item.plantationType ? getOptionLabel('plantation_type', item.plantationType, t) : '—';
-      return `${areaStr}, ${t('activities.plantation_type_short', 'Plantation:')} ${plantLabel}`;
+      return `${areaStr}, ${t('activities.plantation_type_short', 'Plantation:')} ${plantLabel}${productsSuffix}`;
     }
-    return areaStr;
+    return `${areaStr}${productsSuffix}`;
   }
 
   if (activityType === 'artisan') {

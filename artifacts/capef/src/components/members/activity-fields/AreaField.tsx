@@ -10,6 +10,9 @@ interface AreaFieldProps {
   error?: string;
   helperText?: string;
   unitLabel?: string;
+  labelKey?: string;
+  labelFallback?: string;
+  inputRef?: React.Ref<HTMLInputElement>;
 }
 
 export const AreaField: React.FC<AreaFieldProps> = ({
@@ -20,15 +23,20 @@ export const AreaField: React.FC<AreaFieldProps> = ({
   error,
   helperText,
   unitLabel = 'ha',
+  labelKey,
+  labelFallback,
+  inputRef,
 }) => {
   const { t } = useTranslation();
 
   return (
     <div>
       <label className="block text-sm font-medium mb-1 text-foreground">
-        {unitLabel === 'm²'
-          ? t('activities.craft.area_label', 'Superficie / espace de production (m²)')
-          : t('activities.superficie', 'Superficie de la parcelle / site (ha)')}
+        {labelKey
+          ? t(labelKey, labelFallback || labelKey)
+          : unitLabel === 'm²'
+            ? t('activities.craft.area_label', 'Superficie / espace de production (m²)')
+            : t('activities.superficie', 'Superficie de la parcelle / site (ha)')}
         {required && <span className="text-destructive ml-1">*</span>}
       </label>
       <input
@@ -37,6 +45,7 @@ export const AreaField: React.FC<AreaFieldProps> = ({
         min="0"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
+        ref={inputRef}
         disabled={disabled}
         placeholder={t('activities.hint_zero_if_na', 'Saisir 0 si non applicable')}
         className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${

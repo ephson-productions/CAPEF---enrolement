@@ -345,9 +345,15 @@ export default function MemberDetail() {
                                 {formatLineItemSpecifics(item, act.activityType, t)}
                               </td>
                               <td className="p-2">
-                                {item.productionQuantity || t('common.not_available', 'N/A')} {item.productionUnit || ''}
+                                {act.activityType === 'eleveur' || act.activityType === 'forestier'
+                                  ? '—'
+                                  : `${item.productionQuantity ?? '—'} ${item.productionUnit ?? ''}`}
                               </td>
-                              <td className="p-2 text-right font-mono font-medium">{item.productionFcfa?.toLocaleString() || '0'}</td>
+                              <td className="p-2 text-right font-mono font-medium">
+                                {(item.productionFcfa ?? (Array.isArray(item.products)
+                                  ? item.products.reduce((sum: number, product: any) => sum + (Number(product.fcfa) || 0), 0)
+                                  : null))?.toLocaleString() ?? '—'}
+                              </td>
                             </tr>
                           ))
                         )}

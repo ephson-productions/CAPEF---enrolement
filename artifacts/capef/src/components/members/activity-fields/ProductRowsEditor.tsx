@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ACTIVITY_OPTIONS, OptionGroup } from '@/lib/activity-options';
+import { ACTIVITY_OPTIONS, ActivityOption, OptionGroup } from '@/lib/activity-options';
 import { getOptionLabel } from '@/lib/i18n-helpers';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -17,6 +17,7 @@ interface ProductRowsEditorProps {
   onChange: (rows: ProductRow[]) => void;
   error?: string;
   disabled?: boolean;
+  unitOptions?: readonly ActivityOption[];
 }
 
 export const ProductRowsEditor: React.FC<ProductRowsEditorProps> = ({
@@ -25,6 +26,7 @@ export const ProductRowsEditor: React.FC<ProductRowsEditorProps> = ({
   onChange,
   error,
   disabled = false,
+  unitOptions: unitOptionsProp,
 }) => {
   const { t } = useTranslation();
 
@@ -37,7 +39,7 @@ export const ProductRowsEditor: React.FC<ProductRowsEditorProps> = ({
   const [rowError, setRowError] = useState('');
 
   const productOptions = ACTIVITY_OPTIONS[productGroup] || [];
-  const unitOptions = ACTIVITY_OPTIONS.production_units;
+  const unitOptions = unitOptionsProp || ACTIVITY_OPTIONS.production_units;
 
   const handleAdd = () => {
     setRowError('');
@@ -143,7 +145,7 @@ export const ProductRowsEditor: React.FC<ProductRowsEditorProps> = ({
             className="w-full border border-input rounded p-1.5 text-sm bg-background text-foreground"
           >
             <option value="">{t('common.select', 'Unité')}</option>
-            {unitOptions.map((opt) => (
+              {unitOptions.map((opt) => (
               <option key={opt.key} value={opt.value}>
                 {getOptionLabel('production_units', opt.value, t)}
               </option>
