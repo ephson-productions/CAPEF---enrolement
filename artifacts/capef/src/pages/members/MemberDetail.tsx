@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
 import ActivityWizard from '@/components/members/ActivityWizard';
+import { ActivityLineItemsTable } from '@/components/members/ActivityLineItemsTable';
 import { useTranslation } from 'react-i18next';
 import { useDateLocale } from '@/lib/i18n';
 import {
@@ -320,40 +321,10 @@ export default function MemberDetail() {
                     </div>
                   )}
 
-                  <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-muted text-muted-foreground font-semibold">
-                        <tr>
-                          <th className="p-2">{t('activities.table.details', 'Détails')}</th>
-                          <th className="p-2">{t('activities.table.specifics', 'Spécificités')}</th>
-                          <th className="p-2">{t('activities.table.production', 'Production (Qté / Unité)')}</th>
-                          <th className="p-2 text-right">{t('activities.table.value', 'Valeur (FCFA)')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {act.lineItems?.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="p-4 text-center text-muted-foreground">{t('activities.no_line_items', 'Aucune ligne d\'activité.')}</td>
-                          </tr>
-                        ) : (
-                          act.lineItems?.map(item => (
-                            <tr key={item.id} className="hover:bg-muted/10">
-                              <td className="p-2 font-medium">
-                                {formatLineItemTitle(item, act.activityType, t)}
-                              </td>
-                              <td className="p-2 text-muted-foreground">
-                                {formatLineItemSpecifics(item, act.activityType, t)}
-                              </td>
-                              <td className="p-2">
-                                {item.productionQuantity || t('common.not_available', 'N/A')} {item.productionUnit || ''}
-                              </td>
-                              <td className="p-2 text-right font-mono font-medium">{item.productionFcfa?.toLocaleString() || '0'}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ActivityLineItemsTable
+                    activityType={act.activityType}
+                    items={act.lineItems || []}
+                  />
                 </div>
               ))}
             </div>

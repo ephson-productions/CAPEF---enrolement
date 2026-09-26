@@ -204,15 +204,42 @@ export default function BadgeVerify() {
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.species_label', 'Espèce :')}</span><span className="font-bold">{item.species || '-'}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.cheptel_short', 'Taille cheptel :')}</span><span>{item.cheptelSize || '-'} {t('activities.heads', 'têtes')}</span></div>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.food_short', 'Nourriture :')}</span><span>{getOptionLabel('feed_type', item.foodType, t) || '-'}</span></div>
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa !== null && item.superficieHa !== undefined ? `${item.superficieHa} ${t('activities.unit_ha', 'ha')}` : '-'}</span></div>
+                              {Array.isArray(item.products) && item.products.length > 0 && (
+                                <div className="space-y-1 border-t border-border/20 pt-1 mt-1">
+                                  <span className="text-muted-foreground font-semibold">{t('activities.production_short', 'Production :')}</span>
+                                  {item.products.map((p: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between pl-2">
+                                      <span>{p.name}</span>
+                                      <span>{p.quantity} {getOptionLabel('production_units', p.unit, t)} ({p.fcfa?.toLocaleString()} FCFA)</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex justify-between font-semibold text-primary"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur Total :')}</span><span>{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>
                             </>
                           )}
                           {act.activityType === 'forestier' && (
                             <>
                               <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.essence_label', 'Essence :')}</span><span className="font-bold">{item.essence || '-'} ({getOptionLabel('forestry_subcategory', item.subCategory, t) || '-'})</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.plantation_type_short', 'Type plantation :')}</span><span>{getOptionLabel('plantation_type', item.plantationType, t) || '-'}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa ? `${item.superficieHa} ${t('activities.unit_ha', 'ha')}` : '-'}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.production_short', 'Production :')}</span><span>{item.productionQuantity ? `${item.productionQuantity} ${item.productionUnit || ''}` : '-'}</span></div>
-                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur :')}</span><span className="font-semibold text-primary">{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>
+                              {item.subCategory === 'cultivé' && (
+                                <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.plantation_type_short', 'Type plantation :')}</span><span>{getOptionLabel('plantation_type', item.plantationType, t) || '-'}</span></div>
+                              )}
+                              <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.superficie_short', 'Superficie :')}</span><span>{item.superficieHa !== null && item.superficieHa !== undefined ? `${item.superficieHa} ${t('activities.unit_ha', 'ha')}` : '-'}</span></div>
+                              {Array.isArray(item.products) && item.products.length > 0 ? (
+                                <div className="space-y-1 border-t border-border/20 pt-1 mt-1">
+                                  <span className="text-muted-foreground font-semibold">{t('activities.production_short', 'Production :')}</span>
+                                  {item.products.map((p: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between pl-2">
+                                      <span>{p.name}</span>
+                                      <span>{p.quantity} {getOptionLabel('production_units', p.unit, t)} ({p.fcfa?.toLocaleString()} FCFA)</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="flex justify-between"><span className="text-muted-foreground">{t('activities.production_short', 'Production :')}</span><span>{item.productionQuantity ? `${item.productionQuantity} ${item.productionUnit || ''}` : '-'}</span></div>
+                              )}
+                              <div className="flex justify-between font-semibold text-primary"><span className="text-muted-foreground">{t('activities.value_short', 'Valeur :')}</span><span>{item.productionFcfa ? `${item.productionFcfa.toLocaleString()} FCFA` : '-'}</span></div>
                             </>
                           )}
                           {act.activityType === 'artisan' && (

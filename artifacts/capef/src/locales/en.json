@@ -397,7 +397,8 @@
       "livestock_req": "Species and livestock count are required.",
       "species_req": "Main species required.",
       "validated_desc": "Activity questionnaire validated.",
-      "validated_title": "Questionnaire Validated"
+      "validated_title": "Questionnaire Validated",
+      "invalid_form": "Invalid form"
     },
     "unit_placeholder": "Ex: Tons, Bags...",
     "value_fcfa": "Value (FCFA)",
@@ -506,7 +507,119 @@
         "cosmetiques": "Cosmetics",
         "bijoux": "Jewellery",
         "autres": "Other"
+      },
+      "production_units": {
+        "kg": "kg",
+        "t": "t",
+        "sac": "bag",
+        "L": "L",
+        "unite": "unit",
+        "m2": "m²",
+        "m3": "m³",
+        "autre": "Other (specify)"
+      },
+      "livestock_product": {
+        "lait": "Milk",
+        "viande": "Meat",
+        "oeufs": "Eggs",
+        "cire": "Wax",
+        "miel": "Honey",
+        "autres": "Others (specify)"
+      },
+      "forestry_product": {
+        "grumes": "Logs",
+        "planches": "Planks",
+        "autre": "Other (specify)"
+      },
+      "raw_materials": {
+        "tronc_plantain": "Banana trunk",
+        "tissus": "Fabrics",
+        "bamboo": "Bamboo",
+        "autres": "Others (specify)"
+      },
+      "essence_exploite": {
+        "ayous": "Ayous",
+        "azobe": "Azobé",
+        "bubinga": "Bubinga",
+        "okok": "Okok",
+        "djansan": "Djansan",
+        "autre": "Other (specify)"
+      },
+      "essence_cultive": {
+        "mango": "Mango",
+        "kolatier": "Kola Tree",
+        "bitter_kola": "Bitter kola",
+        "noisette": "Hazelnut",
+        "moringa": "Moringa",
+        "neem": "Neem",
+        "autre": "Other (specify)"
+      },
+      "essence_non_ligneux": {
+        "karite": "Shea Tree",
+        "autre": "Other (specify)"
+      },
+      "species_volaille": {
+        "poulets_chair": "Broiler chickens",
+        "poulets_race_locale": "Local breed chickens",
+        "poulets_pondeurs": "Laying hens",
+        "pintades": "Guinea fowl",
+        "dindons": "Turkeys",
+        "canards": "Ducks",
+        "oies": "Geese",
+        "caille": "Quail",
+        "pigeons": "Pigeons",
+        "autre": "Other (specify)"
+      },
+      "species_apiculture": {
+        "abeilles": "Bees",
+        "autre": "Other (specify)"
+      },
+      "species_bovins": {
+        "boeufs": "Cattle",
+        "autre": "Other (specify)"
+      },
+      "species_canins": {
+        "chiens": "Dogs",
+        "autre": "Other (specify)"
+      },
+      "species_asins": {
+        "anes": "Donkeys",
+        "autre": "Other (specify)"
+      },
+      "species_ovins": {
+        "moutons": "Sheep",
+        "autre": "Other (specify)"
+      },
+      "species_caprins": {
+        "chevres": "Goats",
+        "autre": "Other (specify)"
+      },
+      "species_non_conventionnel": {
+        "lapins": "Rabbits",
+        "aulacodes": "Cane rats",
+        "cobayes": "Guinea pigs",
+        "escargots": "Snails",
+        "porcs": "Pigs",
+        "chevaux": "Horses",
+        "autre": "Other (specify)"
       }
+    },
+    "fisheries": {
+      "area_ha_label": "Aquaculture site area (ha)"
+    },
+    "livestock": {
+      "area_ha_label": "Enclosure / grazing area (ha)"
+    },
+    "craft": {
+      "area_label": "Production area / workspace (m²)",
+      "quantity_label": "Annual production (Quantity)",
+      "unit_label": "Production unit"
+    },
+    "hint_zero_if_na": "Enter 0 if not applicable",
+    "validation": {
+      "required": "This field is required",
+      "must_be_zero_or_positive": "Value must be greater than or equal to 0",
+      "min_one_product_row": "At least one product line is required"
     }
   },
   "badge": {

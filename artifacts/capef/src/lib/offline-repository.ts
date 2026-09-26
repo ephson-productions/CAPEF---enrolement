@@ -43,7 +43,19 @@ export class DexieOfflineQueueRepository implements IOfflineQueueRepository {
   }
 
   private resolveUserId(userId?: string | null): string {
-    return userId || 'anonymous_user';
+    if (userId) {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try { window.localStorage.setItem('capef_last_known_user_id', userId); } catch {}
+      }
+      return userId;
+    }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const cached = window.localStorage.getItem('capef_last_known_user_id');
+        if (cached) return cached;
+      } catch {}
+    }
+    return 'anonymous_user';
   }
 
   async enqueue<T>(type: OperationType, payload: T, userId?: string | null): Promise<OfflineQueueItem<T>> {
