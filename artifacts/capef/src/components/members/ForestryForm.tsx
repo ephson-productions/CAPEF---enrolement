@@ -23,14 +23,13 @@ export const ForestryForm: React.FC<ForestryFormProps> = ({
   const [superficieHa, setSuperficieHa] = useState('');
   const [products, setProducts] = useState<ProductRow[]>([]);
 
-  const normSubCategory = (subCat: string) => subCat.trim().toLowerCase();
-
   const getEssenceGroupKey = (subCat: string): OptionGroup | null => {
-    const norm = normSubCategory(subCat);
-    if (norm === 'exploité' || norm === 'exploite') return 'essence_exploite' as OptionGroup;
-    if (norm === 'cultivé' || norm === 'cultive') return 'essence_cultive' as OptionGroup;
-    if (norm === 'non-ligneux' || norm === 'non_ligneux') return 'essence_non_ligneux' as OptionGroup;
-    return null;
+    switch (subCat) {
+      case 'exploité': return 'essence_exploite' as OptionGroup;
+      case 'cultivé': return 'essence_cultive' as OptionGroup;
+      case 'non-ligneux': return 'essence_non_ligneux' as OptionGroup;
+      default: return null;
+    }
   };
 
   const essenceGroup = getEssenceGroupKey(subCategory);
