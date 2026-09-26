@@ -160,14 +160,11 @@ const SEED_DATA = [
 ];
 
 export async function runStandaloneMigrateAndSeed(exitOnComplete = true): Promise<void> {
-  let connectionString =
-    process.env.SUPABASE_DATABASE_URL ||
-    process.env.DIRECT_URL ||
-    process.env.DATABASE_URL;
+  let connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error("❌ Missing database connection string (SUPABASE_DATABASE_URL, DIRECT_URL, or DATABASE_URL).");
+    console.error("❌ Missing database connection string (DIRECT_URL or DATABASE_URL).");
     if (exitOnComplete) process.exit(1);
-    throw new Error("Missing database connection string (SUPABASE_DATABASE_URL, DIRECT_URL, or DATABASE_URL).");
+    throw new Error("Missing database connection string (DIRECT_URL or DATABASE_URL).");
   }
 
   try {

@@ -988,17 +988,20 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
   res.sendStatus(204);
 });
 
-export function validateActivityLineItem(activityType: string, payload: any) {
+function validateActivityLineItem(activityType: string, payload: any) {
   const errors: Array<{ field: string; code: string }> = [];
 
   const isNum = (val: any) => typeof val === "number" && !isNaN(val) && Number.isFinite(val);
   const isStr = (val: any) => typeof val === "string" && val.trim().length > 0;
 
-  // 1. Superficie validation: zero is valid, but the field is mandatory.
-  if (!isNum(payload.superficieHa)) {
-    errors.push({ field: "superficieHa", code: "required" });
-  } else if (payload.superficieHa < 0) {
-    errors.push({ field: "superficieHa", code: "negative" });
+  // 1. Superficie validation (area >= 0 required for all 5 categories unless associated crop)
+  const isAssociatedCrop = activityType === "agriculteur" && (payload.cultureType === "Associée" || payload.isPrincipalCrop === false);
+  if (!isAssociatedCrop) {
+    if (!isNum(payload.superficieHa)) {
+      errors.push({ field: "superficieHa", code: "required" });
+    } else if (payload.superficieHa < 0) {
+      errors.push({ field: "superficieHa", code: "negative" });
+    }
   }
 
   // 2. Production fields or Products array
@@ -1020,10 +1023,6 @@ export function validateActivityLineItem(activityType: string, payload: any) {
           errors.push({ field: `products.${idx}.fcfa`, code: "invalid_fcfa" });
         }
       });
-    }
-    if (payload.productionFcfa !== undefined && payload.productionFcfa !== null &&
-      (!isNum(payload.productionFcfa) || payload.productionFcfa < 0)) {
-      errors.push({ field: "productionFcfa", code: "invalid_fcfa" });
     }
   } else {
     // Single productionQuantity, productionUnit, productionFcfa
@@ -1080,7 +1079,7 @@ function normalizeLineItemPayload(body: any) {
   if (body.products === undefined || body.products === null) {
     payload.products = null;
   } else {
-    payload.products = body.products; // Already validated jsonb
+    payload.products = body.products; // Already jsonb
   }
 
   return payload;
@@ -1126,22 +1125,7 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
     return;
   }
 
-  const validationErrors = validateActivityLineItem(activity.activityType, req.body);
-  if (validationErrors.length > 0) {
-    res.status(400).json({
-      error: "Données de production invalides",
-      fields: validationErrors,
-    });
-    return;
-  }
-
   const normalized = normalizeLineItemPayload(req.body);
-  if (activity.activityType === "eleveur" || activity.activityType === "forestier") {
-    normalized.productionQuantity = null;
-    normalized.productionUnit = null;
-    normalized.productionFcfa = (normalized.products as Array<{ fcfa: number }>)
-      .reduce((sum, product) => sum + product.fcfa, 0);
-  }
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -1210,106 +1194,26 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
     return;
   }
 
-  const appUser = (req as any).appUser;
-  const [targetMember] = await db
-    .select()
-    .from(membersTable)
-    .where(eq(membersTable.id, memberId))
-    .limit(1);
-
-  if (!targetMember) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-
-  const clientOperationId = getClientOperationId(req);
-
-  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
-    return;
-  }
-
-  const [activity] = await db
-    .select()
-    .from(memberActivitiesTable)
-    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
-    .limit(1);
-
-  if (!activity) {
-    res.status(404).json({ error: "Activité introuvable" });
-    return;
-  }
-
-  const [existingItem] = await db
-    .select()
-    .from(activityLineItemsTable)
-    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-    .limit(1);
-
-  if (!existingItem) {
-    res.status(404).json({ error: "Ligne d'activité introuvable" });
-    return;
-  }
-
-  const mergedPayload = { ...existingItem, ...req.body };
-  const validationErrors = validateActivityLineItem(activity.activityType, mergedPayload);
-  if (validationErrors.length > 0) {
-    res.status(400).json({
-      error: "Données de production invalides",
-      fields: validationErrors,
-    });
-    return;
-  }
-
-  const normalized = normalizeLineItemPayload(mergedPayload);
-  if (activity.activityType === "eleveur" || activity.activityType === "forestier") {
-    normalized.productionQuantity = null;
-    normalized.productionUnit = null;
-    normalized.productionFcfa = (normalized.products as Array<{ fcfa: number }>)
-      .reduce((sum, product) => sum + product.fcfa, 0);
-  }
+  const normalized = normalizeLineItemPayload(req.body);
 
   try {
-    const result = await db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(activityLineItemsTable)
-        .set(normalized)
-        .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-        .returning();
+    const [updated] = await db
+      .update(activityLineItemsTable)
+      .set(normalized)
+      .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
+      .returning();
 
-      if (!updated) {
-        return null;
-      }
-
-      const formatted = {
-        ...updated,
-        createdAt: updated.createdAt.toISOString(),
-      };
-
-      if (clientOperationId) {
-        await tx.insert(processedOperationsTable).values({
-          clientOperationId,
-          userId: appUser.id,
-          operationType: "update_line_item",
-          resourceId: updated.id,
-          resultPayload: formatted,
-        });
-      }
-
-      return formatted;
-    });
-
-    if (!result) {
+    if (!updated) {
       res.status(404).json({ error: "Ligne d'activité introuvable" });
       return;
     }
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.json(result);
+    res.json({
+      ...updated,
+      createdAt: updated.createdAt.toISOString(),
+    });
   } catch (error: any) {
     console.error("🚨 POSTGRES EXECUTION ERROR (PUT line-item):", {
       code: error.code,

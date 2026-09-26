@@ -1,11 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-let connectionString =
-  process.env.SUPABASE_DATABASE_URL ||
-  process.env.DIRECT_URL ||
-  process.env.DATABASE_URL ||
-  "postgresql://localhost:5432/dummy";
+let connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || "postgresql://localhost:5432/dummy";
 
 try {
   const url = new URL(connectionString);
