@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useListMembers, useListUsers, exportMembers } from '@workspace/api-client-react';
+import { useOfflineFallbackMembers } from '@/lib/offline-hooks';
 import type { ListMembersCategory, ListMembersMemberType, ListMembersStatus, ListMembersRepresentantGenre } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import {
@@ -37,7 +38,7 @@ export default function MembersList() {
     {
       query: {
         queryKey: ['members', { page, search, category, memberType, status, agentId, representantGenre }],
-        placeholderData: (prev) => prev,
+        placeholderData: (prev: any) => prev,
       }
     }
   );
@@ -251,7 +252,7 @@ export default function MembersList() {
                   </td>
                 </tr>
               ) : (
-                data?.data?.map((member) => (
+                data?.data?.map((member: any) => (
                   <tr key={member.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">

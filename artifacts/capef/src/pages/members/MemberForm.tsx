@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider, Controller, useFieldArray, useFormContext } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useListRegions, useListDepartments, useListArrondissements } from '@workspace/api-client-react';
+import {
+  useOfflineFallbackRegions,
+  useOfflineFallbackDepartments,
+  useOfflineFallbackArrondissements,
+} from '@/lib/offline-hooks';
 import type { Member } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -522,14 +526,14 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
   const { t } = useTranslation();
   const { register, watch, setValue, formState: { errors } } = useFormContext<MemberFormValues>();
 
-  const regions = useListRegions();
+  const regions = useOfflineFallbackRegions();
   const selectedRegion = watch(`moraleData.representants.${index}.regionId`);
-  const departments = useListDepartments(
+  const departments = useOfflineFallbackDepartments(
     { regionId: selectedRegion as number },
     { query: { enabled: !!selectedRegion, queryKey: ['departments', selectedRegion, index] } }
   );
   const selectedDept = watch(`moraleData.representants.${index}.departmentId`);
-  const arrondissements = useListArrondissements(
+  const arrondissements = useOfflineFallbackArrondissements(
     { departmentId: selectedDept as number },
     { query: { enabled: !!selectedDept, queryKey: ['arrondissements', selectedDept, index] } }
   );
@@ -660,7 +664,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
             }}
           >
             <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-            {regions.data?.map(r => (
+            {regions.data?.map((r: any) => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
@@ -679,7 +683,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
             }}
           >
             <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-            {departments.data?.map(d => (
+            {departments.data?.map((d: any) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
@@ -697,7 +701,7 @@ function RepresentativeRow({ index, onRemove, isRemovable }: RepresentativeRowPr
             }}
           >
             <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-            {arrondissements.data?.map(a => (
+            {arrondissements.data?.map((a: any) => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
@@ -1041,14 +1045,14 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
     }
   }, [physiqueCivilite, setValue]);
 
-  const regions = useListRegions();
+  const regions = useOfflineFallbackRegions();
   const selectedRegion = watch('regionId');
-  const departments = useListDepartments(
+  const departments = useOfflineFallbackDepartments(
     { regionId: selectedRegion as number },
     { query: { enabled: !!selectedRegion, queryKey: ['departments', selectedRegion] } }
   );
   const selectedDept = watch('departmentId');
-  const arrondissements = useListArrondissements(
+  const arrondissements = useOfflineFallbackArrondissements(
     { departmentId: selectedDept as number },
     { query: { enabled: !!selectedDept, queryKey: ['arrondissements', selectedDept] } }
   );
@@ -1288,7 +1292,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     <label className="text-sm font-semibold">{t('members.filters.region', 'Région')}</label>
                     <select {...methods.register('regionId')} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {regions.data?.map(r => (
+                      {regions.data?.map((r: any) => (
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
                     </select>
@@ -1297,7 +1301,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     <label className="text-sm font-semibold">{t('members.filters.department', 'Département')}</label>
                     <select {...methods.register('departmentId')} disabled={!selectedRegion} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {departments.data?.map(d => (
+                      {departments.data?.map((d: any) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
@@ -1306,7 +1310,7 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     <label className="text-sm font-semibold">{t('members.filters.arrondissement', 'Arrondissement')}</label>
                     <select {...methods.register('arrondissementId')} disabled={!selectedDept} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted">
                       <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {arrondissements.data?.map(a => (
+                      {arrondissements.data?.map((a: any) => (
                         <option key={a.id} value={a.id}>{a.name}</option>
                       ))}
                     </select>

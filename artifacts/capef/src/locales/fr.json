@@ -536,6 +536,72 @@
         "tissus": "Tissus",
         "bamboo": "Bamboo",
         "autres": "Autres (préciser)"
+      },
+      "essence_exploite": {
+        "ayous": "Ayous",
+        "azobe": "Azobé",
+        "bubinga": "Bubinga",
+        "okok": "Okok",
+        "djansan": "Djansan",
+        "autre": "Autre (préciser)"
+      },
+      "essence_cultive": {
+        "mango": "Mango",
+        "kolatier": "Kolatier",
+        "bitter_kola": "Bitter kola",
+        "noisette": "Noisette",
+        "moringa": "Moringa",
+        "neem": "Neem",
+        "autre": "Autre (préciser)"
+      },
+      "essence_non_ligneux": {
+        "karite": "Karité",
+        "autre": "Autre (préciser)"
+      },
+      "species_volaille": {
+        "poulets_chair": "Poulets chair",
+        "poulets_race_locale": "Poulets race locale",
+        "poulets_pondeurs": "Poulets pondeurs",
+        "pintades": "Pintades",
+        "dindons": "Dindons",
+        "canards": "Canards",
+        "oies": "Oies",
+        "caille": "Caille",
+        "pigeons": "Pigeons",
+        "autre": "Autre (préciser)"
+      },
+      "species_apiculture": {
+        "abeilles": "Abeilles",
+        "autre": "Autre (préciser)"
+      },
+      "species_bovins": {
+        "boeufs": "Bœufs",
+        "autre": "Autre (préciser)"
+      },
+      "species_canins": {
+        "chiens": "Chiens",
+        "autre": "Autre (préciser)"
+      },
+      "species_asins": {
+        "anes": "Ânes",
+        "autre": "Autre (préciser)"
+      },
+      "species_ovins": {
+        "moutons": "Moutons",
+        "autre": "Autre (préciser)"
+      },
+      "species_caprins": {
+        "chevres": "Chèvres",
+        "autre": "Autre (préciser)"
+      },
+      "species_non_conventionnel": {
+        "lapins": "Lapins",
+        "aulacodes": "Aulacodes",
+        "cobayes": "Cobayes",
+        "escargots": "Escargots",
+        "porcs": "Porcs",
+        "chevaux": "Chevaux",
+        "autre": "Autre (préciser)"
       }
     },
     "fisheries": {

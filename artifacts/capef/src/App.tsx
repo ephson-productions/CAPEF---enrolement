@@ -6,9 +6,12 @@ import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, useQueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 
-import { AuthProvider } from './lib/auth';
+import { AuthProvider, useAuthContext } from './lib/auth';
+import { bootstrapService } from './lib/bootstrap-service';
 import { OfflineQueueProvider } from './lib/offline-sync';
 import { ClerkProvisioner } from './components/auth/ClerkProvisioner';
 import { ThemeProvider } from './components/theme-provider';
@@ -31,7 +34,21 @@ const Profile = React.lazy(() => import('./pages/Profile'));
 const NotFound = React.lazy(() => import('./pages/not-found'));
 const BadgeVerify = React.lazy(() => import('./pages/members/BadgeVerify'));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24 * 7, // 7 jours — usage terrain prolongé
+      staleTime: 1000 * 60 * 5,
+      networkMode: 'offlineFirst',
+      retry: 2,
+    },
+  },
+});
+
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: 'capef_query_cache_v1',
+});
 
 // Safely resolve Clerk publishable key without calling publishableKeyFromHost on undefined
 const rawClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -226,11 +243,35 @@ function ClerkQueryClientCacheInvalidator() {
         prevUserIdRef.current !== userId
       ) {
         queryClient.clear();
+        try {
+          window.localStorage.removeItem('capef_query_cache_v1');
+        } catch (e) {
+          console.warn('Failed to clear persisted query cache in localStorage', e);
+        }
       }
       prevUserIdRef.current = userId;
     });
     return unsubscribe;
   }, [addListener, queryClient]);
+
+  return null;
+}
+
+function OfflineBootstrapTrigger() {
+  const { user } = useAuthContext();
+  const bootstrappedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (user && user.id !== undefined && user.id !== null) {
+      const userStrId = String(user.id);
+      if (bootstrappedRef.current !== userStrId) {
+        bootstrappedRef.current = userStrId;
+        bootstrapService.runBootstrap(user).catch((err) => {
+          console.warn('[OfflineBootstrapTrigger] Non-blocking bootstrap failed:', err);
+        });
+      }
+    }
+  }, [user]);
 
   return null;
 }
@@ -271,11 +312,12 @@ function ClerkProviderWithRoutes() {
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
         <ClerkTokenInitializer />
         <ClerkQueryClientCacheInvalidator />
         <ClerkProvisioner />
         <AuthProvider>
+          <OfflineBootstrapTrigger />
           <OfflineQueueProvider>
             <TooltipProvider>
               <React.Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center p-4 text-muted-foreground font-semibold">Chargement / Loading...</div>}>
@@ -302,7 +344,7 @@ function ClerkProviderWithRoutes() {
             </TooltipProvider>
           </OfflineQueueProvider>
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </ClerkProvider>
   );
 }

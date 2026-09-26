@@ -48,8 +48,25 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
+            urlPattern: /^\/api\/(regions|departments|arrondissements)$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'capef-reference-data',
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 jours
+              },
+            },
+          },
+          {
             urlPattern: /^\/api\/.*$/i,
-            handler: 'NetworkOnly',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'capef-api-data',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24, // 24 heures
+              },
+            },
           },
           {
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*$/i,
