@@ -22,9 +22,6 @@ export class BootstrapService {
 
   async runBootstrap(user: { id: string | number; role?: string; regionId?: number | null }): Promise<BootstrapStatus> {
     if (!user || user.id === undefined || user.id === null) return 'FAILED';
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      return this.getBootstrapStatus(String(user.id));
-    }
     const userId = String(user.id);
 
     this.setBootstrapStatus(userId, 'BOOTSTRAPPING');

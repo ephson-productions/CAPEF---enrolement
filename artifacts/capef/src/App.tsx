@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { frFR, enUS } from '@clerk/localizations';
 import { useTranslation } from 'react-i18next';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -187,32 +187,15 @@ function HomeLanding() {
 
 function HomeRedirect() {
   return (
-    <AuthAwareHome />
+    <>
+      <Show when="signed-in">
+        <Redirect to="/dashboard" />
+      </Show>
+      <Show when="signed-out">
+        <HomeLanding />
+      </Show>
+    </>
   );
-}
-
-function StartupScreen() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-lg">
-        <img src={`${basePath}/logo.png`} alt="CAPEF" className="mx-auto mb-5 h-16 w-16 object-contain" />
-        <h1 className="text-lg font-bold text-foreground">Restauration de CAPEF</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Vérification de la session et des données locales…
-        </p>
-        <div className="mx-auto mt-5 h-2 w-32 overflow-hidden rounded-full bg-muted">
-          <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AuthAwareHome() {
-  const { isAuthenticated, isClerkLoaded } = useAuthContext();
-  if (isAuthenticated) return <Redirect to="/dashboard" />;
-  if (!isClerkLoaded) return <StartupScreen />;
-  return <HomeLanding />;
 }
 
 function SignInPage() {
@@ -279,7 +262,7 @@ function OfflineBootstrapTrigger() {
   const bootstrappedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (navigator.onLine && user && user.id !== undefined && user.id !== null && user.id > 0) {
+    if (user && user.id !== undefined && user.id !== null) {
       const userStrId = String(user.id);
       if (bootstrappedRef.current !== userStrId) {
         bootstrappedRef.current = userStrId;
@@ -310,20 +293,6 @@ function ProtectedRoutes() {
       </Switch>
     </Shell>
   );
-}
-
-function AuthenticatedRoutes() {
-  const { isAuthenticated, isClerkLoaded } = useAuthContext();
-
-  if (!isClerkLoaded && !isAuthenticated) {
-    return <StartupScreen />;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect to="/" />;
-  }
-
-  return <ProtectedRoutes />;
 }
 
 function ClerkProviderWithRoutes() {
@@ -359,10 +328,15 @@ function ClerkProviderWithRoutes() {
 
                   {/* Protected shell wrapper handles other routes */}
                   <Route>
-                    <Switch>
-                      <Route path="/badge-verify/:token" component={BadgeVerify} />
-                      <Route component={AuthenticatedRoutes} />
-                    </Switch>
+                    <Show when="signed-out">
+                      <Redirect to="/" />
+                    </Show>
+                    <Show when="signed-in">
+                      <Switch>
+                        <Route path="/badge-verify/:token" component={BadgeVerify} />
+                        <Route component={ProtectedRoutes} />
+                      </Switch>
+                    </Show>
                   </Route>
                 </Switch>
               </React.Suspense>

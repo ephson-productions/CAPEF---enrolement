@@ -5,9 +5,6 @@ import { useUser } from '@clerk/react';
 type AuthContextType = {
   user: AppUser | undefined;
   isLoading: boolean;
-  isClerkLoaded: boolean;
-  isAuthenticated: boolean;
-  isOfflineSession: boolean;
   role: string | null;
   isAdmin: boolean;
   isSupervisor: boolean;
@@ -19,8 +16,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const CACHE_KEY_PREFIX = 'capef_ui_cached_claims_v1_';
 const CACHE_TTL_MS = 21 * 24 * 60 * 60 * 1000; // 21 days UI gating cache authorized by Ephraim
-const LAST_KNOWN_USER_ID_KEY = 'capef_last_known_user_id';
-const OFFLINE_SESSION_KEY = 'capef_offline_session_v1';
 
 export interface LocallyCachedClaims {
   role: string;
@@ -58,69 +53,6 @@ export function getLocallyCachedRoleForUIGatingOnly(clerkUserId: string | null |
   }
 }
 
-function readJsonFromLocalStorage<T>(key: string): T | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) as T : null;
-  } catch (err) {
-    console.error(`[auth.tsx] Error reading local storage key ${key}:`, err);
-    return null;
-  }
-}
-
-export function getLastKnownClerkUserId(): string | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
-  try {
-    return window.localStorage.getItem(LAST_KNOWN_USER_ID_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function rememberLastKnownClerkUserId(clerkUserId: string): void {
-  if (typeof window === 'undefined' || !window.localStorage || !clerkUserId) return;
-  try {
-    window.localStorage.setItem(LAST_KNOWN_USER_ID_KEY, clerkUserId);
-  } catch (err) {
-    console.error('[auth.tsx] Error persisting last known Clerk user:', err);
-  }
-}
-
-export function clearOfflineSession(): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
-  try {
-    window.localStorage.removeItem(OFFLINE_SESSION_KEY);
-    window.localStorage.removeItem(LAST_KNOWN_USER_ID_KEY);
-  } catch (err) {
-    console.error('[auth.tsx] Error clearing offline session:', err);
-  }
-}
-
-type OfflineSessionSnapshot = {
-  clerkUserId: string;
-  cachedAt: string;
-};
-
-function rememberOfflineSession(clerkUserId: string): void {
-  if (typeof window === 'undefined' || !window.localStorage || !clerkUserId) return;
-  try {
-    const snapshot: OfflineSessionSnapshot = {
-      clerkUserId,
-      cachedAt: new Date().toISOString(),
-    };
-    window.localStorage.setItem(OFFLINE_SESSION_KEY, JSON.stringify(snapshot));
-  } catch (err) {
-    console.error('[auth.tsx] Error persisting offline session marker:', err);
-  }
-}
-
-function getOfflineSessionClaims(): LocallyCachedClaims | null {
-  const snapshot = readJsonFromLocalStorage<OfflineSessionSnapshot>(OFFLINE_SESSION_KEY);
-  const clerkUserId = snapshot?.clerkUserId || getLastKnownClerkUserId();
-  return clerkUserId ? getLocallyCachedRoleForUIGatingOnly(clerkUserId) : null;
-}
-
 export function cacheClaimsForUIGatingOnly(user: AppUser): void {
   if (!user || !user.clerkUserId) return;
   try {
@@ -132,8 +64,6 @@ export function cacheClaimsForUIGatingOnly(user: AppUser): void {
       cachedAt: new Date().toISOString(),
     };
     localStorage.setItem(`${CACHE_KEY_PREFIX}${user.clerkUserId}`, JSON.stringify(claims));
-    rememberLastKnownClerkUserId(user.clerkUserId);
-    rememberOfflineSession(user.clerkUserId);
   } catch (err) {
     console.error('[auth.tsx] Error caching claims for UI gating:', err);
   }
@@ -142,33 +72,12 @@ export function cacheClaimsForUIGatingOnly(user: AppUser): void {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user: clerkUser, isSignedIn, isLoaded: isClerkLoaded } = useUser();
   const clerkUserId = clerkUser?.id ?? null;
-  const [isBrowserOnline, setIsBrowserOnline] = React.useState(
-    () => typeof navigator === 'undefined' || navigator.onLine,
-  );
-
-  React.useEffect(() => {
-    const handleOnline = () => setIsBrowserOnline(true);
-    const handleOffline = () => setIsBrowserOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (isSignedIn && clerkUserId) {
-      rememberLastKnownClerkUserId(clerkUserId);
-    }
-  }, [isSignedIn, clerkUserId]);
 
   const { data: user, isLoading: isMeLoading, refetch } = useGetMe({
     query: {
-      enabled: !!isSignedIn && isBrowserOnline,
+      enabled: !!isSignedIn,
       retry: false,
-      queryKey: ['auth-me'],
-      staleTime: 1000 * 60 * 5,
+      queryKey: ['auth-me']
     }
   });
 
@@ -183,20 +92,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fallback to locally cached claims during offline mode for UI display
   const offlineCachedClaims = React.useMemo(() => {
-    if (!user) {
-      return getLocallyCachedRoleForUIGatingOnly(clerkUserId) || getOfflineSessionClaims();
+    if (!user && clerkUserId) {
+      return getLocallyCachedRoleForUIGatingOnly(clerkUserId);
     }
     return null;
   }, [user, clerkUserId]);
 
   const role = user?.role || offlineCachedClaims?.role || null;
-  const isOfflineSession = !isSignedIn && !isBrowserOnline && !!offlineCachedClaims;
-  const isAuthenticated = !!isSignedIn || isOfflineSession;
 
   const value = {
     user: user || (offlineCachedClaims ? ({
       id: 0,
-      clerkUserId: clerkUserId || getLastKnownClerkUserId() || '',
+      clerkUserId: clerkUserId || '',
       email: offlineCachedClaims.email,
       name: offlineCachedClaims.name,
       role: offlineCachedClaims.role as any,
@@ -204,10 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       regionId: offlineCachedClaims.assignedRegionId ?? null,
       createdAt: offlineCachedClaims.cachedAt,
     } as AppUser) : undefined),
-    isLoading: !!(isMeLoading && isSignedIn && isBrowserOnline),
-    isClerkLoaded,
-    isAuthenticated,
-    isOfflineSession,
+    isLoading,
     role,
     isAdmin: role === 'admin',
     isSupervisor: role === 'supervisor',
