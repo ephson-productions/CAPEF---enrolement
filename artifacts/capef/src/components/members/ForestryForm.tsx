@@ -62,10 +62,13 @@ export const ForestryForm: React.FC<ForestryFormProps> = ({
 
     const totalFcfa = nextProducts.reduce((sum, p) => sum + (p.fcfa || 0), 0);
 
+    const normNextSub = normSubCategory(nextSub);
+    const isCultivated = normNextSub === 'cultivé' || normNextSub === 'cultive';
+
     const payload = {
       subCategory: nextSub,
       essence: finalEssence,
-      plantationType: nextSub === 'cultivé' ? nextPlantation : null,
+      plantationType: isCultivated ? nextPlantation : null,
       superficieHa: nextSuperficie !== '' ? parseFloat(nextSuperficie) : null,
       products: nextProducts,
       productionFcfa: totalFcfa,
@@ -75,6 +78,10 @@ export const ForestryForm: React.FC<ForestryFormProps> = ({
 
     onPayloadChange(payload);
   };
+
+  const currentNormSub = normSubCategory(subCategory);
+  const isFauna = currentNormSub === 'faune';
+  const isCultivated = currentNormSub === 'cultivé' || currentNormSub === 'cultive';
 
   return (
     <div className="space-y-4">
@@ -103,7 +110,7 @@ export const ForestryForm: React.FC<ForestryFormProps> = ({
           <label className="block text-sm font-medium mb-1 text-foreground">
             {t('activities.essence', 'Essence forestière / Espèce')} <span className="text-destructive">*</span>
           </label>
-          {subCategory === 'faune' ? (
+          {isFauna ? (
             <input
               type="text"
               value={essence}
@@ -143,7 +150,7 @@ export const ForestryForm: React.FC<ForestryFormProps> = ({
           {errors.essence && <p className="text-xs text-destructive mt-1">{errors.essence}</p>}
         </div>
 
-        {subCategory === 'cultivé' && (
+        {isCultivated && (
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground">
               {t('activities.plantation_type', 'Type de plantation')}
@@ -166,10 +173,10 @@ export const ForestryForm: React.FC<ForestryFormProps> = ({
       <AreaField
         value={superficieHa}
         onChange={(val) => updateState({ superficieHa: val })}
-        strictlyPositive={subCategory === 'cultivé'}
+        strictlyPositive={isCultivated}
         error={errors.superficieHa}
         helperText={
-          subCategory === 'cultivé'
+          isCultivated
             ? t('activities.cultivated_forest_area_helper', 'Superficie cultivée obligatoire (> 0 ha).')
             : t('activities.forest_area_helper', 'Superficie exploitée en ha (saisir 0 si non applicable).')
         }

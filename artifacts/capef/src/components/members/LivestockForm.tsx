@@ -25,15 +25,16 @@ export const LivestockForm: React.FC<LivestockFormProps> = ({
   const [products, setProducts] = useState<ProductRow[]>([]);
 
   const getSpeciesGroupKey = (lType: string): OptionGroup | null => {
-    switch (lType) {
-      case 'Volaille': return 'species_volaille' as OptionGroup;
-      case 'Apiculture': return 'species_apiculture' as OptionGroup;
-      case 'Bovins': return 'species_bovins' as OptionGroup;
-      case 'Canins': return 'species_canins' as OptionGroup;
-      case 'Asins': return 'species_asins' as OptionGroup;
-      case 'Ovins': return 'species_ovins' as OptionGroup;
-      case 'Caprins': return 'species_caprins' as OptionGroup;
-      case 'Non-conventionnel': return 'species_non_conventionnel' as OptionGroup;
+    const normalized = lType.trim().toLowerCase();
+    switch (normalized) {
+      case 'volaille': return 'species_volaille' as OptionGroup;
+      case 'apiculture': return 'species_apiculture' as OptionGroup;
+      case 'bovins': return 'species_bovins' as OptionGroup;
+      case 'canins': return 'species_canins' as OptionGroup;
+      case 'asins': return 'species_asins' as OptionGroup;
+      case 'ovins': return 'species_ovins' as OptionGroup;
+      case 'caprins': return 'species_caprins' as OptionGroup;
+      case 'non-conventionnel': return 'species_non_conventionnel' as OptionGroup;
       default: return null;
     }
   };

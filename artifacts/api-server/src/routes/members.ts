@@ -1127,6 +1127,15 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
 
   const normalized = normalizeLineItemPayload(req.body);
 
+  const validationErrors = validateActivityLineItem(activity.activityType, normalized);
+  if (validationErrors.length > 0) {
+    res.status(400).json({
+      error: "Certains champs obligatoires de la ligne d'activité sont manquants ou invalides.",
+      fields: validationErrors,
+    });
+    return;
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
       const [item] = await tx
@@ -1195,6 +1204,41 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
   }
 
   const normalized = normalizeLineItemPayload(req.body);
+
+  const [existingItem] = await db
+    .select()
+    .from(activityLineItemsTable)
+    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
+    .limit(1);
+
+  if (!existingItem) {
+    res.status(404).json({ error: "Ligne d'activité introuvable" });
+    return;
+  }
+
+  const [activity] = await db
+    .select()
+    .from(memberActivitiesTable)
+    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
+    .limit(1);
+
+  if (!activity) {
+    res.status(404).json({ error: "Activité introuvable" });
+    return;
+  }
+
+  const validationErrors = validateActivityLineItem(activity.activityType, {
+    ...existingItem,
+    ...normalized,
+  });
+
+  if (validationErrors.length > 0) {
+    res.status(400).json({
+      error: "Certains champs obligatoires de la ligne d'activité sont manquants ou invalides.",
+      fields: validationErrors,
+    });
+    return;
+  }
 
   try {
     const [updated] = await db
