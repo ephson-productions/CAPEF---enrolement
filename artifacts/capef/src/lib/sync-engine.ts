@@ -96,10 +96,12 @@ export class SyncEngine {
             });
           }
 
+          const activeUser = userId || (typeof localStorage !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') : null) || 'unassigned_user';
+
           // Atomic reconciliation and removal upon success
           await idReconciliationService.reconcileAndRemoveOperation(
             item.id,
-            userId || 'anonymous_user',
+            activeUser,
             item.operationType,
             item.payload,
             serverResponse

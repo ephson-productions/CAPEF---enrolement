@@ -74,6 +74,19 @@ export interface EntityMapping {
   createdAt: string;
 }
 
+export interface LocalUserProfileRecord {
+  clerkUserId: string;
+  serverId: number;
+  name: string;
+  email: string;
+  role: string;
+  regionId?: number | null;
+  zones?: string[];
+  lastOnlineVerification: string;
+  pinHash?: string | null;
+  pinSalt?: string | null;
+}
+
 export class CapefDexieDatabase extends Dexie {
   members!: Table<LocalMember, number>;
   regions!: Table<LocalReferenceRegion, number>;
@@ -82,6 +95,7 @@ export class CapefDexieDatabase extends Dexie {
   media!: Table<LocalMediaItem, number>;
   operations!: Table<LocalOfflineOperation, number>;
   entityMappings!: Table<EntityMapping, number>;
+  profiles!: Table<LocalUserProfileRecord, string>;
 
   constructor() {
     super('CapefOfflineDB');
@@ -102,6 +116,17 @@ export class CapefDexieDatabase extends Dexie {
       media: '++id, mediaId, userId, syncStatus, createdAt',
       operations: '++id, operationId, clientOperationId, userId, status, createdAt',
       entityMappings: '++id, [entityType+localId], entityType, localId, serverId, syncStatus, createdAt',
+    });
+
+    this.version(3).stores({
+      members: '++id, localId, userId, memberNumber, syncStatus, createdAt',
+      regions: 'id, name',
+      departments: 'id, regionId, name',
+      arrondissements: 'id, departmentId, name',
+      media: '++id, mediaId, userId, syncStatus, createdAt',
+      operations: '++id, operationId, clientOperationId, userId, status, createdAt',
+      entityMappings: '++id, [entityType+localId], entityType, localId, serverId, syncStatus, createdAt',
+      profiles: 'clerkUserId, email, role',
     });
   }
 }

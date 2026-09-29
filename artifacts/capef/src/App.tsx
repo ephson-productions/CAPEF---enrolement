@@ -15,6 +15,7 @@ import { bootstrapService } from './lib/bootstrap-service';
 import { OfflineQueueProvider } from './lib/offline-sync';
 import { startupController, type StartupState, type StartupDiagnostics } from './lib/startup-controller';
 import { ClerkProvisioner } from './components/auth/ClerkProvisioner';
+import { LocalPinUnlockModal } from './components/auth/LocalPinUnlockModal';
 import { ThemeProvider } from './components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -304,7 +305,8 @@ function ProtectedRoutes() {
 
 function ProtectedRoutesGuard() {
   const { isSignedIn, isLoaded } = useUser();
-  const { user: authUser } = useAuthContext();
+  const { user: authUser, isExpiredReadonly } = useAuthContext();
+  const [isPinUnlocked, setIsPinUnlocked] = useState(false);
 
   if (isLoaded) {
     if (!isSignedIn) {
@@ -320,6 +322,25 @@ function ProtectedRoutesGuard() {
 
   // Resilient offline fallback: render protected routes if local claims exist for agent
   if (authUser) {
+    if (!isPinUnlocked) {
+      return (
+        <LocalPinUnlockModal
+          isOpen={true}
+          userProfile={{
+            serverId: authUser.id,
+            clerkUserId: authUser.clerkUserId,
+            name: authUser.name,
+            email: authUser.email,
+            role: authUser.role,
+            regionId: authUser.regionId,
+            lastOnlineVerification: authUser.createdAt || new Date().toISOString(),
+          }}
+          isExpiredReadonly={isExpiredReadonly}
+          onUnlocked={() => setIsPinUnlocked(true)}
+        />
+      );
+    }
+
     return (
       <Switch>
         <Route path="/badge-verify/:token" component={BadgeVerify} />
