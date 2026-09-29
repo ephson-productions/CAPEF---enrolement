@@ -64,6 +64,7 @@ export function cacheClaimsForUIGatingOnly(user: AppUser): void {
       cachedAt: new Date().toISOString(),
     };
     localStorage.setItem(`${CACHE_KEY_PREFIX}${user.clerkUserId}`, JSON.stringify(claims));
+    localStorage.setItem('capef_last_known_user_id', user.clerkUserId);
   } catch (err) {
     console.error('[auth.tsx] Error caching claims for UI gating:', err);
   }
@@ -72,6 +73,9 @@ export function cacheClaimsForUIGatingOnly(user: AppUser): void {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user: clerkUser, isSignedIn, isLoaded: isClerkLoaded } = useUser();
   const clerkUserId = clerkUser?.id ?? null;
+
+  // Retrieve effective user ID for offline claim resolution
+  const effectiveUserId = clerkUserId || (typeof window !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') : null);
 
   const { data: user, isLoading: isMeLoading, refetch } = useGetMe({
     query: {
@@ -92,18 +96,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fallback to locally cached claims during offline mode for UI display
   const offlineCachedClaims = React.useMemo(() => {
-    if (!user && clerkUserId) {
-      return getLocallyCachedRoleForUIGatingOnly(clerkUserId);
+    if (!user && effectiveUserId) {
+      return getLocallyCachedRoleForUIGatingOnly(effectiveUserId);
     }
     return null;
-  }, [user, clerkUserId]);
+  }, [user, effectiveUserId]);
 
   const role = user?.role || offlineCachedClaims?.role || null;
 
   const value = {
     user: user || (offlineCachedClaims ? ({
       id: 0,
-      clerkUserId: clerkUserId || '',
+      clerkUserId: effectiveUserId || '',
       email: offlineCachedClaims.email,
       name: offlineCachedClaims.name,
       role: offlineCachedClaims.role as any,

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, useUser } from '@clerk/react';
 import { frFR, enUS } from '@clerk/localizations';
 import { useTranslation } from 'react-i18next';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -13,6 +13,7 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { AuthProvider, useAuthContext } from './lib/auth';
 import { bootstrapService } from './lib/bootstrap-service';
 import { OfflineQueueProvider } from './lib/offline-sync';
+import { startupController, type StartupState, type StartupDiagnostics } from './lib/startup-controller';
 import { ClerkProvisioner } from './components/auth/ClerkProvisioner';
 import { ThemeProvider } from './components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
@@ -186,16 +187,22 @@ function HomeLanding() {
 }
 
 function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <HomeLanding />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded } = useUser();
+  const { user: authUser } = useAuthContext();
+
+  if (isLoaded) {
+    if (isSignedIn) {
+      return <Redirect to="/dashboard" />;
+    }
+    return <HomeLanding />;
+  }
+
+  // Resilient offline fallback: if local cached identity exists, proceed to dashboard
+  if (authUser) {
+    return <Redirect to="/dashboard" />;
+  }
+
+  return <HomeLanding />;
 }
 
 function SignInPage() {
@@ -295,6 +302,79 @@ function ProtectedRoutes() {
   );
 }
 
+function ProtectedRoutesGuard() {
+  const { isSignedIn, isLoaded } = useUser();
+  const { user: authUser } = useAuthContext();
+
+  if (isLoaded) {
+    if (!isSignedIn) {
+      return <Redirect to="/" />;
+    }
+    return (
+      <Switch>
+        <Route path="/badge-verify/:token" component={BadgeVerify} />
+        <Route component={ProtectedRoutes} />
+      </Switch>
+    );
+  }
+
+  // Resilient offline fallback: render protected routes if local claims exist for agent
+  if (authUser) {
+    return (
+      <Switch>
+        <Route path="/badge-verify/:token" component={BadgeVerify} />
+        <Route component={ProtectedRoutes} />
+      </Switch>
+    );
+  }
+
+  return <Redirect to="/" />;
+}
+
+function AppStartupInitializer({ children }: { children: React.ReactNode }) {
+  const [startupState, setStartupState] = useState<StartupState>(() => startupController.getState());
+  const [diagnostics, setDiagnostics] = useState<StartupDiagnostics>(() => startupController.getDiagnostics());
+
+  useEffect(() => {
+    const unsubscribe = startupController.subscribe((state, diag) => {
+      setStartupState(state);
+      setDiagnostics(diag);
+    });
+
+    startupController.initializeStartup().catch((err) => {
+      console.error('[AppStartupInitializer] Startup initialization error:', err);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  if (startupState === 'storage-unavailable') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-card rounded-2xl border border-border p-6 shadow-xl text-center space-y-4">
+          <div className="w-12 h-12 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mx-auto text-xl">
+            ⚠️
+          </div>
+          <h2 className="text-xl font-bold text-foreground">
+            Stockage local indisponible / Storage unavailable
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {diagnostics.errorMessage || "Le stockage local (IndexedDB / LocalStorage) est désactivé ou indisponible."}
+          </p>
+          <button
+            onClick={() => startupController.retryStartup()}
+            className="px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow hover:bg-primary/90 transition-all"
+          >
+            Réessayer / Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   const { i18n } = useTranslation();
@@ -319,29 +399,21 @@ function ClerkProviderWithRoutes() {
         <AuthProvider>
           <OfflineBootstrapTrigger />
           <OfflineQueueProvider>
-            <TooltipProvider>
-              <React.Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center p-4 text-muted-foreground font-semibold">Chargement / Loading...</div>}>
-                <Switch>
-                  <Route path="/" component={HomeRedirect} />
-                  <Route path="/sign-in/*?" component={SignInPage} />
-                  <Route path="/sign-up/*?" component={SignUpPage} />
+            <AppStartupInitializer>
+              <TooltipProvider>
+                <React.Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center p-4 text-muted-foreground font-semibold">Chargement / Loading...</div>}>
+                  <Switch>
+                    <Route path="/" component={HomeRedirect} />
+                    <Route path="/sign-in/*?" component={SignInPage} />
+                    <Route path="/sign-up/*?" component={SignUpPage} />
 
-                  {/* Protected shell wrapper handles other routes */}
-                  <Route>
-                    <Show when="signed-out">
-                      <Redirect to="/" />
-                    </Show>
-                    <Show when="signed-in">
-                      <Switch>
-                        <Route path="/badge-verify/:token" component={BadgeVerify} />
-                        <Route component={ProtectedRoutes} />
-                      </Switch>
-                    </Show>
-                  </Route>
-                </Switch>
-              </React.Suspense>
-              <Toaster />
-            </TooltipProvider>
+                    {/* Protected shell wrapper handles other routes with resilient guard */}
+                    <Route component={ProtectedRoutesGuard} />
+                  </Switch>
+                </React.Suspense>
+                <Toaster />
+              </TooltipProvider>
+            </AppStartupInitializer>
           </OfflineQueueProvider>
         </AuthProvider>
       </PersistQueryClientProvider>
