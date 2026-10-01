@@ -39,6 +39,23 @@ pgMemClient.Client.prototype.query = function (config: any, values: any, callbac
 
 // Initialize tables in pg-mem database instance
 memDb.public.none(`
+  CREATE TABLE regions (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+  );
+
+  CREATE TABLE departments (
+    id SERIAL PRIMARY KEY,
+    region_id INTEGER NOT NULL REFERENCES regions(id),
+    name TEXT NOT NULL
+  );
+
+  CREATE TABLE arrondissements (
+    id SERIAL PRIMARY KEY,
+    department_id INTEGER NOT NULL REFERENCES departments(id),
+    name TEXT NOT NULL
+  );
+
   CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     clerk_user_id TEXT NOT NULL UNIQUE,
@@ -128,6 +145,8 @@ memDb.public.none(`
   );
 
   CREATE SEQUENCE seq_member_number START WITH 1 INCREMENT BY 1;
+
+  INSERT INTO regions (id, name) VALUES (1, 'Centre'), (2, 'Littoral');
 `);
 
 const testPool = new pgMemClient.Pool();

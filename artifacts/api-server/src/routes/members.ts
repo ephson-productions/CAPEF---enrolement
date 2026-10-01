@@ -82,6 +82,71 @@ function generateMemberNumber(category: string, seqVal: number | string): string
   return `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
 }
 
+/**
+ * CENTRALIZED SECURITY & SCOPING HELPER
+ * Enforces role-based member access boundaries across all endpoints:
+ * - Agents can only access members they personally created (createdById === appUser.id)
+ * - Supervisors can only access members belonging to their region (regionId === appUser.regionId)
+ * - Admins can access all members
+ */
+async function getMemberWithAccessCheck(appUser: any, memberId: number, res: any): Promise<typeof membersTable.$inferSelect | null> {
+  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
+  if (!member) {
+    res.status(404).json({ error: "Membre introuvable" });
+    return null;
+  }
+
+  if (appUser.role === "agent" && member.createdById !== appUser.id) {
+    res.status(403).json({ error: "Accès refusé" });
+    return null;
+  }
+
+  if (appUser.role === "supervisor" && appUser.regionId && member.regionId !== appUser.regionId) {
+    res.status(403).json({ error: "Accès refusé" });
+    return null;
+  }
+
+  return member;
+}
+
+/**
+ * HIERARCHICAL OWNERSHIP VALIDATOR
+ * Verifies that the requested activityId strictly belongs to memberId in the URL parameters.
+ */
+async function getActivityWithMemberCheck(activityId: number, memberId: number, res: any): Promise<typeof memberActivitiesTable.$inferSelect | null> {
+  const [activity] = await db
+    .select()
+    .from(memberActivitiesTable)
+    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
+    .limit(1);
+
+  if (!activity) {
+    res.status(404).json({ error: "Activité introuvable ou n'appartient pas à ce membre" });
+    return null;
+  }
+
+  return activity;
+}
+
+/**
+ * HIERARCHICAL OWNERSHIP VALIDATOR
+ * Verifies that the requested itemId strictly belongs to activityId in the URL parameters.
+ */
+async function getLineItemWithActivityCheck(itemId: number, activityId: number, res: any): Promise<typeof activityLineItemsTable.$inferSelect | null> {
+  const [item] = await db
+    .select()
+    .from(activityLineItemsTable)
+    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
+    .limit(1);
+
+  if (!item) {
+    res.status(404).json({ error: "Ligne d'activité introuvable ou n'appartient pas à cette activité" });
+    return null;
+  }
+
+  return item;
+}
+
 async function formatMemberActivity(activity: typeof memberActivitiesTable.$inferSelect, executor: any = db) {
   const lineItems = await executor
     .select()
@@ -182,7 +247,6 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
 
   if (!includeDetail) return formattedBase;
 
-  // Retrieve activities & line items for details
   const activities = await executor
     .select()
     .from(memberActivitiesTable)
@@ -198,17 +262,14 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
   };
 }
 
-// Helper to transition state to "en_attente" if member has at least one complete activity.
 async function updateMemberStatusIfNeeded(memberId: number): Promise<void> {
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
   if (!member) return;
 
-  // If already at valide, bloque, or desactive, we shouldn't automatically move back.
   if (["valide", "desactive", "bloque"].includes(member.status)) {
     return;
   }
 
-  // Check if there is at least one activity with at least one line item
   const activities = await db
     .select()
     .from(memberActivitiesTable)
@@ -258,7 +319,6 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 
   const conditions: any[] = [];
 
-  // Role-based filtering
   if (appUser.role === "agent") {
     conditions.push(eq(membersTable.createdById, appUser.id));
   } else if (appUser.role === "supervisor" && appUser.regionId) {
@@ -304,7 +364,6 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     joinedQuery = joinedQuery.where(and(...conditions)) as any;
   }
 
-  // Search by member number or display name (via JSON)
   if (search) {
     const s = `%${String(search)}%`;
     const searchCond = sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`;
@@ -347,14 +406,12 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
 
   try {
     const result = await db.transaction(async (tx) => {
-      // Fetch nextval from seq_member_number
       const seqResult: any = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
       const rawSeqVal = seqResult.rows?.[0]?.seqVal ?? seqResult?.[0]?.seqVal;
       const seqVal = parseInt(String(rawSeqVal), 10);
 
       const memberNumber = generateMemberNumber(category, seqVal);
 
-      // Insert member record with final guaranteed unique memberNumber
       const [inserted] = await tx
         .insert(membersTable)
         .values({
@@ -376,7 +433,6 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
         })
         .returning();
 
-      // Seed primary activity inside same transaction
       const [primaryActivity] = await tx
         .insert(memberActivitiesTable)
         .values({
@@ -391,7 +447,6 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
         })
         .returning();
 
-      // Insert initial line items if present
       if (Array.isArray(initialLineItems) && initialLineItems.length > 0) {
         await tx.insert(activityLineItemsTable).values(
           initialLineItems.map((item: any) => ({
@@ -541,7 +596,6 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
       break;
     }
 
-    // Fetch line items for current batch to populate nature
     const memberIds = batch.map((r) => r.member.id);
     const batchActivities = await db
       .select({
@@ -628,22 +682,8 @@ router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   }
   const appUser = (req as any).appUser;
 
-  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!member) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-
-  // Agents can only see their own members
-  if (appUser.role === "agent" && member.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-  // Supervisors can only see their region
-  if (appUser.role === "supervisor" && appUser.regionId && member.regionId !== appUser.regionId) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
+  const member = await getMemberWithAccessCheck(appUser, id, res);
+  if (!member) return;
 
   res.json(await formatMember(member, true));
 });
@@ -663,18 +703,9 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
     return;
   }
 
-  const [existing] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!existing) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
+  const existing = await getMemberWithAccessCheck(appUser, id, res);
+  if (!existing) return;
 
-  if (appUser.role === "agent" && existing.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
-
-  // OCC Check: Compare expected version from client with current version in database
   const clientVersion = req.body.version !== undefined && req.body.version !== null ? Number(req.body.version) : null;
   const currentVersion = existing.version ?? 1;
 
@@ -690,7 +721,7 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   }
 
   const updates: Record<string, unknown> = {
-    version: currentVersion + 1, // Increment version on update
+    version: currentVersion + 1,
   };
 
   const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
@@ -774,6 +805,10 @@ router.get("/members/:id/activities", requireAppUser, async (req, res): Promise<
     res.status(400).json({ error: "ID membre invalide" });
     return;
   }
+  const appUser = (req as any).appUser;
+
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
 
   const activities = await db
     .select()
@@ -797,16 +832,8 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
   }
   const appUser = (req as any).appUser;
 
-  // Authorization check: Agents can only mutate their own members
-  const [targetMember] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
-  if (!targetMember) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
 
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
   const clientOperationId = getClientOperationId(req);
@@ -822,7 +849,6 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
 
   try {
     const result = await db.transaction(async (tx) => {
-      // If setting this activity as primary, clear other activities' primary flags for this member
       if (isPrimary) {
         await tx
           .update(memberActivitiesTable)
@@ -879,9 +905,6 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
       code: error.code,
       detail: error.detail,
       message: error.message,
-      constraint: error.constraint,
-      schema: error.schema,
-      table: error.table,
     });
 
     res.status(400).json({
@@ -905,6 +928,13 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
     res.status(400).json({ error: "ID membre ou activité invalide" });
     return;
   }
+  const appUser = (req as any).appUser;
+
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
+
+  const activity = await getActivityWithMemberCheck(activityId, memberId, res);
+  if (!activity) return;
 
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
 
@@ -930,11 +960,6 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
       .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
       .returning();
 
-    if (!updated) {
-      res.status(404).json({ error: "Activité introuvable" });
-      return;
-    }
-
     await updateMemberStatusIfNeeded(memberId);
 
     res.json(await formatMemberActivity(updated));
@@ -943,9 +968,6 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
       code: error.code,
       detail: error.detail,
       message: error.message,
-      constraint: error.constraint,
-      schema: error.schema,
-      table: error.table,
     });
 
     res.status(400).json({
@@ -953,8 +975,6 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
       error: "Database operation failed",
       code: error.code || "UNKNOWN_DB_ERROR",
       message: error.message,
-      detail: error.detail || null,
-      constraint: error.constraint || null,
     });
   }
 });
@@ -969,18 +989,19 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
     res.status(400).json({ error: "ID membre ou activité invalide" });
     return;
   }
+  const appUser = (req as any).appUser;
+
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
+
+  const activity = await getActivityWithMemberCheck(activityId, memberId, res);
+  if (!activity) return;
 
   const [deleted] = await db
     .delete(memberActivitiesTable)
     .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
     .returning();
 
-  if (!deleted) {
-    res.status(404).json({ error: "Activité introuvable" });
-    return;
-  }
-
-  // Delete line items belonging to this activity
   await db.delete(activityLineItemsTable).where(eq(activityLineItemsTable.activityId, activityId));
 
   await updateMemberStatusIfNeeded(memberId);
@@ -994,7 +1015,6 @@ function validateActivityLineItem(activityType: string, payload: any) {
   const isNum = (val: any) => typeof val === "number" && !isNaN(val) && Number.isFinite(val);
   const isStr = (val: any) => typeof val === "string" && val.trim().length > 0;
 
-  // 1. Superficie validation (area >= 0 required for all 5 categories unless associated crop)
   const isAssociatedCrop = activityType === "agriculteur" && (payload.cultureType === "Associée" || payload.isPrincipalCrop === false);
   if (!isAssociatedCrop) {
     if (!isNum(payload.superficieHa)) {
@@ -1004,7 +1024,6 @@ function validateActivityLineItem(activityType: string, payload: any) {
     }
   }
 
-  // 2. Production fields or Products array
   if (activityType === "eleveur" || activityType === "forestier") {
     if (!Array.isArray(payload.products) || payload.products.length === 0 || payload.products.length > 20) {
       errors.push({ field: "products", code: "min_one_product_required" });
@@ -1025,7 +1044,6 @@ function validateActivityLineItem(activityType: string, payload: any) {
       });
     }
   } else {
-    // Single productionQuantity, productionUnit, productionFcfa
     if (!isNum(payload.productionQuantity) || payload.productionQuantity < 0) {
       errors.push({ field: "productionQuantity", code: "invalid_quantity" });
     }
@@ -1040,6 +1058,11 @@ function validateActivityLineItem(activityType: string, payload: any) {
   return errors;
 }
 
+/**
+ * STRICT FIELD WHITELISTING FOR LINE ITEMS
+ * Extracts exclusively allowed line item fields from the request body.
+ * Strips all arbitrary injected keys.
+ */
 function normalizeLineItemPayload(body: any) {
   const payload: Record<string, any> = {};
 
@@ -1079,7 +1102,7 @@ function normalizeLineItemPayload(body: any) {
   if (body.products === undefined || body.products === null) {
     payload.products = null;
   } else {
-    payload.products = body.products; // Already jsonb
+    payload.products = body.products;
   }
 
   return payload;
@@ -1097,31 +1120,15 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
   }
   const appUser = (req as any).appUser;
 
-  // Authorization check: Agents can only mutate line items of their own members
-  const [targetMember] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
-  if (!targetMember) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
-  if (appUser.role === "agent" && targetMember.createdById !== appUser.id) {
-    res.status(403).json({ error: "Accès refusé" });
-    return;
-  }
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
+
+  const activity = await getActivityWithMemberCheck(activityId, memberId, res);
+  if (!activity) return;
 
   const clientOperationId = getClientOperationId(req);
 
   if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
-    return;
-  }
-
-  const [activity] = await db
-    .select()
-    .from(memberActivitiesTable)
-    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
-    .limit(1);
-
-  if (!activity) {
-    res.status(404).json({ error: "Activité introuvable" });
     return;
   }
 
@@ -1172,11 +1179,6 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
       code: error.code,
       detail: error.detail,
       message: error.message,
-      constraint: error.constraint,
-      schema: error.schema,
-      table: error.table,
-      payload: req.body,
-      normalizedPayload: normalized
     });
 
     res.status(400).json({
@@ -1184,8 +1186,6 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
       error: "Database operation failed",
       code: error.code || "UNKNOWN_DB_ERROR",
       message: error.message,
-      detail: error.detail || null,
-      constraint: error.constraint || null,
     });
   }
 });
@@ -1202,30 +1202,18 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
     res.status(400).json({ error: "ID membre, activité ou ligne invalide" });
     return;
   }
+  const appUser = (req as any).appUser;
+
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
+
+  const activity = await getActivityWithMemberCheck(activityId, memberId, res);
+  if (!activity) return;
+
+  const existingItem = await getLineItemWithActivityCheck(itemId, activityId, res);
+  if (!existingItem) return;
 
   const normalized = normalizeLineItemPayload(req.body);
-
-  const [existingItem] = await db
-    .select()
-    .from(activityLineItemsTable)
-    .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-    .limit(1);
-
-  if (!existingItem) {
-    res.status(404).json({ error: "Ligne d'activité introuvable" });
-    return;
-  }
-
-  const [activity] = await db
-    .select()
-    .from(memberActivitiesTable)
-    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
-    .limit(1);
-
-  if (!activity) {
-    res.status(404).json({ error: "Activité introuvable" });
-    return;
-  }
 
   const validationErrors = validateActivityLineItem(activity.activityType, {
     ...existingItem,
@@ -1247,11 +1235,6 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
       .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
       .returning();
 
-    if (!updated) {
-      res.status(404).json({ error: "Ligne d'activité introuvable" });
-      return;
-    }
-
     await updateMemberStatusIfNeeded(memberId);
 
     res.json({
@@ -1263,11 +1246,6 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
       code: error.code,
       detail: error.detail,
       message: error.message,
-      constraint: error.constraint,
-      schema: error.schema,
-      table: error.table,
-      payload: req.body,
-      normalizedPayload: normalized
     });
 
     res.status(400).json({
@@ -1275,8 +1253,6 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
       error: "Database operation failed",
       code: error.code || "UNKNOWN_DB_ERROR",
       message: error.message,
-      detail: error.detail || null,
-      constraint: error.constraint || null,
     });
   }
 });
@@ -1294,6 +1270,16 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
     return;
   }
   const appUser = (req as any).appUser;
+
+  const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
+  if (!targetMember) return;
+
+  const activity = await getActivityWithMemberCheck(activityId, memberId, res);
+  if (!activity) return;
+
+  const existingItem = await getLineItemWithActivityCheck(itemId, activityId, res);
+  if (!existingItem) return;
+
   const clientOperationId = getClientOperationId(req);
 
   if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
@@ -1326,11 +1312,6 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
       return payload;
     });
 
-    if (!result) {
-      res.status(404).json({ error: "Ligne d'activité introuvable" });
-      return;
-    }
-
     await updateMemberStatusIfNeeded(memberId);
 
     res.sendStatus(204);
@@ -1350,7 +1331,7 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
   }
 });
 
-// Admin Status Actions (Phase 3)
+// Admin Status Actions
 
 router.post("/members/:id/validate", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
@@ -1422,7 +1403,6 @@ router.post("/members/:id/reactivate", requireAppUser, async (req, res): Promise
     return;
   }
 
-  // If blocked, we cannot reactivate/unblock
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
   if (member && member.status === "bloque") {
     res.status(400).json({ error: "Impossible de réactiver un membre bloqué de manière définitive" });
@@ -1487,14 +1467,11 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
     res.status(400).json({ error: "ID membre invalide" });
     return;
   }
+  const appUser = (req as any).appUser;
 
-  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
-  if (!member) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
-  }
+  const member = await getMemberWithAccessCheck(appUser, id, res);
+  if (!member) return;
 
-  // Generate badge_token if not already present
   let token = member.badgeToken;
   if (!token) {
     token = crypto.randomUUID();
@@ -1596,15 +1573,12 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
     .signature-title { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 13px; font-weight: bold; fill: #4b5563; }
   </style>
 
-  <!-- ================= RECTO CARD ================= -->
   <g id="recto">
-    <!-- Outer Card Border -->
     <rect x="0" y="0" width="1012" height="638" rx="28" fill="#ffffff" stroke="#e5e7eb" stroke-width="4"/>
     <clipPath id="recto-clip">
       <rect x="0" y="0" width="1012" height="638" rx="28"/>
     </clipPath>
     <g clip-path="url(#recto-clip)">
-      <!-- Background subtle gradient and design features -->
       <linearGradient id="recto-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="#f0fdf4" stop-opacity="1" />
         <stop offset="50%" stop-color="#ffffff" stop-opacity="1" />
@@ -1612,15 +1586,11 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       </linearGradient>
       <rect x="0" y="0" width="1012" height="638" fill="url(#recto-bg-grad)" />
 
-      <!-- Watermark logo in back -->
       <image href="${logoDataUrl}" x="350" y="150" width="350" height="350" opacity="0.04" />
 
-      <!-- Adjusted horizontal bicolour banner Vert #005A36, Rouge #E11D48 -->
-      <rect x="0" y="145" width="1012" height="15" fill="#005A36"/> <!-- Green -->
-      <rect x="0" y="160" width="1012" height="15" fill="#E11D48"/> <!-- Red -->
+      <rect x="0" y="145" width="1012" height="15" fill="#005A36"/>
+      <rect x="0" y="160" width="1012" height="15" fill="#E11D48"/>
 
-      <!-- Top Header 3-column bilingual layout -->
-      <!-- Left Column (French) -->
       <text x="228" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#005A36" text-anchor="middle">REPUBLIQUE DU CAMEROUN</text>
       <text x="228" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">Paix-Travail-Patrie</text>
       <text x="228" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
@@ -1628,10 +1598,8 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <text x="228" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8" text-anchor="middle">ET DES FORETS DU CAMEROUN</text>
       <text x="228" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
 
-      <!-- Center Logo -->
       <image href="${logoDataUrl}" x="456" y="30" width="100" height="100" />
 
-      <!-- Right Column (English) -->
       <text x="784" y="45" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="900" fill="#E11D48" text-anchor="middle">REPUBLIC OF CAMEROON</text>
       <text x="784" y="60" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">Peace-Work-Fatherland</text>
       <text x="784" y="73" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
@@ -1639,41 +1607,30 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <text x="784" y="100" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" opacity="0.8" text-anchor="middle">AND FORESTS OF CAMEROON</text>
       <text x="784" y="113" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#3c4043" text-anchor="middle">*************</text>
 
-      <!-- Card Main Title Ribbon -->
       <rect x="50" y="195" width="912" height="40" rx="6" fill="#005A36" />
       <text x="506" y="222" font-family="'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">CARTE D'ENRÔLEMENT CONSULAIRE / CONSULAR REGISTRATION CARD</text>
 
-      <!-- Member Photo Container -->
       <defs>
         <clipPath id="photo-clip">
           <rect x="50" y="250" width="220" height="260" rx="16"/>
         </clipPath>
       </defs>
-      <!-- Premium Photo Frame Shadow -->
       <rect x="48" y="248" width="224" height="264" rx="18" fill="none" stroke="#005A36" stroke-width="3" stroke-opacity="0.3"/>
-      <!-- Actual image or vector placeholder -->
       ${avatarSvgHD}
 
-      <!-- Category Pill Badge -->
       <rect x="50" y="525" width="220" height="42" rx="10" fill="${theme.bg}" stroke="${theme.primary}" stroke-width="1.5" />
       <text x="160" y="551" class="category-badge" fill="${theme.text}" text-anchor="middle" letter-spacing="1">${escapeXml(theme.label)}</text>
 
-      <!-- User Information list on the right -->
-      <!-- Name -->
       <text x="310" y="270" class="label">Nom complet / Full Name</text>
       <text x="310" y="300" font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="900" fill="#111827">${escapeXml(name.toUpperCase())}</text>
 
-      <!-- Téléphone / Contacts -->
       <text x="310" y="325" class="label">Téléphone / Contacts</text>
       <text x="310" y="350" font-family="'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="900" fill="#005A36">${escapeXml(phone)}</text>
 
-      <!-- Member number inside a styled banner row -->
       <rect x="310" y="365" width="440" height="48" rx="8" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="1" />
       <text x="325" y="395" class="label" font-size="12">N° MEMBRE / ID:</text>
       <text x="460" y="397" class="num-member">${escapeXml(member.memberNumber)}</text>
 
-      <!-- Rest of profile fields -->
-      <!-- Location info columns -->
       <g transform="translate(310, 420)">
         <text x="0" y="15" class="label">Région / Region</text>
         <text x="0" y="40" class="value">${escapeXml(region?.name ?? "-")}</text>
@@ -1682,43 +1639,35 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
         <text x="230" y="40" class="value">${escapeXml(dept?.name ?? "-")}</text>
       </g>
 
-      <!-- Arrondissement on its own separate line underneath Region & Department to prevent overlap -->
       <g transform="translate(310, 475)">
         <text x="0" y="15" class="label">Arrondissement / Subdivision</text>
         <text x="0" y="40" class="value">${escapeXml(arr?.name ?? "-")}</text>
       </g>
 
-      <!-- Dates banner footer — No expiration date -->
       <g transform="translate(310, 535)">
         <rect x="0" y="0" width="440" height="42" rx="8" fill="#fffbeb" stroke="#fef3c7" stroke-width="1.5" />
         <text x="220" y="26" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="bold" fill="#b45309" text-anchor="middle">DATE D'ENRÔLEMENT: ${dateEnrolementStr}</text>
       </g>
 
-      <!-- Right/Bottom QR Code frame & image -->
       <rect x="790" y="250" width="170" height="170" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="2"/>
       <image href="${qrDataUrl}" x="795" y="255" width="160" height="160" />
       <text x="875" y="440" font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="800" fill="#005A36" text-anchor="middle">VERIFICATION SCAN</text>
 
-      <!-- Dynamic signature of Director / official seal inside Recto Card -->
       <g transform="translate(790, 465)">
         <rect x="0" y="0" width="170" height="102" rx="10" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
         <text x="85" y="25" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="bold" fill="#70757a" text-anchor="middle">SCEAU ET SIGNATURE</text>
-        <!-- Subtle simulated dynamic signature vector of CAPEF General Secretariat -->
         <path d="M 35 65 Q 65 45 95 65 T 145 55 M 55 50 Q 85 75 115 50" fill="none" stroke="#1d4ed8" stroke-width="2" opacity="0.7" />
         <text x="85" y="90" font-family="'Helvetica Neue', Arial, sans-serif" font-size="9" font-weight="bold" fill="#005A36" text-anchor="middle">Secrétariat Général CAPEF</text>
       </g>
     </g>
   </g>
 
-  <!-- ================= VERSO CARD ================= -->
   <g id="verso" transform="translate(0, 638)">
-    <!-- Outer Card Border -->
     <rect x="0" y="0" width="1012" height="638" rx="28" fill="#ffffff" stroke="#e5e7eb" stroke-width="4"/>
     <clipPath id="verso-clip">
       <rect x="0" y="0" width="1012" height="638" rx="28"/>
     </clipPath>
     <g clip-path="url(#verso-clip)">
-      <!-- Background subtle gradient and design features -->
       <linearGradient id="verso-bg-grad" x1="100%" y1="100%" x2="0%" y2="0%">
         <stop offset="0%" stop-color="#f9fafb" stop-opacity="1" />
         <stop offset="50%" stop-color="#ffffff" stop-opacity="1" />
@@ -1726,32 +1675,26 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       </linearGradient>
       <rect x="0" y="0" width="1012" height="638" fill="url(#verso-bg-grad)" />
 
-      <!-- Massive faded watermarked logo for back validation -->
       <image href="${logoDataUrl}" x="306" y="119" width="400" height="400" opacity="0.08" />
 
-      <!-- Back header stripes mirroring Recto (Cameroon colors) -->
-      <rect x="0" y="0" width="1012" height="15" fill="#fecd0b"/> <!-- Yellow -->
-      <rect x="337" y="0" width="338" height="15" fill="#ce1126"/> <!-- Red -->
-      <rect x="675" y="0" width="337" height="15" fill="#005A36"/> <!-- Green -->
-      <!-- Star -->
+      <rect x="0" y="0" width="1012" height="15" fill="#fecd0b"/>
+      <rect x="337" y="0" width="338" height="15" fill="#ce1126"/>
+      <rect x="675" y="0" width="337" height="15" fill="#005A36"/>
       <polygon points="506,1.5 509,8 516,8 510,12 512,18 506,14 500,18 502,12 496,8 503,8" fill="#fecd0b" />
 
-      <!-- Terms of Use container -->
       <g transform="translate(60, 45)">
         <text x="446" y="40" font-family="'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="900" fill="#005A36" text-anchor="middle" letter-spacing="1">CONDITIONS D'UTILISATION / TERMS OF USE</text>
         <line x1="246" y1="55" x2="646" y2="55" stroke="#005A36" stroke-width="2" opacity="0.3"/>
 
-        <!-- French Terms -->
         <g transform="translate(0, 90)">
           <text x="0" y="0" class="disclaimer-title" fill="#005A36">Réglementation Consulaire :</text>
-          <text x="0" y="28" class="disclaimer-text">1. Cette carte d'enrôlement est strictement personnelle, incessible et demeure la propriété exclusive de la CAPEF.</text>
+          <text x="0" y="28" class="disclaimer-text">1. Cette carte d'enrôlement est strictly personnelle, incessible et demeure la propriété exclusive de la CAPEF.</text>
           <text x="0" y="53" class="disclaimer-text">2. Elle atteste de l'inscription officielle du titulaire au registre consulaire professionnel de la Chambre au Cameroun.</text>
           <text x="0" y="78" class="disclaimer-text">3. Le titulaire s'engage à respecter scrupuleusement les statuts, règlements et chartes professionnelles en vigueur.</text>
           <text x="0" y="103" class="disclaimer-text">4. En cas de perte, de vol ou de détérioration, le titulaire doit obligatoirement en informer la délégation régionale de sa zone.</text>
           <text x="0" y="128" class="disclaimer-text">5. Les autorités publiques sont priées de prêter assistance et de faciliter l'accès du titulaire aux services de développement.</text>
         </g>
 
-        <!-- English Terms -->
         <g transform="translate(0, 275)">
           <text x="0" y="0" class="disclaimer-title" fill="#ce1126">Consular Regulation :</text>
           <text x="0" y="28" class="disclaimer-text">1. This registration card is strictly personal, non-transferable and remains the exclusive property of CAPEF.</text>
@@ -1762,11 +1705,9 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
         </g>
       </g>
 
-      <!-- Signature boxes at bottom of Verso -->
       <line x1="60" y1="520" x2="952" y2="520" stroke="#e5e7eb" stroke-width="1.5" />
 
       <text x="140" y="555" class="signature-title" text-anchor="middle">SIGNATURE DU TITULAIRE / HOLDER'S SIGNATURE</text>
-      <!-- Simulation of holder's signing area / Tactile signature -->
       <rect x="40" y="565" width="200" height="60" rx="4" fill="#ffffff" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3" />
       ${signatureImageSvg}
 
@@ -1774,7 +1715,6 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
       <text x="506" y="595" font-family="'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="bold" fill="#70757a" text-anchor="middle">BP 287 Yaoundé, Cameroun — Email: contact@capef.cm</text>
 
       <text x="892" y="555" class="signature-title" text-anchor="end">SIGNATURE DU PRESIDENT / PRESIDENT'S SIGNATURE</text>
-      <!-- Simulation of official signature stamp -->
       <path d="M 820 575 Q 840 565 860 580 T 900 570" fill="none" stroke="#ce1126" stroke-width="2.5" opacity="0.6"/>
       <circle cx="860" cy="580" r="22" fill="none" stroke="#ce1126" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.5" />
     </g>
@@ -1784,7 +1724,6 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   const base64Badge = Buffer.from(badgeSvg, "utf-8").toString("base64");
   const badgeUrl = `data:image/svg+xml;base64,${base64Badge}`;
 
-  // Persist badge URL
   await db.update(membersTable).set({ badgeUrl }).where(eq(membersTable.id, id));
 
   res.json({ badgeUrl, memberNumber: member.memberNumber });
@@ -1829,7 +1768,6 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
       const memberNumber = generateMemberNumber(m.category, member.id);
       await db.update(membersTable).set({ memberNumber }).where(eq(membersTable.id, member.id));
 
-      // Seed the first activity as primary based on category
       await db.insert(memberActivitiesTable).values({
         memberId: member.id,
         activityType: m.category,
@@ -1853,14 +1791,12 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
 const ipRequestLogs = new Map<string, number[]>();
 
 const publicRateLimiter = (req: any, res: any, next: any) => {
-  // Use req.ip directly, safely backed by Express trust proxy 1
   const ip = req.ip || req.socket?.remoteAddress || "unknown";
   const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute window
-  const maxRequests = 30; // Max 30 requests per minute
+  const windowMs = 60 * 1000;
+  const maxRequests = 30;
 
   let timestamps = ipRequestLogs.get(ip) || [];
-  // Filter out timestamps older than the sliding window
   timestamps = timestamps.filter((ts) => now - ts < windowMs);
 
   if (timestamps.length >= maxRequests) {
@@ -1893,7 +1829,6 @@ router.get("/members/badge/:badgeToken", requireAppUser, async (req, res): Promi
     return;
   }
 
-  // Return complete member verification profile to any authenticated CAPEF user
   res.json(await formatMember(member, true));
 });
 
