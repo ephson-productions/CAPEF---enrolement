@@ -458,6 +458,79 @@
         "cultures_sucrieres": "Cultures sucrières",
         "autres": "Autres"
       },
+      "crops_cereales": {
+        "mais": "Maïs",
+        "riz": "Riz",
+        "sorgho": "Sorgho",
+        "millet": "Millet",
+        "fonio": "Fonio",
+        "ble": "Blé",
+        "autre": "Autre (préciser)"
+      },
+      "crops_oleagineux": {
+        "palmier_huile": "Palmier à huile",
+        "sesame": "Sésame",
+        "soja": "Soja",
+        "arachide": "Arachide",
+        "coton": "Coton (graine)",
+        "tournesol": "Tournesol",
+        "autre": "Autre (préciser)"
+      },
+      "crops_racines_tubercules": {
+        "manioc": "Manioc",
+        "macabo_taro": "Macabo / Taro",
+        "igname": "Igname",
+        "patate_douce": "Patate douce",
+        "pomme_de_terre": "Pomme de terre",
+        "autre": "Autre (préciser)"
+      },
+      "crops_legumes": {
+        "tomate": "Tomate",
+        "oignon": "Oignon",
+        "gombo": "Gombo",
+        "piment": "Piment",
+        "poivron": "Poivron",
+        "carotte": "Carotte",
+        "chou": "Chou",
+        "ndole": "Morelle noire (Ndole)",
+        "autre": "Autre (préciser)"
+      },
+      "crops_fruits_noix": {
+        "bananier_plantain": "Bananier plantain",
+        "bananier_doux": "Bananier doux",
+        "ananas": "Ananas",
+        "mangue": "Mangue",
+        "papaye": "Papaye",
+        "agrumes": "Agrumes (Orange, Citron)",
+        "avocat": "Avocat",
+        "noix_cajou": "Noix de cajou",
+        "autre": "Autre (préciser)"
+      },
+      "crops_plantes_stimulantes": {
+        "cacao": "Cacaoyer",
+        "cafe_robusta": "Caféier Robusta",
+        "cafe_arabica": "Caféier Arabica",
+        "the": "Théier",
+        "autre": "Autre (préciser)"
+      },
+      "crops_legumineuses": {
+        "haricot": "Haricot",
+        "niebe": "Niébé",
+        "voandzou": "Pois de terre (Voandzou)",
+        "pois_chiche": "Pois chiche",
+        "autre": "Autre (préciser)"
+      },
+      "crops_cultures_sucrieres": {
+        "canne_a_sucre": "Canne à sucre",
+        "stevia": "Stevia",
+        "autre": "Autre (préciser)"
+      },
+      "crops_autres": {
+        "hevea": "Hévéa",
+        "plantes_medicinales": "Plantes médicinales",
+        "fleurs_horticulture": "Fleurs / Horticulture",
+        "autre": "Autre (préciser)"
+      },
       "culture_type": {
         "pure": "Pure",
         "associee": "Associée"
