@@ -10,6 +10,8 @@ import type { MemberActivityActivityType } from './memberActivityActivityType';
 
 export interface MemberActivity {
   id: number;
+  /** Optimistic Concurrency Control (OCC) version counter */
+  version: number;
   memberId: number;
   activityType: MemberActivityActivityType;
   isPrimary: boolean;

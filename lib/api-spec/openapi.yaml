@@ -377,6 +377,8 @@ paths:
       summary: Enroll a new member
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       requestBody:
         required: true
         content:
@@ -396,6 +398,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Reused Operation ID error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdempotencyErrorResponse"
 
   /members/export:
     get:
@@ -504,6 +512,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       requestBody:
         required: true
         content:
@@ -517,6 +526,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Member"
+        "409":
+          description: Optimistic Concurrency Control (OCC) conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccConflictResponse"
+        "422":
+          description: Reused Operation ID error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdempotencyErrorResponse"
         "404":
           description: Not found
           content:
@@ -535,6 +556,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "204":
           description: Deleted
@@ -593,7 +615,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncResult"
 
-  # ─── New Activities & Line-items endpoints (Phase 1 & Phase 3 status updates) ───
+  # ─── Activities & Line-items ───────────────────────────────────────────────
 
   /members/{id}/activities:
     get:
@@ -629,6 +651,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       requestBody:
         required: true
         content:
@@ -642,6 +665,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MemberActivity"
+        "422":
+          description: Reused Operation ID error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdempotencyErrorResponse"
 
   /members/{id}/activities/{activityId}:
     put:
@@ -661,6 +690,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       requestBody:
         required: true
         content:
@@ -674,6 +704,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MemberActivity"
+        "409":
+          description: OCC conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccConflictResponse"
     delete:
       operationId: deleteMemberActivity
       tags: [members]
@@ -691,6 +727,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "204":
           description: Activity deleted
@@ -713,6 +750,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       requestBody:
         required: true
         content:
@@ -726,6 +764,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActivityLineItem"
+        "422":
+          description: Reused Operation ID error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdempotencyErrorResponse"
 
   /members/{id}/activities/{activityId}/line-items/{itemId}:
     put:
@@ -750,6 +794,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       requestBody:
         required: true
         content:
@@ -763,6 +808,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActivityLineItem"
+        "409":
+          description: OCC conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OccConflictResponse"
     delete:
       operationId: deleteActivityLineItem
       tags: [members]
@@ -785,11 +836,12 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "204":
           description: Line item deleted
 
-  # ─── Status Admin Actions (Phase 3) ───
+  # ─── Status Admin Actions ─────────────────────────────────────────────────
 
   /members/{id}/validate:
     post:
@@ -804,6 +856,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "200":
           description: Member validated
@@ -825,6 +878,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "200":
           description: Member deactivated
@@ -846,6 +900,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "200":
           description: Member reactivated
@@ -867,6 +922,7 @@ paths:
           required: true
           schema:
             type: integer
+        - $ref: "#/components/parameters/X-Client-Operation-ID"
       responses:
         "200":
           description: Member blocked
@@ -964,6 +1020,15 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    X-Client-Operation-ID:
+      in: header
+      name: X-Client-Operation-ID
+      required: false
+      schema:
+        type: string
+      description: Client-generated unique UUID for backend request idempotency and deduplication
+
   schemas:
     HealthStatus:
       type: object
@@ -977,6 +1042,31 @@ components:
       required: [error]
       properties:
         error:
+          type: string
+
+    OccConflictResponse:
+      type: object
+      required: [error, message, serverVersion]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        serverVersion:
+          type: integer
+        currentMember:
+          type: object
+
+    IdempotencyErrorResponse:
+      type: object
+      required: [error, code, message]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum: [REUSED_OPERATION_ID]
+        message:
           type: string
 
     # ─── Auth / Users ────────────────────────────────────────────────────────
@@ -1272,10 +1362,14 @@ components:
 
     MemberActivity:
       type: object
-      required: [id, memberId, activityType, isPrimary]
+      required: [id, memberId, activityType, isPrimary, version]
       properties:
         id:
           type: integer
+        version:
+          type: integer
+          default: 1
+          description: Optimistic Concurrency Control (OCC) version counter
         memberId:
           type: integer
         activityType:
@@ -1306,6 +1400,9 @@ components:
       type: object
       required: [activityType]
       properties:
+        version:
+          type: integer
+          description: Expected current version for Optimistic Concurrency Control (OCC) check
         activityType:
           type: string
           enum: [agriculteur, pecheur, eleveur, forestier, artisan]
@@ -1326,10 +1423,14 @@ components:
 
     ActivityLineItem:
       type: object
-      required: [id, activityId]
+      required: [id, activityId, version]
       properties:
         id:
           type: integer
+        version:
+          type: integer
+          default: 1
+          description: Optimistic Concurrency Control (OCC) version counter
         activityId:
           type: integer
         parcelleGroupId:
@@ -1389,6 +1490,9 @@ components:
     ActivityLineItemInput:
       type: object
       properties:
+        version:
+          type: integer
+          description: Expected current version for Optimistic Concurrency Control (OCC) check
         parcelleGroupId:
           type: ["string", "null"]
         cropCategory:

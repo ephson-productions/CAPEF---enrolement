@@ -34,6 +34,7 @@ import type {
   GetDashboardStatsParams,
   GetRecentActivityParams,
   HealthStatus,
+  IdempotencyErrorResponse,
   ListArrondissementsParams,
   ListDepartmentsParams,
   ListMembersParams,
@@ -46,6 +47,7 @@ import type {
   MemberSummary,
   MemberUpdate,
   MyProfileUpdate,
+  OccConflictResponse,
   ProvisionUserInput,
   Region,
   SyncInput,
@@ -1107,7 +1109,7 @@ export const createMember = async (memberInput: MemberInput, options?: RequestIn
 
 
 
-export const getCreateMemberMutationOptions = <TError = ErrorType<ErrorResponse>,
+export const getCreateMemberMutationOptions = <TError = ErrorType<ErrorResponse | IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMember>>, TError,{data: BodyType<MemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createMember>>, TError,{data: BodyType<MemberInput>}, TContext> => {
 
@@ -1136,12 +1138,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateMemberMutationResult = NonNullable<Awaited<ReturnType<typeof createMember>>>
     export type CreateMemberMutationBody = BodyType<MemberInput>
-    export type CreateMemberMutationError = ErrorType<ErrorResponse>
+    export type CreateMemberMutationError = ErrorType<ErrorResponse | IdempotencyErrorResponse>
 
     /**
  * @summary Enroll a new member
  */
-export const useCreateMember = <TError = ErrorType<ErrorResponse>,
+export const useCreateMember = <TError = ErrorType<ErrorResponse | IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMember>>, TError,{data: BodyType<MemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createMember>>,
@@ -1417,7 +1419,7 @@ export const updateMember = async (id: number,
 
 
 
-export const getUpdateMemberMutationOptions = <TError = ErrorType<ErrorResponse>,
+export const getUpdateMemberMutationOptions = <TError = ErrorType<ErrorResponse | OccConflictResponse | IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMember>>, TError,{id: number;data: BodyType<MemberUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateMember>>, TError,{id: number;data: BodyType<MemberUpdate>}, TContext> => {
 
@@ -1446,12 +1448,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateMemberMutationResult = NonNullable<Awaited<ReturnType<typeof updateMember>>>
     export type UpdateMemberMutationBody = BodyType<MemberUpdate>
-    export type UpdateMemberMutationError = ErrorType<ErrorResponse>
+    export type UpdateMemberMutationError = ErrorType<ErrorResponse | OccConflictResponse | IdempotencyErrorResponse>
 
     /**
  * @summary Update a member enrollment
  */
-export const useUpdateMember = <TError = ErrorType<ErrorResponse>,
+export const useUpdateMember = <TError = ErrorType<ErrorResponse | OccConflictResponse | IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMember>>, TError,{id: number;data: BodyType<MemberUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateMember>>,
@@ -1779,7 +1781,7 @@ export const createMemberActivity = async (id: number,
 
 
 
-export const getCreateMemberActivityMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateMemberActivityMutationOptions = <TError = ErrorType<IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMemberActivity>>, TError,{id: number;data: BodyType<MemberActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createMemberActivity>>, TError,{id: number;data: BodyType<MemberActivityInput>}, TContext> => {
 
@@ -1808,12 +1810,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateMemberActivityMutationResult = NonNullable<Awaited<ReturnType<typeof createMemberActivity>>>
     export type CreateMemberActivityMutationBody = BodyType<MemberActivityInput>
-    export type CreateMemberActivityMutationError = ErrorType<unknown>
+    export type CreateMemberActivityMutationError = ErrorType<IdempotencyErrorResponse>
 
     /**
  * @summary Add an activity to a member
  */
-export const useCreateMemberActivity = <TError = ErrorType<unknown>,
+export const useCreateMemberActivity = <TError = ErrorType<IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMemberActivity>>, TError,{id: number;data: BodyType<MemberActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createMemberActivity>>,
@@ -1853,7 +1855,7 @@ export const updateMemberActivity = async (id: number,
 
 
 
-export const getUpdateMemberActivityMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateMemberActivityMutationOptions = <TError = ErrorType<OccConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMemberActivity>>, TError,{id: number;activityId: number;data: BodyType<MemberActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateMemberActivity>>, TError,{id: number;activityId: number;data: BodyType<MemberActivityInput>}, TContext> => {
 
@@ -1882,12 +1884,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateMemberActivityMutationResult = NonNullable<Awaited<ReturnType<typeof updateMemberActivity>>>
     export type UpdateMemberActivityMutationBody = BodyType<MemberActivityInput>
-    export type UpdateMemberActivityMutationError = ErrorType<unknown>
+    export type UpdateMemberActivityMutationError = ErrorType<OccConflictResponse>
 
     /**
  * @summary Update a member activity
  */
-export const useUpdateMemberActivity = <TError = ErrorType<unknown>,
+export const useUpdateMemberActivity = <TError = ErrorType<OccConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMemberActivity>>, TError,{id: number;activityId: number;data: BodyType<MemberActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateMemberActivity>>,
@@ -2000,7 +2002,7 @@ export const createActivityLineItem = async (id: number,
 
 
 
-export const getCreateActivityLineItemMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateActivityLineItemMutationOptions = <TError = ErrorType<IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActivityLineItem>>, TError,{id: number;activityId: number;data: BodyType<ActivityLineItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createActivityLineItem>>, TError,{id: number;activityId: number;data: BodyType<ActivityLineItemInput>}, TContext> => {
 
@@ -2029,12 +2031,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateActivityLineItemMutationResult = NonNullable<Awaited<ReturnType<typeof createActivityLineItem>>>
     export type CreateActivityLineItemMutationBody = BodyType<ActivityLineItemInput>
-    export type CreateActivityLineItemMutationError = ErrorType<unknown>
+    export type CreateActivityLineItemMutationError = ErrorType<IdempotencyErrorResponse>
 
     /**
  * @summary Add repeatable row / line item to an activity
  */
-export const useCreateActivityLineItem = <TError = ErrorType<unknown>,
+export const useCreateActivityLineItem = <TError = ErrorType<IdempotencyErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createActivityLineItem>>, TError,{id: number;activityId: number;data: BodyType<ActivityLineItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createActivityLineItem>>,
@@ -2076,7 +2078,7 @@ export const updateActivityLineItem = async (id: number,
 
 
 
-export const getUpdateActivityLineItemMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateActivityLineItemMutationOptions = <TError = ErrorType<OccConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateActivityLineItem>>, TError,{id: number;activityId: number;itemId: number;data: BodyType<ActivityLineItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateActivityLineItem>>, TError,{id: number;activityId: number;itemId: number;data: BodyType<ActivityLineItemInput>}, TContext> => {
 
@@ -2105,12 +2107,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateActivityLineItemMutationResult = NonNullable<Awaited<ReturnType<typeof updateActivityLineItem>>>
     export type UpdateActivityLineItemMutationBody = BodyType<ActivityLineItemInput>
-    export type UpdateActivityLineItemMutationError = ErrorType<unknown>
+    export type UpdateActivityLineItemMutationError = ErrorType<OccConflictResponse>
 
     /**
  * @summary Update a repeatable row / line item
  */
-export const useUpdateActivityLineItem = <TError = ErrorType<unknown>,
+export const useUpdateActivityLineItem = <TError = ErrorType<OccConflictResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateActivityLineItem>>, TError,{id: number;activityId: number;itemId: number;data: BodyType<ActivityLineItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateActivityLineItem>>,

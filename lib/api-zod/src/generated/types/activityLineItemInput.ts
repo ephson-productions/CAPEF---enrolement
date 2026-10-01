@@ -8,6 +8,8 @@
 import type { ActivityLineItemInputProductsItem } from './activityLineItemInputProductsItem';
 
 export interface ActivityLineItemInput {
+  /** Expected current version for Optimistic Concurrency Control (OCC) check */
+  version?: number;
   /** @nullable */
   parcelleGroupId?: string | null;
   /** @nullable */

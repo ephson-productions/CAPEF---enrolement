@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid, pgSequence, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, doublePrecision, jsonb, timestamp, boolean, uuid, pgSequence, uniqueIndex, index, primaryKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -23,13 +23,11 @@ export const membersTable = pgTable("members", {
   gpsLat: doublePrecision("gps_lat"),
   gpsLng: doublePrecision("gps_lng"),
   createdById: integer("created_by_id").notNull().references(() => usersTable.id, { onDelete: "restrict" }),
-  // JSONB columns for flexible nested data
   physiqueData: jsonb("physique_data"),
   moraleData: jsonb("morale_data"),
   categoryData: jsonb("category_data"),
   badgeUrl: text("badge_url"),
   badgeToken: text("badge_token").unique(),
-  // Status column added for Phase 3
   status: text("status").notNull().default("incomplet"), // incomplet | en_attente | valide | desactive | bloque
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -43,12 +41,13 @@ export const memberActivitiesTable = pgTable("member_activities", {
   id: serial("id").primaryKey(),
   memberId: integer("member_id").notNull().references(() => membersTable.id, { onDelete: "cascade" }),
   activityType: text("activity_type").notNull(), // agriculteur | pecheur | eleveur | forestier | artisan
+  version: integer("version").default(1).notNull(),
   isPrimary: boolean("is_primary").notNull().default(false),
   regionId: integer("region_id").references(() => regionsTable.id, { onDelete: "restrict" }),
   departmentId: integer("department_id").references(() => departmentsTable.id, { onDelete: "restrict" }),
   arrondissementId: integer("arrondissement_id").references(() => arrondissementsTable.id, { onDelete: "restrict" }),
   village: text("village"),
-  maillons: jsonb("maillons").default([]), // array of strings
+  maillons: jsonb("maillons").default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   idxSinglePrimaryActivity: uniqueIndex("idx_single_primary_activity").on(table.memberId).where(sql`is_primary = true`),
@@ -59,36 +58,31 @@ export const memberActivitiesTable = pgTable("member_activities", {
 export const activityLineItemsTable = pgTable("activity_line_items", {
   id: serial("id").primaryKey(),
   activityId: integer("activity_id").notNull().references(() => memberActivitiesTable.id, { onDelete: "cascade" }),
-  // Common fields (e.g. agriculture, pêche, élevage, forestier, artisan)
-  // Agriculture
+  version: integer("version").default(1).notNull(),
   parcelleGroupId: text("parcelle_group_id"),
   cropCategory: text("crop_category"),
   cropName: text("crop_name"),
-  cultureType: text("culture_type"), // Pure | Associée
+  cultureType: text("culture_type"),
   superficieHa: doublePrecision("superficie_ha"),
   productionQuantity: doublePrecision("production_quantity"),
   productionUnit: text("production_unit"),
   productionFcfa: doublePrecision("production_fcfa"),
   isPrincipalCrop: boolean("is_principal_crop").default(true),
-  parentLineItemId: integer("parent_line_item_id"), // links associated crops to their principal crop's parcelle
+  parentLineItemId: integer("parent_line_item_id"),
 
-  // Élevage
   species: text("species"),
   cheptelSize: integer("cheptel_size"),
-  foodType: text("food_type"), // type de nourriture (Pâturage naturel/Céréales/Tourteaux/Autres)
-  products: jsonb("products"), // child rows/array of products: each with name, production quantity, unit, fcfa
+  foodType: text("food_type"),
+  products: jsonb("products"),
 
-  // Pêche / Aquaculture
-  speciesPêche: text("species_peche"), // species
+  speciesPêche: text("species_peche"),
 
-  // Forêt
-  subCategory: text("sub_category"), // exploité | cultivé | faune | non-ligneux
-  essence: text("essence"), // essence/espèce
-  plantationType: text("plantation_type"), // Mono/Plurispécifique (cultivé)
+  subCategory: text("sub_category"),
+  essence: text("essence"),
+  plantationType: text("plantation_type"),
 
-  // Artisanat
-  artisanatProducts: text("artisanat_products"), // products array/string
-  rawMaterials: text("raw_materials"), // raw materials
+  artisanatProducts: text("artisanat_products"),
+  rawMaterials: text("raw_materials"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
@@ -119,13 +113,17 @@ export type InsertActivityLineItem = z.infer<typeof insertActivityLineItemSchema
 export type ActivityLineItem = typeof activityLineItemsTable.$inferSelect;
 
 export const processedOperationsTable = pgTable("processed_operations", {
-  clientOperationId: uuid("client_operation_id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id),
+  clientOperationId: uuid("client_operation_id").notNull(),
   operationType: text("operation_type").notNull(),
   resourceId: integer("resource_id"),
+  payloadHash: text("payload_hash"),
   resultPayload: jsonb("result_payload"),
   processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.clientOperationId] }),
+  idxProcessedOpsUserClientOp: uniqueIndex("idx_processed_ops_user_client_op").on(table.userId, table.clientOperationId),
+}));
 
 export const insertProcessedOperationSchema = createInsertSchema(processedOperationsTable);
 export type InsertProcessedOperation = z.infer<typeof insertProcessedOperationSchema>;

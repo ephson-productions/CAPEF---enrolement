@@ -31,23 +31,98 @@ function getClientOperationId(req: any): string | undefined {
   return Array.isArray(rawId) ? rawId[0] : String(rawId);
 }
 
-async function checkProcessedOperation(clientOperationId: string | undefined, appUserId: number, res: any): Promise<boolean> {
+function computePayloadHash(payload: any): string {
+  if (payload === undefined || payload === null) return "";
+  try {
+    const clean = { ...payload };
+    delete clean.clientOperationId;
+    return crypto.createHash("sha256").update(JSON.stringify(clean)).digest("hex");
+  } catch (err) {
+    return "";
+  }
+}
+
+async function checkProcessedOperation(
+  clientOperationId: string | undefined,
+  appUserId: number,
+  operationType: string,
+  payload: any,
+  res: any,
+  executor: any = db
+): Promise<boolean> {
   if (!clientOperationId) return false;
-  const [existing] = await db
+
+  const [existing] = await executor
     .select()
     .from(processedOperationsTable)
-    .where(eq(processedOperationsTable.clientOperationId, clientOperationId))
+    .where(
+      and(
+        eq(processedOperationsTable.userId, appUserId),
+        eq(processedOperationsTable.clientOperationId, clientOperationId)
+      )
+    )
     .limit(1);
 
   if (existing) {
-    if (existing.userId !== appUserId) {
-      res.status(409).json({ error: "Operation processed under a different user identity" });
+    const currentHash = computePayloadHash(payload);
+    const isSameHash = existing.payloadHash === currentHash;
+    const isSameType = existing.operationType === operationType;
+
+    if (isSameHash && isSameType) {
+      console.log(`[Idempotency] Replaying exact cached response for clientOperationId: ${clientOperationId}`);
+      if (existing.resultPayload === null || existing.resultPayload === undefined) {
+        res.sendStatus(204);
+      } else {
+        res.status(200).json(existing.resultPayload);
+      }
+      return true;
+    } else {
+      console.warn(`[Idempotency] Reused clientOperationId ${clientOperationId} with different payload or operationType!`);
+      res.status(422).json({
+        error: "Réutilisation d'identifiant d'opération",
+        code: "REUSED_OPERATION_ID",
+        message: "L'identifiant d'opération fourni a déjà été utilisé avec un corps de requête ou un type d'opération différent.",
+      });
       return true;
     }
-    console.log(`[Idempotency] Match found for clientOperationId: ${clientOperationId}`);
-    res.status(200).json(existing.resultPayload ?? { success: true });
-    return true;
   }
+
+  return false;
+}
+
+async function handleConcurrentOperationRace(
+  clientOperationId: string | undefined,
+  appUserId: number,
+  res: any,
+  retries = 5
+): Promise<boolean> {
+  if (!clientOperationId) return false;
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const [existing] = await db
+      .select()
+      .from(processedOperationsTable)
+      .where(
+        and(
+          eq(processedOperationsTable.userId, appUserId),
+          eq(processedOperationsTable.clientOperationId, clientOperationId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      console.log(`[Idempotency] Race condition resolved: Returning cached payload for clientOperationId: ${clientOperationId}`);
+      if (existing.resultPayload === null || existing.resultPayload === undefined) {
+        res.sendStatus(204);
+      } else {
+        res.status(200).json(existing.resultPayload);
+      }
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
   return false;
 }
 
@@ -82,13 +157,6 @@ function generateMemberNumber(category: string, seqVal: number | string): string
   return `CAPEF-${prefix[category] ?? "MBR"}-${String(seqVal).padStart(6, "0")}`;
 }
 
-/**
- * CENTRALIZED SECURITY & SCOPING HELPER
- * Enforces role-based member access boundaries across all endpoints:
- * - Agents can only access members they personally created (createdById === appUser.id)
- * - Supervisors can only access members belonging to their region (regionId === appUser.regionId)
- * - Admins can access all members
- */
 async function getMemberWithAccessCheck(appUser: any, memberId: number, res: any): Promise<typeof membersTable.$inferSelect | null> {
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
   if (!member) {
@@ -109,10 +177,6 @@ async function getMemberWithAccessCheck(appUser: any, memberId: number, res: any
   return member;
 }
 
-/**
- * HIERARCHICAL OWNERSHIP VALIDATOR
- * Verifies that the requested activityId strictly belongs to memberId in the URL parameters.
- */
 async function getActivityWithMemberCheck(activityId: number, memberId: number, res: any): Promise<typeof memberActivitiesTable.$inferSelect | null> {
   const [activity] = await db
     .select()
@@ -128,10 +192,6 @@ async function getActivityWithMemberCheck(activityId: number, memberId: number, 
   return activity;
 }
 
-/**
- * HIERARCHICAL OWNERSHIP VALIDATOR
- * Verifies that the requested itemId strictly belongs to activityId in the URL parameters.
- */
 async function getLineItemWithActivityCheck(itemId: number, activityId: number, res: any): Promise<typeof activityLineItemsTable.$inferSelect | null> {
   const [item] = await db
     .select()
@@ -155,6 +215,7 @@ async function formatMemberActivity(activity: typeof memberActivitiesTable.$infe
 
   return {
     id: activity.id,
+    version: activity.version ?? 1,
     memberId: activity.memberId,
     activityType: activity.activityType,
     isPrimary: activity.isPrimary,
@@ -166,6 +227,7 @@ async function formatMemberActivity(activity: typeof memberActivitiesTable.$infe
     createdAt: activity.createdAt.toISOString(),
     lineItems: lineItems.map((item: any) => ({
       ...item,
+      version: item.version ?? 1,
       createdAt: item.createdAt.toISOString(),
     })),
   };
@@ -262,22 +324,22 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
   };
 }
 
-async function updateMemberStatusIfNeeded(memberId: number): Promise<void> {
-  const [member] = await db.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
+async function updateMemberStatusIfNeeded(memberId: number, executor: any = db): Promise<void> {
+  const [member] = await executor.select().from(membersTable).where(eq(membersTable.id, memberId)).limit(1);
   if (!member) return;
 
   if (["valide", "desactive", "bloque"].includes(member.status)) {
     return;
   }
 
-  const activities = await db
+  const activities = await executor
     .select()
     .from(memberActivitiesTable)
     .where(eq(memberActivitiesTable.memberId, memberId));
 
   let hasCompletedActivity = false;
   for (const act of activities) {
-    const lineItems = await db
+    const lineItems = await executor
       .select()
       .from(activityLineItemsTable)
       .where(eq(activityLineItemsTable.activityId, act.id))
@@ -291,7 +353,7 @@ async function updateMemberStatusIfNeeded(memberId: number): Promise<void> {
 
   const targetStatus = hasCompletedActivity ? "en_attente" : "incomplet";
   if (member.status !== targetStatus) {
-    await db
+    await executor
       .update(membersTable)
       .set({ status: targetStatus })
       .where(eq(membersTable.id, memberId));
@@ -395,7 +457,7 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
   const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
   const clientOperationId = getClientOperationId(req);
 
-  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "create_member", req.body, res)) {
     return;
   }
 
@@ -406,6 +468,15 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
 
   try {
     const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "create_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
       const seqResult: any = await tx.execute(sql`SELECT nextval('seq_member_number') as "seqVal"`);
       const rawSeqVal = seqResult.rows?.[0]?.seqVal ?? seqResult?.[0]?.seqVal;
       const seqVal = parseInt(String(rawSeqVal), 10);
@@ -418,6 +489,7 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
           memberNumber,
           memberType,
           category,
+          version: 1,
           individualOrOrg: individualOrOrg ?? "individuel",
           regionId: coerceNumeric(regionId),
           departmentId: coerceNumeric(departmentId),
@@ -438,6 +510,7 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
         .values({
           memberId: inserted.id,
           activityType: category,
+          version: 1,
           isPrimary: true,
           regionId: inserted.regionId ?? null,
           departmentId: inserted.departmentId ?? null,
@@ -452,6 +525,7 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
           initialLineItems.map((item: any) => ({
             ...normalizeLineItemPayload(item),
             activityId: primaryActivity.id,
+            version: 1,
           }))
         );
       }
@@ -459,13 +533,18 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
       const formatted = await formatMember(inserted, true, tx);
 
       if (clientOperationId) {
-        await tx.insert(processedOperationsTable).values({
-          clientOperationId,
-          userId: appUser.id,
-          operationType: "create_member",
-          resourceId: inserted.id,
-          resultPayload: formatted,
-        });
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: inserted.id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
       }
 
       return formatted;
@@ -473,11 +552,14 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
 
     res.status(201).json(result);
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (POST /members):", {
       code: error.code,
       detail: error.detail,
       message: error.message,
-      constraint: error.constraint,
     });
 
     const isConflict = error.code === "23505";
@@ -688,7 +770,7 @@ router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   res.json(await formatMember(member, true));
 });
 
-// PUT /api/members/:id — Update a member with Optimistic Concurrency Control (OCC) & idempotency
+// PUT /api/members/:id — Update a member with Atomic OCC Concurrency & Idempotency
 router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
@@ -699,7 +781,7 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
   const clientOperationId = getClientOperationId(req);
 
-  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "update_member", req.body, res)) {
     return;
   }
 
@@ -736,29 +818,61 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 
   try {
     const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "update_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
       const [updated] = await tx
         .update(membersTable)
         .set(updates)
-        .where(eq(membersTable.id, id))
+        .where(and(eq(membersTable.id, id), eq(membersTable.version, currentVersion)))
         .returning();
+
+      if (!updated) {
+        const [latestMember] = await tx.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
+        const latestState = await formatMember(latestMember, true, tx);
+        res.status(409).json({
+          error: "Conflit de modification (OCC)",
+          message: `Mise à jour concurrente détectée. La version serveur actuelle est ${latestMember?.version ?? currentVersion}.`,
+          serverVersion: latestMember?.version ?? currentVersion,
+          currentMember: latestState,
+        });
+        return null;
+      }
 
       const formatted = await formatMember(updated, true, tx);
 
       if (clientOperationId) {
-        await tx.insert(processedOperationsTable).values({
-          clientOperationId,
-          userId: appUser.id,
-          operationType: "update_member",
-          resourceId: id,
-          resultPayload: formatted,
-        });
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
       }
 
       return formatted;
     });
 
-    res.json(result);
+    if (result) {
+      res.json(result);
+    }
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (PUT /members/:id):", {
       code: error.code,
       detail: error.detail,
@@ -783,18 +897,64 @@ router.delete("/members/:id", requireAppUser, async (req, res): Promise<void> =>
     return;
   }
   const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "delete_member", req.body, res)) {
+    return;
+  }
 
   if (appUser.role !== "admin") {
     res.status(403).json({ error: "Seul l'administrateur peut supprimer des membres" });
     return;
   }
 
-  const [deleted] = await db.delete(membersTable).where(eq(membersTable.id, id)).returning();
-  if (!deleted) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "delete_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
+      const [deleted] = await tx.delete(membersTable).where(eq(membersTable.id, id)).returning();
+      if (!deleted) {
+        return null;
+      }
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: id,
+            resultPayload: null,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return true;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Membre introuvable" });
+      return;
+    }
+
+    res.sendStatus(204);
+  } catch (err: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
+    res.status(400).json({ error: "Échec de la suppression du membre" });
   }
-  res.sendStatus(204);
 });
 
 // GET /api/members/:id/activities
@@ -838,7 +998,7 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
   const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
   const clientOperationId = getClientOperationId(req);
 
-  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "create_activity", req.body, res)) {
     return;
   }
 
@@ -849,6 +1009,15 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
 
   try {
     const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "create_activity",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
       if (isPrimary) {
         await tx
           .update(memberActivitiesTable)
@@ -861,6 +1030,7 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
         .values({
           memberId,
           activityType,
+          version: 1,
           isPrimary: isPrimary ?? false,
           regionId: regionId ?? null,
           departmentId: departmentId ?? null,
@@ -872,6 +1042,7 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
 
       const formatted = {
         id: activity.id,
+        version: activity.version ?? 1,
         memberId: activity.memberId,
         activityType: activity.activityType,
         isPrimary: activity.isPrimary,
@@ -885,13 +1056,18 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
       };
 
       if (clientOperationId) {
-        await tx.insert(processedOperationsTable).values({
-          clientOperationId,
-          userId: appUser.id,
-          operationType: "create_activity",
-          resourceId: activity.id,
-          resultPayload: formatted,
-        });
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: activity.id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
       }
 
       return formatted;
@@ -901,6 +1077,10 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
 
     res.status(201).json(result);
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (POST activity):", {
       code: error.code,
       detail: error.detail,
@@ -912,8 +1092,6 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
       error: "Database operation failed",
       code: error.code || "UNKNOWN_DB_ERROR",
       message: error.message,
-      detail: error.detail || null,
-      constraint: error.constraint || null,
     });
   }
 });
@@ -929,6 +1107,11 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
     return;
   }
   const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "update_activity", req.body, res)) {
+    return;
+  }
 
   const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
   if (!targetMember) return;
@@ -936,34 +1119,92 @@ router.put("/members/:id/activities/:activityId", requireAppUser, async (req, re
   const activity = await getActivityWithMemberCheck(activityId, memberId, res);
   if (!activity) return;
 
-  const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
+  const currentVersion = activity.version ?? 1;
+  const clientVersion = req.body.version !== undefined && req.body.version !== null ? Number(req.body.version) : null;
 
-  if (isPrimary) {
-    await db
-      .update(memberActivitiesTable)
-      .set({ isPrimary: false })
-      .where(and(eq(memberActivitiesTable.memberId, memberId), ne(memberActivitiesTable.id, activityId)));
+  if (clientVersion !== null && clientVersion !== currentVersion) {
+    res.status(409).json({
+      error: "Conflit de modification (OCC)",
+      message: `La version de l'activité fournie (${clientVersion}) ne correspond pas à la version actuelle du serveur (${currentVersion}).`,
+      serverVersion: currentVersion,
+    });
+    return;
   }
 
+  const { activityType, isPrimary, regionId, departmentId, arrondissementId, village, maillons } = req.body;
+
   try {
-    const [updated] = await db
-      .update(memberActivitiesTable)
-      .set({
-        activityType,
-        isPrimary: isPrimary ?? false,
-        regionId: regionId !== undefined ? regionId : null,
-        departmentId: departmentId !== undefined ? departmentId : null,
-        arrondissementId: arrondissementId !== undefined ? arrondissementId : null,
-        village: village !== undefined ? village : null,
-        maillons: maillons !== undefined ? maillons : [],
-      })
-      .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "update_activity",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
 
-    await updateMemberStatusIfNeeded(memberId);
+      if (isPrimary) {
+        await tx
+          .update(memberActivitiesTable)
+          .set({ isPrimary: false })
+          .where(and(eq(memberActivitiesTable.memberId, memberId), ne(memberActivitiesTable.id, activityId)));
+      }
 
-    res.json(await formatMemberActivity(updated));
+      const [updated] = await tx
+        .update(memberActivitiesTable)
+        .set({
+          activityType,
+          version: currentVersion + 1,
+          isPrimary: isPrimary ?? false,
+          regionId: regionId !== undefined ? regionId : null,
+          departmentId: departmentId !== undefined ? departmentId : null,
+          arrondissementId: arrondissementId !== undefined ? arrondissementId : null,
+          village: village !== undefined ? village : null,
+          maillons: maillons !== undefined ? maillons : [],
+        })
+        .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.version, currentVersion)))
+        .returning();
+
+      if (!updated) {
+        const [latestAct] = await tx.select().from(memberActivitiesTable).where(eq(memberActivitiesTable.id, activityId)).limit(1);
+        res.status(409).json({
+          error: "Conflit de modification (OCC)",
+          message: `Mise à jour concurrente de l'activité détectée.`,
+          serverVersion: latestAct?.version ?? currentVersion,
+        });
+        return null;
+      }
+
+      const formatted = await formatMemberActivity(updated, tx);
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: activityId,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return formatted;
+    });
+
+    if (result) {
+      await updateMemberStatusIfNeeded(memberId);
+      res.json(result);
+    }
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (PUT activity):", {
       code: error.code,
       detail: error.detail,
@@ -990,6 +1231,11 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
     return;
   }
   const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "delete_activity", req.body, res)) {
+    return;
+  }
 
   const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
   if (!targetMember) return;
@@ -997,16 +1243,51 @@ router.delete("/members/:id/activities/:activityId", requireAppUser, async (req,
   const activity = await getActivityWithMemberCheck(activityId, memberId, res);
   if (!activity) return;
 
-  const [deleted] = await db
-    .delete(memberActivitiesTable)
-    .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
-    .returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "delete_activity",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
 
-  await db.delete(activityLineItemsTable).where(eq(activityLineItemsTable.activityId, activityId));
+      const [deleted] = await tx
+        .delete(memberActivitiesTable)
+        .where(and(eq(memberActivitiesTable.id, activityId), eq(memberActivitiesTable.memberId, memberId)))
+        .returning();
 
-  await updateMemberStatusIfNeeded(memberId);
+      await tx.delete(activityLineItemsTable).where(eq(activityLineItemsTable.activityId, activityId));
 
-  res.sendStatus(204);
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: activityId,
+            resultPayload: null,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return true;
+    });
+
+    await updateMemberStatusIfNeeded(memberId);
+    res.sendStatus(204);
+  } catch (err: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
+    res.status(400).json({ error: "Échec de la suppression de l'activité" });
+  }
 });
 
 function validateActivityLineItem(activityType: string, payload: any) {
@@ -1058,11 +1339,6 @@ function validateActivityLineItem(activityType: string, payload: any) {
   return errors;
 }
 
-/**
- * STRICT FIELD WHITELISTING FOR LINE ITEMS
- * Extracts exclusively allowed line item fields from the request body.
- * Strips all arbitrary injected keys.
- */
 function normalizeLineItemPayload(body: any) {
   const payload: Record<string, any> = {};
 
@@ -1128,7 +1404,7 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
 
   const clientOperationId = getClientOperationId(req);
 
-  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "create_line_item", req.body, res)) {
     return;
   }
 
@@ -1145,27 +1421,43 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
 
   try {
     const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "create_line_item",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
       const [item] = await tx
         .insert(activityLineItemsTable)
         .values({
           activityId,
+          version: 1,
           ...normalized
         })
         .returning();
 
       const formatted = {
         ...item,
+        version: item.version ?? 1,
         createdAt: item.createdAt.toISOString(),
       };
 
       if (clientOperationId) {
-        await tx.insert(processedOperationsTable).values({
-          clientOperationId,
-          userId: appUser.id,
-          operationType: "create_line_item",
-          resourceId: item.id,
-          resultPayload: formatted,
-        });
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: item.id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
       }
 
       return formatted;
@@ -1175,6 +1467,10 @@ router.post("/members/:id/activities/:activityId/line-items", requireAppUser, as
 
     res.status(201).json(result);
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (POST line-item):", {
       code: error.code,
       detail: error.detail,
@@ -1203,6 +1499,11 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
     return;
   }
   const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "update_line_item", req.body, res)) {
+    return;
+  }
 
   const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
   if (!targetMember) return;
@@ -1212,6 +1513,18 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
 
   const existingItem = await getLineItemWithActivityCheck(itemId, activityId, res);
   if (!existingItem) return;
+
+  const currentVersion = existingItem.version ?? 1;
+  const clientVersion = req.body.version !== undefined && req.body.version !== null ? Number(req.body.version) : null;
+
+  if (clientVersion !== null && clientVersion !== currentVersion) {
+    res.status(409).json({
+      error: "Conflit de modification (OCC)",
+      message: `La version de la ligne d'activité fournie (${clientVersion}) ne correspond pas à la version actuelle du serveur (${currentVersion}).`,
+      serverVersion: currentVersion,
+    });
+    return;
+  }
 
   const normalized = normalizeLineItemPayload(req.body);
 
@@ -1229,19 +1542,68 @@ router.put("/members/:id/activities/:activityId/line-items/:itemId", requireAppU
   }
 
   try {
-    const [updated] = await db
-      .update(activityLineItemsTable)
-      .set(normalized)
-      .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "update_line_item",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
 
-    await updateMemberStatusIfNeeded(memberId);
+      const [updated] = await tx
+        .update(activityLineItemsTable)
+        .set({
+          ...normalized,
+          version: currentVersion + 1,
+        })
+        .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.version, currentVersion)))
+        .returning();
 
-    res.json({
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
+      if (!updated) {
+        const [latestItem] = await tx.select().from(activityLineItemsTable).where(eq(activityLineItemsTable.id, itemId)).limit(1);
+        res.status(409).json({
+          error: "Conflit de modification (OCC)",
+          message: "Mise à jour concurrente de la ligne d'activité détectée.",
+          serverVersion: latestItem?.version ?? currentVersion,
+        });
+        return null;
+      }
+
+      const formatted = {
+        ...updated,
+        version: updated.version ?? currentVersion + 1,
+        createdAt: updated.createdAt.toISOString(),
+      };
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: itemId,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return formatted;
     });
+
+    if (result) {
+      await updateMemberStatusIfNeeded(memberId);
+      res.json(result);
+    }
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (PUT line-item):", {
       code: error.code,
       detail: error.detail,
@@ -1270,6 +1632,11 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
     return;
   }
   const appUser = (req as any).appUser;
+  const clientOperationId = getClientOperationId(req);
+
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "delete_line_item", req.body, res)) {
+    return;
+  }
 
   const targetMember = await getMemberWithAccessCheck(appUser, memberId, res);
   if (!targetMember) return;
@@ -1280,14 +1647,17 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
   const existingItem = await getLineItemWithActivityCheck(itemId, activityId, res);
   if (!existingItem) return;
 
-  const clientOperationId = getClientOperationId(req);
-
-  if (await checkProcessedOperation(clientOperationId, appUser.id, res)) {
-    return;
-  }
-
   try {
     const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "delete_line_item",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
       const [deleted] = await tx
         .delete(activityLineItemsTable)
         .where(and(eq(activityLineItemsTable.id, itemId), eq(activityLineItemsTable.activityId, activityId)))
@@ -1300,13 +1670,18 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
       const payload = { success: true, deletedId: itemId };
 
       if (clientOperationId) {
-        await tx.insert(processedOperationsTable).values({
-          clientOperationId,
-          userId: appUser.id,
-          operationType: "delete_line_item",
-          resourceId: itemId,
-          resultPayload: payload,
-        });
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: itemId,
+            resultPayload: payload,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
       }
 
       return payload;
@@ -1316,6 +1691,10 @@ router.delete("/members/:id/activities/:activityId/line-items/:itemId", requireA
 
     res.sendStatus(204);
   } catch (error: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
     console.error("🚨 POSTGRES EXECUTION ERROR (DELETE line-item):", {
       code: error.code,
       detail: error.detail,
@@ -1346,19 +1725,64 @@ router.post("/members/:id/validate", requireAppUser, async (req, res): Promise<v
     res.status(400).json({ error: "ID membre invalide" });
     return;
   }
+  const clientOperationId = getClientOperationId(req);
 
-  const [updated] = await db
-    .update(membersTable)
-    .set({ status: "valide" })
-    .where(eq(membersTable.id, id))
-    .returning();
-
-  if (!updated) {
-    res.status(404).json({ error: "Membre introuvable" });
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "validate_member", req.body, res)) {
     return;
   }
 
-  res.json(await formatMember(updated, true));
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "validate_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
+      const [updated] = await tx
+        .update(membersTable)
+        .set({ status: "valide" })
+        .where(eq(membersTable.id, id))
+        .returning();
+
+      if (!updated) return null;
+
+      const formatted = await formatMember(updated, true, tx);
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return formatted;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Membre introuvable" });
+      return;
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
+    res.status(400).json({ error: "Échec de la validation du membre" });
+  }
 });
 
 router.post("/members/:id/deactivate", requireAppUser, async (req, res): Promise<void> => {
@@ -1374,19 +1798,64 @@ router.post("/members/:id/deactivate", requireAppUser, async (req, res): Promise
     res.status(400).json({ error: "ID membre invalide" });
     return;
   }
+  const clientOperationId = getClientOperationId(req);
 
-  const [updated] = await db
-    .update(membersTable)
-    .set({ status: "desactive" })
-    .where(eq(membersTable.id, id))
-    .returning();
-
-  if (!updated) {
-    res.status(404).json({ error: "Membre introuvable" });
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "deactivate_member", req.body, res)) {
     return;
   }
 
-  res.json(await formatMember(updated, true));
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "deactivate_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
+      const [updated] = await tx
+        .update(membersTable)
+        .set({ status: "desactive" })
+        .where(eq(membersTable.id, id))
+        .returning();
+
+      if (!updated) return null;
+
+      const formatted = await formatMember(updated, true, tx);
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return formatted;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Membre introuvable" });
+      return;
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
+    res.status(400).json({ error: "Échec de la désactivation du membre" });
+  }
 });
 
 router.post("/members/:id/reactivate", requireAppUser, async (req, res): Promise<void> => {
@@ -1402,6 +1871,11 @@ router.post("/members/:id/reactivate", requireAppUser, async (req, res): Promise
     res.status(400).json({ error: "ID membre invalide" });
     return;
   }
+  const clientOperationId = getClientOperationId(req);
+
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "reactivate_member", req.body, res)) {
+    return;
+  }
 
   const [member] = await db.select().from(membersTable).where(eq(membersTable.id, id)).limit(1);
   if (member && member.status === "bloque") {
@@ -1409,18 +1883,58 @@ router.post("/members/:id/reactivate", requireAppUser, async (req, res): Promise
     return;
   }
 
-  const [updated] = await db
-    .update(membersTable)
-    .set({ status: "valide" })
-    .where(eq(membersTable.id, id))
-    .returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "reactivate_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
 
-  if (!updated) {
-    res.status(404).json({ error: "Membre introuvable" });
-    return;
+      const [updated] = await tx
+        .update(membersTable)
+        .set({ status: "valide" })
+        .where(eq(membersTable.id, id))
+        .returning();
+
+      if (!updated) return null;
+
+      const formatted = await formatMember(updated, true, tx);
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return formatted;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Membre introuvable" });
+      return;
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
+    res.status(400).json({ error: "Échec de la réactivation du membre" });
   }
-
-  res.json(await formatMember(updated, true));
 });
 
 router.post("/members/:id/block", requireAppUser, async (req, res): Promise<void> => {
@@ -1436,19 +1950,64 @@ router.post("/members/:id/block", requireAppUser, async (req, res): Promise<void
     res.status(400).json({ error: "ID membre invalide" });
     return;
   }
+  const clientOperationId = getClientOperationId(req);
 
-  const [updated] = await db
-    .update(membersTable)
-    .set({ status: "bloque" })
-    .where(eq(membersTable.id, id))
-    .returning();
-
-  if (!updated) {
-    res.status(404).json({ error: "Membre introuvable" });
+  if (await checkProcessedOperation(clientOperationId, appUser.id, "block_member", req.body, res)) {
     return;
   }
 
-  res.json(await formatMember(updated, true));
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (clientOperationId) {
+        await tx.insert(processedOperationsTable).values({
+          userId: appUser.id,
+          clientOperationId,
+          operationType: "block_member",
+          payloadHash: computePayloadHash(req.body),
+        });
+      }
+
+      const [updated] = await tx
+        .update(membersTable)
+        .set({ status: "bloque" })
+        .where(eq(membersTable.id, id))
+        .returning();
+
+      if (!updated) return null;
+
+      const formatted = await formatMember(updated, true, tx);
+
+      if (clientOperationId) {
+        await tx
+          .update(processedOperationsTable)
+          .set({
+            resourceId: id,
+            resultPayload: formatted,
+          })
+          .where(
+            and(
+              eq(processedOperationsTable.userId, appUser.id),
+              eq(processedOperationsTable.clientOperationId, clientOperationId)
+            )
+          );
+      }
+
+      return formatted;
+    });
+
+    if (!result) {
+      res.status(404).json({ error: "Membre introuvable" });
+      return;
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
+      return;
+    }
+
+    res.status(400).json({ error: "Échec du blocage du membre" });
+  }
 });
 
 function formatDate(date: Date): string {
@@ -1459,7 +2018,7 @@ function formatDate(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-// POST /api/members/:id/badge — generate badge PDF with QR code
+// POST /api/members/:id/badge
 router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
@@ -1751,6 +2310,7 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
           memberNumber: "PENDING",
           memberType: m.memberType,
           category: m.category,
+          version: 1,
           individualOrOrg: m.individualOrOrg ?? "individuel",
           regionId: m.regionId ?? null,
           departmentId: m.departmentId ?? null,
@@ -1771,6 +2331,7 @@ router.post("/members/sync", requireAppUser, async (req, res): Promise<void> => 
       await db.insert(memberActivitiesTable).values({
         memberId: member.id,
         activityType: m.category,
+        version: 1,
         isPrimary: true,
         regionId: m.regionId ?? null,
         departmentId: m.departmentId ?? null,
