@@ -3,6 +3,7 @@ import Dexie, { type Table } from 'dexie';
 export interface LocalMember {
   id?: number;
   localId: string;
+  serverId?: number | null;
   userId: string;
   memberNumber?: string | null;
   memberType: 'physique' | 'morale';
@@ -17,10 +18,82 @@ export interface LocalMember {
   physiqueData?: any;
   moraleData?: any;
   categoryData?: any;
+  badgeUrl?: string | null;
+  badgeToken?: string | null;
   status: string;
+  version: number;
   createdAt: string;
   updatedAt: string;
-  syncStatus: 'synced' | 'pending' | 'error';
+  syncStatus: 'synced' | 'pending' | 'error' | 'conflict';
+  deletedLocally?: boolean;
+}
+
+export interface LocalActivity {
+  id?: number;
+  localId: string;
+  serverId?: number | null;
+  memberLocalId: string;
+  memberServerId?: number | null;
+  userId: string;
+  activityType: string;
+  isPrimary: boolean;
+  regionId?: number | null;
+  departmentId?: number | null;
+  arrondissementId?: number | null;
+  village?: string | null;
+  maillons?: string[];
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: 'synced' | 'pending' | 'error' | 'conflict';
+}
+
+export interface LocalLineItem {
+  id?: number;
+  localId: string;
+  serverId?: number | null;
+  activityLocalId: string;
+  activityServerId?: number | null;
+  userId: string;
+  parcelleGroupId?: string | null;
+  cropCategory?: string | null;
+  cropName?: string | null;
+  cultureType?: string | null;
+  superficieHa?: number | null;
+  productionQuantity?: number | null;
+  productionUnit?: string | null;
+  productionFcfa?: number | null;
+  isPrincipalCrop?: boolean | null;
+  parentLineItemId?: number | null;
+  species?: string | null;
+  cheptelSize?: number | null;
+  foodType?: string | null;
+  products?: any;
+  speciesPêche?: string | null;
+  subCategory?: string | null;
+  essence?: string | null;
+  plantationType?: string | null;
+  artisanatProducts?: string | null;
+  rawMaterials?: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: 'synced' | 'pending' | 'error' | 'conflict';
+}
+
+export interface LocalSyncConflict {
+  id?: number;
+  conflictId: string;
+  userId: string;
+  entityType: 'member' | 'activity' | 'line_item';
+  localId: string;
+  serverId?: number | string | null;
+  clientVersion: number;
+  serverVersion: number;
+  localData: any;
+  serverData: any;
+  status: 'unresolved' | 'resolved';
+  createdAt: string;
 }
 
 export interface LocalReferenceRegion {
@@ -57,7 +130,7 @@ export interface LocalOfflineOperation {
   operationId: string;
   clientOperationId: string;
   userId: string;
-  operationType: 'create_member' | 'create_activity' | 'create_line_item' | 'delete_line_item' | 'update_member';
+  operationType: 'create_member' | 'create_activity' | 'create_line_item' | 'delete_line_item' | 'update_member' | 'update_activity' | 'update_line_item';
   payload: any;
   status: 'pending' | 'processing' | 'failed' | 'completed';
   retryCount: number;
@@ -89,6 +162,9 @@ export interface LocalUserProfileRecord {
 
 export class CapefDexieDatabase extends Dexie {
   members!: Table<LocalMember, number>;
+  activities!: Table<LocalActivity, number>;
+  lineItems!: Table<LocalLineItem, number>;
+  syncConflicts!: Table<LocalSyncConflict, number>;
   regions!: Table<LocalReferenceRegion, number>;
   departments!: Table<LocalReferenceDepartment, number>;
   arrondissements!: Table<LocalReferenceArrondissement, number>;
@@ -127,6 +203,27 @@ export class CapefDexieDatabase extends Dexie {
       operations: '++id, operationId, clientOperationId, userId, status, createdAt',
       entityMappings: '++id, [entityType+localId], entityType, localId, serverId, syncStatus, createdAt',
       profiles: 'clerkUserId, email, role',
+    });
+
+    this.version(4).stores({
+      members: '++id, localId, serverId, userId, memberNumber, category, memberType, status, syncStatus, deletedLocally, createdAt, updatedAt',
+      activities: '++id, localId, serverId, memberLocalId, memberServerId, userId, activityType, isPrimary, syncStatus, createdAt, updatedAt',
+      lineItems: '++id, localId, serverId, activityLocalId, activityServerId, userId, syncStatus, createdAt, updatedAt',
+      syncConflicts: '++id, conflictId, userId, entityType, localId, serverId, status, createdAt',
+      regions: 'id, name',
+      departments: 'id, regionId, name',
+      arrondissements: 'id, departmentId, name',
+      media: '++id, mediaId, userId, syncStatus, createdAt',
+      operations: '++id, operationId, clientOperationId, userId, status, createdAt',
+      entityMappings: '++id, [entityType+localId], entityType, localId, serverId, syncStatus, createdAt',
+      profiles: 'clerkUserId, email, role',
+    }).upgrade(async (tx) => {
+      await tx.table('members').toCollection().modify((m: LocalMember) => {
+        if (!m.localId) m.localId = crypto.randomUUID();
+        if (m.version === undefined) m.version = 1;
+        if (!m.updatedAt) m.updatedAt = m.createdAt || new Date().toISOString();
+        if (m.deletedLocally === undefined) m.deletedLocally = false;
+      });
     });
   }
 }

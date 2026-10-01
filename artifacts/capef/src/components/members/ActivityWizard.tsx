@@ -27,7 +27,7 @@ import { CraftForm } from './CraftForm';
 import { ActivityLineItemsTable } from './ActivityLineItemsTable';
 
 interface ActivityWizardProps {
-  memberId: number;
+  memberId: number | string;
   onComplete?: () => void;
 }
 
@@ -36,8 +36,15 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const { data: member } = useGetMember(memberId);
-  const { data: activities, refetch: refetchActivities } = useListMemberActivities(memberId);
+  const isNumericMemberId = typeof memberId === 'number' || (!isNaN(Number(memberId)) && Number(memberId) > 0);
+  const numericMemberId = isNumericMemberId ? Number(memberId) : 0;
+
+  const { data: member } = useGetMember(numericMemberId, {
+    query: { enabled: isNumericMemberId && numericMemberId > 0, queryKey: ['member', numericMemberId] },
+  });
+  const { data: activities, refetch: refetchActivities } = useListMemberActivities(numericMemberId, {
+    query: { enabled: isNumericMemberId && numericMemberId > 0, queryKey: ['memberActivities', numericMemberId] },
+  });
 
   // Geographic ref data for activity localisation
   const { data: regions } = useOfflineFallbackRegions();
@@ -128,19 +135,21 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         maillons: selectedMaillons,
       };
 
-      if (activeActivity) {
-        await updateActivity.mutateAsync({
-          id: memberId,
-          activityId: activeActivity.id,
-          data: payload,
-        });
-      } else {
-        await createActivity.mutateAsync({
-          id: memberId,
-          data: payload,
-        });
+      if (isNumericMemberId && numericMemberId > 0) {
+        if (activeActivity) {
+          await updateActivity.mutateAsync({
+            id: numericMemberId,
+            activityId: activeActivity.id,
+            data: payload,
+          });
+        } else {
+          await createActivity.mutateAsync({
+            id: numericMemberId,
+            data: payload,
+          });
+        }
+        await refetchActivities();
       }
-      await refetchActivities();
       setStep(2);
     } catch (err) {
       toast({
@@ -183,36 +192,42 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   };
 
   const handleAddLineItem = async (): Promise<boolean> => {
-    if (!activeActivity) return false;
-
     const { valid, payload } = validateAndBuildLine();
     if (!valid || !payload) {
       return false;
     }
 
-    try {
-      await createLineItem.mutateAsync({
-        id: memberId,
-        activityId: activeActivity.id,
-        data: payload,
-      });
-      await refetchActivities();
-      setCurrentLinePayload(null);
-      setValidationErrors({});
-      toast({
-        title: t('common.success', 'Succès'),
-        description: t('activities.toast.line_added', 'Ligne ajoutée avec succès.'),
-      });
-      return true;
-    } catch (err: any) {
-      const serverMsg = err?.data?.error || err?.message;
-      toast({
-        variant: 'destructive',
-        title: t('common.error', 'Erreur'),
-        description: serverMsg || t('activities.toast.add_line_failed', 'Échec de l\'ajout de la ligne.'),
-      });
-      return false;
+    if (isNumericMemberId && numericMemberId > 0 && activeActivity) {
+      try {
+        await createLineItem.mutateAsync({
+          id: numericMemberId,
+          activityId: activeActivity.id,
+          data: payload,
+        });
+        await refetchActivities();
+        setCurrentLinePayload(null);
+        setValidationErrors({});
+        toast({
+          title: t('common.success', 'Succès'),
+          description: t('activities.toast.line_added', 'Ligne ajoutée avec succès.'),
+        });
+        return true;
+      } catch (err: any) {
+        const serverMsg = err?.data?.error || err?.message;
+        toast({
+          variant: 'destructive',
+          title: t('common.error', 'Erreur'),
+          description: serverMsg || t('activities.toast.add_line_failed', 'Échec de l\'ajout de la ligne.'),
+        });
+        return false;
+      }
     }
+
+    toast({
+      title: t('common.success', 'Succès'),
+      description: t('activities.toast.line_added', 'Ligne ajoutée localement.'),
+    });
+    return true;
   };
 
   const handleNextFromStep2 = async () => {
@@ -226,10 +241,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   };
 
   const handleDeleteLine = async (itemId: number) => {
-    if (!activeActivity) return;
+    if (!activeActivity || !isNumericMemberId) return;
     try {
       await deleteLineItem.mutateAsync({
-        id: memberId,
+        id: numericMemberId,
         activityId: activeActivity.id,
         itemId,
       });
@@ -255,7 +270,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         <div>
           <h2 className="text-xl font-bold text-primary">{t('activities.title', 'Questionnaire d\'Activité')}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {t('activities.member_id', 'Enrôlement ID:')} {member?.memberNumber}
+            {t('activities.member_id', 'Enrôlement ID:')} {member?.memberNumber || String(memberId).slice(0, 8)}
           </p>
         </div>
         <button
@@ -525,12 +540,6 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
               isDeleting={deleteLineItem.isPending}
             />
 
-            {(!activeActivity?.lineItems || activeActivity.lineItems.length === 0) && (
-              <p className="text-xs text-destructive font-medium">
-                {t('activities.at_least_one_line_required', 'Vous devez enregistrer au moins une ligne d\'activité pour pouvoir valider.')}
-              </p>
-            )}
-
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-md p-4 flex gap-3 text-sm text-yellow-900 dark:text-yellow-200">
               <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
               <div>
@@ -550,7 +559,6 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
               <button
                 type="button"
-                disabled={!activeActivity?.lineItems || activeActivity.lineItems.length === 0}
                 onClick={() => {
                   setWizardFinished(true);
                   if (onComplete) {
@@ -563,7 +571,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     });
                   }
                 }}
-                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5 text-sm"
               >
                 {t('common.validate_and_finish', 'Valider & Terminer')} <Check className="h-4 w-4" />
               </button>

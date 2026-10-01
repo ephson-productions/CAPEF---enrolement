@@ -194,3 +194,8 @@ export function useAuthContext() {
   }
   return context;
 }
+
+export function useAuthUI() {
+  const { user } = useAuthContext();
+  return { userId: user?.clerkUserId || null };
+}

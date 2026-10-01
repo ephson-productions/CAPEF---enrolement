@@ -3,11 +3,14 @@ import { customFetch, ApiError } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { offlineRepository } from './offline-repository';
 import { useTranslation } from 'react-i18next';
+import { useAuthUI } from './auth';
 
 type OfflineQueueContextType = {
   isOnline: boolean;
   queueCount: number;
-  enqueueMember: (member: any) => void;
+  effectiveUserId: string;
+  enqueueMember: (member: any, localId?: string) => void;
+  enqueueUpdateMember: (serverId: number, updates: any, expectedVersion: number) => void;
   syncNow: () => Promise<void>;
   isSyncing: boolean;
   enqueueActivityAction: (action: {
@@ -24,6 +27,9 @@ const OfflineQueueContext = createContext<OfflineQueueContextType | undefined>(u
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { userId } = useAuthUI();
+  const effectiveUserId = userId || (typeof window !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') || 'local_user' : 'local_user');
+
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueCount, setQueueCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -34,12 +40,21 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     setQueueCount(pending.length);
   }, []);
 
-  const enqueueMember = useCallback(async (member: any) => {
-    await offlineRepository.enqueue('create_member', member);
+  const enqueueMember = useCallback(async (member: any, localId?: string) => {
+    await offlineRepository.enqueue('create_member', { ...member, localId });
     await updateQueueCount();
     toast({
       title: t('offline.toast.saved_offline_title', 'Enregistré hors ligne'),
       description: t('offline.toast.saved_offline_desc', 'Les données d\'enrôlement seront synchronisées automatiquement.'),
+    });
+  }, [toast, updateQueueCount, t]);
+
+  const enqueueUpdateMember = useCallback(async (serverId: number, updates: any, expectedVersion: number) => {
+    await offlineRepository.enqueue('update_member', { serverId, updates, version: expectedVersion });
+    await updateQueueCount();
+    toast({
+      title: t('offline.toast.saved_offline_title', 'Enregistré hors ligne'),
+      description: t('offline.toast.saved_offline_desc', 'La modification du membre sera synchronisée automatiquement.'),
     });
   }, [toast, updateQueueCount, t]);
 
@@ -74,6 +89,17 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
             headers,
             body: JSON.stringify({
               ...item.payload,
+              clientOperationId: item.clientOperationId,
+            }),
+          });
+        } else if (item.operationType === 'update_member') {
+          const { serverId, updates, version } = item.payload;
+          await customFetch(`/api/members/${serverId}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              ...updates,
+              version,
               clientOperationId: item.clientOperationId,
             }),
           });
@@ -129,7 +155,6 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
             description: t('offline.toast.conflict_desc', 'Le membre a été modifié sur le serveur par un autre agent. Veuillez réviser la fiche.'),
           });
         } else if (isTerminalError) {
-          // Terminal business / validation error: update status to 'failed' to prevent infinite retries
           await offlineRepository.updateStatus(item.id, 'failed', errorMsg);
           toast({
             variant: 'destructive',
@@ -137,7 +162,6 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
             description: t('offline.toast.val_failed_desc', 'L\'opération a été rejetée par le serveur ({{error}}).', { error: errorMsg }),
           });
         } else {
-          // Retryable network or 5xx server error: keep item, increment retry count, abort cycle
           await offlineRepository.incrementRetry(item.id, errorMsg);
           hasNetworkOrServerError = true;
           toast({
@@ -145,7 +169,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
             title: t('offline.toast.sync_deferred_title', 'Synchronisation différée'),
             description: t('offline.toast.sync_deferred_desc', 'Resynchronisation différée due à un problème réseau.'),
           });
-          break; // Stop processing further items in this sync cycle
+          break;
         }
       }
     }
@@ -177,7 +201,6 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Initial sync if online
     if (navigator.onLine && !initialLoadDone.current) {
       initialLoadDone.current = true;
       offlineRepository.getPending().then((pending) => {
@@ -194,7 +217,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   }, [syncNow, updateQueueCount]);
 
   return (
-    <OfflineQueueContext.Provider value={{ isOnline, queueCount, enqueueMember, enqueueActivityAction, syncNow, isSyncing }}>
+    <OfflineQueueContext.Provider value={{ isOnline, queueCount, effectiveUserId, enqueueMember, enqueueUpdateMember, enqueueActivityAction, syncNow, isSyncing }}>
       {children}
       {!isOnline && (
         <div className="fixed bottom-0 left-0 right-0 bg-yellow-500 text-yellow-950 p-2 text-center text-sm font-semibold z-50">
