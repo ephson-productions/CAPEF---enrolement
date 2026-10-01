@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   useGetMember,
   useGenerateBadge,
@@ -10,52 +10,88 @@ import {
   useListDepartments,
   useListArrondissements
 } from '@workspace/api-client-react';
-import { useRoute, Link } from 'wouter';
+import { useRoute, useLocation, Link } from 'wouter';
 import { format } from 'date-fns';
 import {
   ArrowLeft, Edit, FileBadge, MapPin, Phone, Mail, Building, User, Tag, FileText, CheckSquare, Plus,
-  CheckCircle, XCircle, RotateCcw, AlertOctagon
+  CheckCircle, XCircle, RotateCcw, AlertOctagon, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
+import { useOfflineQueue } from '@/lib/offline-sync';
+import { memberRepository, type LocalMemberWithDetails } from '@/lib/repositories/MemberRepository';
 import ActivityWizard from '@/components/members/ActivityWizard';
 import { ActivityLineItemsTable } from '@/components/members/ActivityLineItemsTable';
 import { useTranslation } from 'react-i18next';
 import { useDateLocale } from '@/lib/i18n';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   getCategoryLabel,
   getStatusLabel,
   getMaillonLabel,
-  formatLineItemTitle,
-  formatLineItemSpecifics
 } from '@/lib/i18n-helpers';
 
 export default function MemberDetail() {
   const { t } = useTranslation();
   const dateLocale = useDateLocale();
+  const [, setLocation] = useLocation();
   const [, params] = useRoute('/members/:id');
-  const id = Number(params?.id);
+  const idOrLocalId = params?.id || '';
+
   const { toast } = useToast();
   const { isAdmin } = useAuthContext();
+  const { effectiveUserId, isOnline } = useOfflineQueue();
 
-  const { data: member, isLoading, error, refetch: refetchMember } = useGetMember(id, {
-    query: { enabled: !!id, queryKey: ['member', id] }
+  const isNumericServerId = !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0;
+  const numericId = isNumericServerId ? Number(idOrLocalId) : 0;
+
+  const [localMember, setLocalMember] = useState<LocalMemberWithDetails | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Network query fallback
+  const { data: serverMember, refetch: refetchServerMember } = useGetMember(numericId, {
+    query: { enabled: isOnline && isNumericServerId, queryKey: ['member', numericId] }
   });
+
+  const loadLocalMember = async () => {
+    setLoading(true);
+    try {
+      const data = await memberRepository.getMemberById(idOrLocalId, effectiveUserId);
+      setLocalMember(data);
+    } catch (err) {
+      console.error('[MemberDetail] Error loading local member:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLocalMember();
+  }, [idOrLocalId, effectiveUserId]);
+
+  useEffect(() => {
+    if (serverMember && isOnline) {
+      memberRepository.upsertServerMembers(effectiveUserId, [serverMember]).then(() => {
+        loadLocalMember();
+      });
+    }
+  }, [serverMember, isOnline]);
 
   // Reference tables for resolving raw location IDs for representatives
-  const isPhysiqueMember = member?.memberType === 'physique';
-  const hasReps = !isPhysiqueMember && (member?.moraleData as any)?.representants?.length > 0;
+  const isPhysiqueMember = localMember?.memberType === 'physique';
+  const hasReps = !isPhysiqueMember && (localMember?.moraleData as any)?.representants?.length > 0;
 
   const regionsQuery = useListRegions({
-    query: { enabled: hasReps, queryKey: ['regions'] }
+    query: { enabled: hasReps && isOnline, queryKey: ['regions'] }
   });
   const departmentsQuery = useListDepartments(
-    {}, // all departments
-    { query: { enabled: hasReps, queryKey: ['departments-all'] } }
+    {},
+    { query: { enabled: hasReps && isOnline, queryKey: ['departments-all'] } }
   );
   const arrondissementsQuery = useListArrondissements(
-    {}, // all arrondissements
-    { query: { enabled: hasReps, queryKey: ['arrondissements-all'] } }
+    {},
+    { query: { enabled: hasReps && isOnline, queryKey: ['arrondissements-all'] } }
   );
 
   const regionNameById = useMemo(() => {
@@ -86,33 +122,35 @@ export default function MemberDetail() {
   const blockMutation = useBlockMember();
 
   const handleStatusAction = async (action: 'validate' | 'deactivate' | 'reactivate' | 'block') => {
+    if (!numericId) return;
     try {
       if (action === 'validate') {
-        await validateMutation.mutateAsync({ id });
+        await validateMutation.mutateAsync({ id: numericId });
         toast({ title: t('common.success', 'Succès'), description: t('members.toast.validated', 'Membre validé.') });
       } else if (action === 'deactivate') {
-        await deactivateMutation.mutateAsync({ id });
+        await deactivateMutation.mutateAsync({ id: numericId });
         toast({ title: t('common.success', 'Succès'), description: t('members.toast.deactivated', 'Membre désactivé.') });
       } else if (action === 'reactivate') {
-        await reactivateMutation.mutateAsync({ id });
+        await reactivateMutation.mutateAsync({ id: numericId });
         toast({ title: t('common.success', 'Succès'), description: t('members.toast.reactivated', 'Membre réactivé.') });
       } else if (action === 'block') {
         if (confirm(t('members.confirm_block', 'Êtes-vous sûr de vouloir bloquer ce membre définitivement ? Cette action est irréversible.'))) {
-          await blockMutation.mutateAsync({ id });
+          await blockMutation.mutateAsync({ id: numericId });
           toast({ title: t('common.success', 'Succès'), description: t('members.toast.blocked', 'Membre bloqué définitivement.') });
         }
       }
-      refetchMember();
+      refetchServerMember();
+      loadLocalMember();
     } catch (err: any) {
       toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: err?.response?.data?.error || t('common.error_occurred', 'Une erreur est survenue.') });
     }
   };
 
   const handleGenerateBadge = async () => {
+    if (!numericId) return;
     try {
-      const result = await generateBadge.mutateAsync({ id });
+      const result = await generateBadge.mutateAsync({ id: numericId });
       if (result.badgeUrl) {
-        // Convert the base64 SVG data URL into a safe blob URL to bypass Chrome's top-frame navigation restriction on data URLs
         const base64Data = result.badgeUrl.split(',')[1];
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
@@ -126,7 +164,6 @@ export default function MemberDetail() {
         window.open(objectUrl, '_blank');
         toast({ title: t('badge.generated_title', 'Badge généré'), description: t('badge.generated_desc', 'Le badge a été ouvert dans un nouvel onglet.') });
 
-        // Cleanup the object URL to avoid memory leaks
         setTimeout(() => {
           URL.revokeObjectURL(objectUrl);
         }, 5000);
@@ -136,12 +173,26 @@ export default function MemberDetail() {
     }
   };
 
-  if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground animate-pulse">{t('common.loading', 'Chargement des détails...')}</div>;
+  if (loading) {
+    return (
+      <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-2">
+        <RefreshCw className="w-5 h-5 animate-spin" />
+        {t('common.loading', 'Chargement des détails...')}
+      </div>
+    );
   }
 
-  if (error || !member) {
-    return <div className="p-8 text-center text-destructive font-bold">{t('members.not_found', 'Membre introuvable.')}</div>;
+  if (!localMember) {
+    return (
+      <div className="p-12 text-center text-muted-foreground space-y-4">
+        <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
+        <h2 className="text-xl font-bold">{t('members.not_found', 'Membre introuvable.')}</h2>
+        <Button onClick={() => setLocation('/members')} variant="outline">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          {t('common.back_to_list', 'Retour à la liste')}
+        </Button>
+      </div>
+    );
   }
 
   if (showWizard) {
@@ -150,22 +201,22 @@ export default function MemberDetail() {
         <button
           onClick={() => {
             setShowWizard(false);
-            refetchMember();
+            loadLocalMember();
           }}
           className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" /> {t('members.back_to_profile', 'Retour au profil')}
         </button>
-        <ActivityWizard memberId={id} onComplete={() => {
+        <ActivityWizard memberId={localMember.serverId || localMember.localId} onComplete={() => {
           setShowWizard(false);
-          refetchMember();
+          loadLocalMember();
         }} />
       </div>
     );
   }
 
-  const isPhysique = member.memberType === 'physique';
-  const info = isPhysique ? member.physiqueData : member.moraleData;
+  const isPhysique = localMember.memberType === 'physique';
+  const info = isPhysique ? localMember.physiqueData : localMember.moraleData;
 
   const getCategoryColor = (cat: string) => {
     switch (cat.toLowerCase()) {
@@ -197,9 +248,9 @@ export default function MemberDetail() {
           <ArrowLeft className="h-4 w-4 mr-2" /> {t('users.back_to_list', 'Retour à la liste')}
         </Link>
         <div className="flex gap-2 flex-wrap">
-          {isAdmin && (
+          {isAdmin && isNumericServerId && (
             <div className="flex gap-1.5 border-r border-border pr-3 mr-1 flex-wrap">
-              {member.status === 'en_attente' && (
+              {localMember.status === 'en_attente' && (
                 <button
                   onClick={() => handleStatusAction('validate')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-colors"
@@ -207,7 +258,7 @@ export default function MemberDetail() {
                   <CheckCircle className="h-3.5 w-3.5" /> {t('members.actions.validate', 'Valider')}
                 </button>
               )}
-              {member.status === 'valide' && (
+              {localMember.status === 'valide' && (
                 <button
                   onClick={() => handleStatusAction('deactivate')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-600 text-white text-xs font-semibold rounded hover:bg-yellow-700 transition-colors"
@@ -215,7 +266,7 @@ export default function MemberDetail() {
                   <XCircle className="h-3.5 w-3.5" /> {t('members.actions.deactivate', 'Désactiver')}
                 </button>
               )}
-              {member.status === 'desactive' && (
+              {localMember.status === 'desactive' && (
                 <button
                   onClick={() => handleStatusAction('reactivate')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded hover:bg-green-700 transition-colors"
@@ -223,7 +274,7 @@ export default function MemberDetail() {
                   <RotateCcw className="h-3.5 w-3.5" /> {t('members.actions.reactivate', 'Réactiver')}
                 </button>
               )}
-              {member.status !== 'bloque' && (
+              {localMember.status !== 'bloque' && (
                 <button
                   onClick={() => handleStatusAction('block')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors"
@@ -241,16 +292,18 @@ export default function MemberDetail() {
             <Plus className="h-4 w-4" />
             {t('activities.add_activity_wizard', 'Saisir Activité (Wizard)')}
           </button>
-          <button
-            onClick={handleGenerateBadge}
-            disabled={generateBadge.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors disabled:opacity-50"
-          >
-            <FileBadge className="h-4 w-4" />
-            {generateBadge.isPending ? t('badge.generating', 'Génération...') : t('badge.generate_btn', 'Générer Badge')}
-          </button>
+          {isNumericServerId && (
+            <button
+              onClick={handleGenerateBadge}
+              disabled={generateBadge.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/90 transition-colors disabled:opacity-50"
+            >
+              <FileBadge className="h-4 w-4" />
+              {generateBadge.isPending ? t('badge.generating', 'Génération...') : t('badge.generate_btn', 'Générer Badge')}
+            </button>
+          )}
           <Link
-            href={`/members/${member.id}/edit`}
+            href={`/members/${localMember.serverId || localMember.localId}/edit`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary font-semibold rounded-md hover:bg-primary/20 transition-colors"
           >
             <Edit className="h-4 w-4" /> {t('common.edit', 'Modifier')}
@@ -272,20 +325,25 @@ export default function MemberDetail() {
         <div className="flex-1 text-center md:text-left">
           <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2 flex-wrap justify-center md:justify-start">
             <h1 className="text-3xl font-bold text-foreground">
-              {isPhysique
-                ? `${(info as any)?.civilite ? `${(info as any).civilite} ` : ''}${(info as any)?.nom || ''} ${(info as any)?.prenom || ''}`.trim()
-                : (info as any)?.nom}
+              {localMember.displayName}
             </h1>
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getCategoryColor(member.category)} capitalize self-center md:self-auto`}>
-              {getCategoryLabel(member.category, t)}
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getCategoryColor(localMember.category)} capitalize self-center md:self-auto`}>
+              {getCategoryLabel(localMember.category, t)}
             </span>
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadgeColor(member.status)} capitalize self-center md:self-auto`}>
-              {t('members.detail.status_label', 'Statut:')} {getStatusLabel(member.status, t)}
-            </span>
+            {localMember.syncStatus === 'pending' ? (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {t('members.sync_pending', 'En attente de synchro')}
+              </Badge>
+            ) : (
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getStatusBadgeColor(localMember.status)} capitalize self-center md:self-auto`}>
+                {t('members.detail.status_label', 'Statut:')} {getStatusLabel(localMember.status, t)}
+              </span>
+            )}
           </div>
-          <p className="text-muted-foreground font-mono text-lg mb-4">{member.memberNumber}</p>
+          <p className="text-muted-foreground font-mono text-lg mb-4">{localMember.memberNumber || localMember.localId}</p>
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {member.regionName || t('members.detail.region_not_defined', 'Région non définie')}</div>
+            <div className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {localMember.regionName || t('members.detail.region_not_defined', 'Région non définie')}</div>
             {isPhysique && (info as any)?.telephone1 && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4" /> {(info as any).telephone1}</div>}
             {isPhysique && (info as any)?.email && <div className="flex items-center gap-1.5"><Mail className="h-4 w-4" /> {(info as any).email}</div>}
             {!isPhysique && (info as any)?.telephone1 && <div className="flex items-center gap-1.5"><Phone className="h-4 w-4" /> {(info as any).telephone1}</div>}
@@ -295,17 +353,17 @@ export default function MemberDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Multi-Activities Section */}
-        {member.activities && member.activities.length > 0 && (
+        {localMember.activities && localMember.activities.length > 0 && (
           <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden md:col-span-2">
             <div className="px-6 py-4 border-b border-border bg-muted/20">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
                 <CheckSquare className="h-5 w-5 text-primary" />
-                {t('activities.title_with_count', 'Activités & Productions ({{count}})', { count: member.activities.length })}
+                {t('activities.title_with_count', 'Activités & Productions ({{count}})', { count: localMember.activities.length })}
               </h3>
             </div>
             <div className="p-6 space-y-6 divide-y divide-border">
-              {member.activities.map((act) => (
-                <div key={act.id} className="pt-4 first:pt-0 space-y-3">
+              {localMember.activities.map((act) => (
+                <div key={act.localId} className="pt-4 first:pt-0 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="font-bold capitalize text-primary text-base">
                       {getCategoryLabel(act.activityType, t)} {act.isPrimary && <span className="text-xs bg-yellow-500/10 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded-full ml-1">{t('activities.primary_tag', 'Principale')}</span>}
@@ -322,7 +380,7 @@ export default function MemberDetail() {
                   )}
 
                   <ActivityLineItemsTable
-                    activityType={act.activityType}
+                    activityType={act.activityType as any}
                     items={act.lineItems || []}
                   />
                 </div>
@@ -375,7 +433,7 @@ export default function MemberDetail() {
         </div>
 
         {/* Représentants de l'Organisation Card */}
-        {!isPhysique && (member?.moraleData as any)?.representants?.length > 0 && (
+        {!isPhysique && (localMember?.moraleData as any)?.representants?.length > 0 && (
           <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-border bg-muted/20">
               <h3 className="font-bold flex items-center gap-2 text-foreground">
@@ -384,7 +442,7 @@ export default function MemberDetail() {
               </h3>
             </div>
             <div className="p-6 space-y-6">
-              {((member?.moraleData as any).representants as any[]).map((rep: any, idx: number) => (
+              {((localMember?.moraleData as any).representants as any[]).map((rep: any, idx: number) => (
                 <div key={idx} className="border-b border-border/50 pb-6 last:border-0 last:pb-0">
                   <h4 className="font-bold text-foreground mb-3 text-sm flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-primary inline-block"></span>
@@ -419,11 +477,11 @@ export default function MemberDetail() {
           </div>
           <div className="p-6">
             <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.region', 'Région')}</dt><dd className="col-span-2 font-medium">{member.regionName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.department', 'Département')}</dt><dd className="col-span-2 font-medium">{member.departmentName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.arrondissement', 'Arrondissement')}</dt><dd className="col-span-2 font-medium">{member.arrondissementName || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village / Quartier')}</dt><dd className="col-span-2 font-medium">{member.village || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">GPS</dt><dd className="col-span-2 font-mono text-xs">{member.gpsLat ? `${member.gpsLat}, ${member.gpsLng}` : t('common.not_provided', 'Non renseigné')}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.region', 'Région')}</dt><dd className="col-span-2 font-medium">{localMember.regionName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.department', 'Département')}</dt><dd className="col-span-2 font-medium">{localMember.departmentName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.filters.arrondissement', 'Arrondissement')}</dt><dd className="col-span-2 font-medium">{localMember.arrondissementName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village / Quartier')}</dt><dd className="col-span-2 font-medium">{localMember.village || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">GPS</dt><dd className="col-span-2 font-mono text-xs">{localMember.gpsLat ? `${localMember.gpsLat}, ${localMember.gpsLng}` : t('common.not_provided', 'Non renseigné')}</dd></div>
             </dl>
           </div>
         </div>
@@ -496,8 +554,8 @@ export default function MemberDetail() {
           </div>
           <div className="p-6 grid grid-cols-1 gap-6">
             <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.registered_on', 'Enregistré le')}</dt><dd className="col-span-2 font-medium">{format(new Date(member.createdAt || ''), 'dd MMMM yyyy HH:mm', { locale: dateLocale })}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">{t('users.table.agent', 'Agent')}</dt><dd className="col-span-2 font-medium">{member.createdByName || '-'}</dd></div>
+              <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.registered_on', 'Enregistré le')}</dt><dd className="col-span-2 font-medium">{format(new Date(localMember.createdAt || ''), 'dd MMMM yyyy HH:mm', { locale: dateLocale })}</dd></div>
+              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">{t('users.table.agent', 'Agent')}</dt><dd className="col-span-2 font-medium">{localMember.userId}</dd></div>
             </dl>
           </div>
         </div>
