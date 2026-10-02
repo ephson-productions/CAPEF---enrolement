@@ -12,6 +12,11 @@ export interface LocalMember {
   regionId?: number | null;
   departmentId?: number | null;
   arrondissementId?: number | null;
+  regionName?: string | null;
+  departmentName?: string | null;
+  arrondissementName?: string | null;
+  createdById?: number | null;
+  createdByName?: string | null;
   village?: string | null;
   gpsLat?: number | null;
   gpsLng?: number | null;

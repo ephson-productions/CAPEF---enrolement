@@ -6,6 +6,8 @@ export interface MemberFilterOptions {
   memberType?: string;
   status?: string;
   search?: string;
+  representantGenre?: string;
+  agentId?: number;
   page?: number;
   limit?: number;
 }
@@ -26,7 +28,7 @@ export class MemberRepository {
   }
 
   async getMembers(userId: string, options: MemberFilterOptions = {}) {
-    const { category, memberType, status, search, page = 1, limit = 20 } = options;
+    const { category, memberType, status, search, representantGenre, agentId, page = 1, limit = 20 } = options;
 
     let collection = db.members
       .where('userId')
@@ -41,6 +43,18 @@ export class MemberRepository {
     }
     if (status) {
       collection = collection.filter(m => m.status === status);
+    }
+    if (agentId) {
+      collection = collection.filter(m => Number(m.createdById || m.userId) === agentId);
+    }
+    if (representantGenre) {
+      collection = collection.filter(m => {
+        if (m.memberType !== 'morale') return false;
+        const repGenre = m.moraleData?.representantSexe || m.moraleData?.genreRepresentant;
+        if (representantGenre === 'femme') return repGenre === 'F' || repGenre === 'femme';
+        if (representantGenre === 'homme') return repGenre === 'M' || repGenre === 'homme';
+        return true;
+      });
     }
     if (search && search.trim().length > 0) {
       const q = search.trim().toLowerCase();
@@ -75,9 +89,9 @@ export class MemberRepository {
       return {
         ...m,
         displayName: nom || m.memberNumber || m.localId,
-        regionName: m.regionId ? regMap.get(m.regionId) ?? null : null,
-        departmentName: m.departmentId ? deptMap.get(m.departmentId) ?? null : null,
-        arrondissementName: m.arrondissementId ? arrMap.get(m.arrondissementId) ?? null : null,
+        regionName: m.regionName || (m.regionId ? regMap.get(m.regionId) ?? null : null),
+        departmentName: m.departmentName || (m.departmentId ? deptMap.get(m.departmentId) ?? null : null),
+        arrondissementName: m.arrondissementName || (m.arrondissementId ? arrMap.get(m.arrondissementId) ?? null : null),
       };
     });
 
@@ -142,9 +156,9 @@ export class MemberRepository {
       ...member,
       displayName: displayName || member.memberNumber || member.localId,
       activities: activitiesWithLineItems,
-      regionName: member.regionId ? regMap.get(member.regionId) ?? null : null,
-      departmentName: member.departmentId ? deptMap.get(member.departmentId) ?? null : null,
-      arrondissementName: member.arrondissementId ? arrMap.get(member.arrondissementId) ?? null : null,
+      regionName: member.regionName || (member.regionId ? regMap.get(member.regionId) ?? null : null),
+      departmentName: member.departmentName || (member.departmentId ? deptMap.get(member.departmentId) ?? null : null),
+      arrondissementName: member.arrondissementName || (member.arrondissementId ? arrMap.get(member.arrondissementId) ?? null : null),
     };
   }
 
@@ -154,6 +168,23 @@ export class MemberRepository {
   ): Promise<{ member: LocalMember; primaryActivity: LocalActivity }> {
     const localId = memberData.localId || crypto.randomUUID();
     const now = new Date().toISOString();
+
+    let regName = memberData.regionName ?? null;
+    let deptName = memberData.departmentName ?? null;
+    let arrName = memberData.arrondissementName ?? null;
+
+    if (!regName && memberData.regionId) {
+      const reg = await db.regions.get(memberData.regionId);
+      if (reg) regName = reg.name;
+    }
+    if (!deptName && memberData.departmentId) {
+      const dept = await db.departments.get(memberData.departmentId);
+      if (dept) deptName = dept.name;
+    }
+    if (!arrName && memberData.arrondissementId) {
+      const arr = await db.arrondissements.get(memberData.arrondissementId);
+      if (arr) arrName = arr.name;
+    }
 
     const memberRecord: LocalMember = {
       localId,
@@ -166,6 +197,10 @@ export class MemberRepository {
       regionId: memberData.regionId ?? null,
       departmentId: memberData.departmentId ?? null,
       arrondissementId: memberData.arrondissementId ?? null,
+      regionName: regName,
+      departmentName: deptName,
+      arrondissementName: arrName,
+      createdByName: memberData.createdByName ?? null,
       village: memberData.village ?? null,
       gpsLat: memberData.gpsLat ?? null,
       gpsLng: memberData.gpsLng ?? null,
@@ -257,6 +292,11 @@ export class MemberRepository {
           regionId: sm.regionId ?? existing?.regionId ?? null,
           departmentId: sm.departmentId ?? existing?.departmentId ?? null,
           arrondissementId: sm.arrondissementId ?? existing?.arrondissementId ?? null,
+          regionName: sm.regionName ?? existing?.regionName ?? null,
+          departmentName: sm.departmentName ?? existing?.departmentName ?? null,
+          arrondissementName: sm.arrondissementName ?? existing?.arrondissementName ?? null,
+          createdById: sm.createdById ?? existing?.createdById ?? null,
+          createdByName: sm.createdByName ?? existing?.createdByName ?? null,
           village: sm.village ?? existing?.village ?? null,
           gpsLat: sm.gpsLat ?? existing?.gpsLat ?? null,
           gpsLng: sm.gpsLng ?? existing?.gpsLng ?? null,
