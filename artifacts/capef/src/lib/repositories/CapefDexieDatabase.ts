@@ -132,7 +132,7 @@ export interface LocalOfflineOperation {
   userId: string;
   operationType: 'create_member' | 'create_activity' | 'create_line_item' | 'delete_line_item' | 'update_member' | 'update_activity' | 'update_line_item';
   payload: any;
-  status: 'pending' | 'processing' | 'failed' | 'completed';
+  status: 'pending' | 'processing' | 'waiting' | 'retry' | 'blocked' | 'failed' | 'completed';
   retryCount: number;
   lastError?: string | null;
   createdAt: string;

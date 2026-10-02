@@ -1,10 +1,12 @@
 import { db, type LocalOfflineOperation } from './CapefDexieDatabase';
 
+export type QueueItemStatus = 'pending' | 'processing' | 'waiting' | 'retry' | 'blocked' | 'failed' | 'completed';
+
 export interface ISyncRepository {
   enqueueOperation(operation: Omit<LocalOfflineOperation, 'id'>): Promise<LocalOfflineOperation>;
   getOperationsByUser(userId: string): Promise<LocalOfflineOperation[]>;
   getPendingOperationsByUser(userId: string): Promise<LocalOfflineOperation[]>;
-  updateOperationStatus(operationId: string, userId: string, status: 'pending' | 'processing' | 'failed' | 'completed', error?: string): Promise<void>;
+  updateOperationStatus(operationId: string, userId: string, status: QueueItemStatus, error?: string): Promise<void>;
   incrementOperationRetry(operationId: string, userId: string, error: string): Promise<void>;
   removeOperation(operationId: string, userId: string): Promise<void>;
 }
@@ -35,7 +37,7 @@ export class DexieSyncRepository implements ISyncRepository {
       const ops = await db.operations
         .where('userId')
         .equals(userId)
-        .and((op) => op.status === 'pending' || op.status === 'processing')
+        .and((op) => op.status === 'pending' || op.status === 'processing' || op.status === 'waiting' || op.status === 'retry')
         .toArray();
       return ops.sort((a, b) => (a.id && b.id ? a.id - b.id : a.createdAt.localeCompare(b.createdAt)));
     } catch (error) {
@@ -47,13 +49,13 @@ export class DexieSyncRepository implements ISyncRepository {
   async updateOperationStatus(
     operationId: string,
     userId: string,
-    status: 'pending' | 'processing' | 'failed' | 'completed',
+    status: QueueItemStatus,
     error?: string
   ): Promise<void> {
     try {
       const op = await db.operations.where({ operationId, userId }).first();
       if (op && op.id) {
-        const updates: Partial<LocalOfflineOperation> = { status };
+        const updates: Partial<LocalOfflineOperation> = { status: status as any };
         if (error !== undefined) updates.lastError = error;
         await db.operations.update(op.id, updates);
       }
@@ -69,7 +71,7 @@ export class DexieSyncRepository implements ISyncRepository {
       if (op && op.id) {
         await db.operations.update(op.id, {
           retryCount: (op.retryCount || 0) + 1,
-          status: 'pending',
+          status: 'pending' as any,
           lastError: error,
         });
       }
