@@ -148,4 +148,89 @@ describe('Phase P5 — Local-First Member & Repository Integration Tests', () =>
     expect(retrieved?.localId).toBe('legacy_local_id_999');
     expect(retrieved?.deletedLocally).toBe(false);
   });
+
+  it('6. Server write-through upsert merges server members with pending local members without duplicates', async () => {
+    // Agent has 2 offline pending creations
+    const { member: pending1 } = await memberRepository.saveLocalMember(userIdAgent1, {
+      memberType: 'physique',
+      category: 'agriculteur',
+      physiqueData: { nom: 'Pend1', prenom: 'Offline' },
+    });
+
+    const { member: pending2 } = await memberRepository.saveLocalMember(userIdAgent1, {
+      memberType: 'morale',
+      category: 'pecheur',
+      moraleData: { nom: 'GIC Offline' },
+    });
+
+    // Initial local read shows 2 members
+    const initialList = await memberRepository.getMembers(userIdAgent1);
+    expect(initialList.total).toBe(2);
+
+    // Write-through online fetch returns 3 server members
+    const serverMembers = [
+      {
+        id: 101,
+        memberNumber: 'CAPEF-00101',
+        memberType: 'physique',
+        category: 'agriculteur',
+        status: 'valide',
+        displayName: 'Server Member 1',
+        physiqueData: { nom: 'Server1', prenom: 'On' },
+        createdAt: '2026-03-01T10:00:00.000Z',
+      },
+      {
+        id: 102,
+        memberNumber: 'CAPEF-00102',
+        memberType: 'morale',
+        category: 'eleveur',
+        status: 'valide',
+        displayName: 'GIC Server 2',
+        moraleData: { nom: 'GIC Server 2' },
+        createdAt: '2026-03-02T10:00:00.000Z',
+      },
+      {
+        id: 103,
+        memberNumber: 'CAPEF-00103',
+        memberType: 'physique',
+        category: 'forestier',
+        status: 'incomplet',
+        displayName: 'Server Member 3',
+        physiqueData: { nom: 'Server3', prenom: 'On' },
+        createdAt: '2026-03-03T10:00:00.000Z',
+      },
+    ];
+
+    await memberRepository.upsertServerMembers(userIdAgent1, serverMembers);
+
+    // Re-reading Dexie returns all 5 members (3 server synced + 2 offline pending)
+    const mergedList = await memberRepository.getMembers(userIdAgent1);
+    expect(mergedList.total).toBe(5);
+
+    const pendingItems = mergedList.data.filter(m => m.syncStatus === 'pending');
+    expect(pendingItems.length).toBe(2);
+
+    const syncedItems = mergedList.data.filter(m => m.syncStatus === 'synced');
+    expect(syncedItems.length).toBe(3);
+
+    // Deduplication check: Upserting server member matching pending1 by memberNumber updates record in-place
+    const serverMatchForPending1 = {
+      id: 201,
+      memberNumber: pending1.memberNumber,
+      memberType: 'physique',
+      category: 'agriculteur',
+      status: 'valide',
+      physiqueData: { nom: 'Pend1', prenom: 'Offline' },
+      createdAt: pending1.createdAt,
+    };
+
+    await memberRepository.upsertServerMembers(userIdAgent1, [serverMatchForPending1]);
+
+    const deduplicatedList = await memberRepository.getMembers(userIdAgent1);
+    expect(deduplicatedList.total).toBe(5); // Still 5 total, no duplicate created
+
+    const updatedRecord = await memberRepository.getMemberById(pending1.localId, userIdAgent1);
+    expect(updatedRecord?.syncStatus).toBe('synced');
+    expect(updatedRecord?.serverId).toBe(201);
+  });
 });

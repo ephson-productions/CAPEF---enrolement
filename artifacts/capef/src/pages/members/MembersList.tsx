@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { memberRepository, type MemberFilterOptions, type LocalMemberWithDetails } from '@/lib/repositories/MemberRepository';
 import { useOfflineQueue } from '@/lib/offline-sync';
+import { customFetch } from '@workspace/api-client-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ export default function MembersList() {
   const [page, setPage] = useState<number>(1);
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [revalidating, setRevalidating] = useState<boolean>(false);
   const [membersData, setMembersData] = useState<{
     data: any[];
     total: number;
@@ -29,9 +31,11 @@ export default function MembersList() {
     limit: number;
   }>({ data: [], total: 0, page: 1, limit: 10 });
 
-  const loadMembers = async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadMembersStaleWhileRevalidate = async () => {
+      setLoading(true);
       const opts: MemberFilterOptions = {
         category: filterCategory !== 'all' ? filterCategory : undefined,
         memberType: filterType !== 'all' ? filterType : undefined,
@@ -41,24 +45,63 @@ export default function MembersList() {
         limit: 10,
       };
 
-      const res = await memberRepository.getMembers(effectiveUserId, opts);
-      setMembersData(res);
-    } catch (err) {
-      console.error('[MembersList] Error loading local members:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        // 1. Stale read from Dexie IndexedDB
+        const localRes = await memberRepository.getMembers(effectiveUserId, opts);
+        if (!isCancelled) {
+          setMembersData(localRes);
+          setLoading(false);
+        }
 
-  useEffect(() => {
-    loadMembers();
-  }, [effectiveUserId, filterCategory, filterType, filterStatus, searchQuery, page]);
+        // 2. Network revalidation (write-through into Dexie)
+        if (isOnline) {
+          if (!isCancelled) setRevalidating(true);
+          const params = new URLSearchParams();
+          params.set('page', String(page));
+          params.set('limit', '100');
+          if (opts.category) params.set('category', opts.category);
+          if (opts.memberType) params.set('memberType', opts.memberType);
+          if (opts.status) params.set('status', opts.status);
+          if (opts.search) params.set('search', opts.search);
+
+          const apiRes = await customFetch(`/api/members?${params.toString()}`) as any;
+          const serverMembers = Array.isArray(apiRes) ? apiRes : apiRes?.data || [];
+
+          if (Array.isArray(serverMembers) && !isCancelled) {
+            await memberRepository.upsertServerMembers(effectiveUserId, serverMembers);
+            const updatedRes = await memberRepository.getMembers(effectiveUserId, opts);
+            if (!isCancelled) {
+              setMembersData(updatedRes);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[MembersList] Stale-while-revalidate error:', err);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+          setRevalidating(false);
+        }
+      }
+    };
+
+    loadMembersStaleWhileRevalidate();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [effectiveUserId, filterCategory, filterType, filterStatus, searchQuery, page, isOnline]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('members.title', 'Gestion des Membres')}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">{t('members.title', 'Gestion des Membres')}</h1>
+            {revalidating && (
+              <RefreshCw className="w-4 h-4 text-primary animate-spin" />
+            )}
+          </div>
           <p className="text-muted-foreground mt-1">{t('members.subtitle', 'Consultez, recherchez et gérez les acteurs agropastoraux enrôlés.')}</p>
         </div>
         <Button onClick={() => setLocation('/members/new')} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
