@@ -152,4 +152,102 @@ describe('Phase P6 — Unified Sync Engine Integration Tests', () => {
     expect(memberAfter?.village).toBe('Updated Village');
     expect(memberAfter?.syncStatus).toBe('synced');
   });
+
+  it('6. Repair blocked stuck operations (TMP-B5B8591F / TMP-306DAC4F) and sync successfully without duplicates', async () => {
+    const memberLocalId = 'TMP-B5B8591F';
+    const actLocalId = 'act_artisan_001';
+    const lineLocalId = 'line_artisan_001';
+
+    // 1. Save local records in Dexie
+    await memberRepository.saveLocalMember(userId, {
+      localId: memberLocalId,
+      memberType: 'physique',
+      category: 'artisan',
+      memberNumber: memberLocalId,
+      physiqueData: { nom: 'Mbida', prenom: 'Samuel' },
+    });
+
+    await db.activities.put({
+      localId: actLocalId,
+      memberLocalId,
+      userId,
+      activityType: 'artisan',
+      isPrimary: true,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      syncStatus: 'pending',
+    });
+
+    await db.lineItems.put({
+      localId: lineLocalId,
+      activityLocalId: actLocalId,
+      userId,
+      artisanatProducts: 'Sacs',
+      productionQuantity: 10000,
+      productionUnit: 'bag',
+      productionFcfa: 3500000,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      syncStatus: 'pending',
+    });
+
+    // 2. Enqueue stuck operations in Dexie queue (simulating prior 4xx failure)
+    await db.operations.put({
+      operationId: 'op_mem_stuck',
+      clientOperationId: 'client_op_mem_stuck',
+      userId,
+      operationType: 'create_member',
+      payload: { category: 'Artisan', memberType: 'physique', physiqueData: { nom: 'Mbida', prenom: 'Samuel' }, localId: memberLocalId, _local: { localId: memberLocalId } },
+      status: 'blocked',
+      retryCount: 8,
+      lastError: 'Pending operation contains invalid data',
+      createdAt: new Date().toISOString(),
+    });
+
+    await db.operations.put({
+      operationId: 'op_act_stuck',
+      clientOperationId: 'client_op_act_stuck',
+      userId,
+      operationType: 'create_activity',
+      payload: { memberId: 0, data: { activityType: 'artisan', isPrimary: true, localId: actLocalId } },
+      status: 'blocked',
+      retryCount: 8,
+      lastError: 'ID membre invalide',
+      createdAt: new Date().toISOString(),
+    });
+
+    await db.operations.put({
+      operationId: 'op_line_stuck',
+      clientOperationId: 'client_op_line_stuck',
+      userId,
+      operationType: 'create_line_item',
+      payload: { memberId: 0, activityId: 0, data: { artisanatProducts: 'Sacs', productionQuantity: 10000, productionUnit: 'bag', productionFcfa: 3500000, localId: lineLocalId } },
+      status: 'blocked',
+      retryCount: 8,
+      lastError: 'ID membre invalide',
+      createdAt: new Date().toISOString(),
+    });
+
+    // Mock successful server calls
+    (customFetch as any)
+      .mockResolvedValueOnce({ id: 801, memberNumber: 'CAPEF-ART-00801' }) // create_member
+      .mockResolvedValueOnce({ id: 901, activityType: 'artisan' }) // create_activity
+      .mockResolvedValueOnce({ id: 1001, productionQuantity: 10000, productionFcfa: 3500000 }); // create_line_item
+
+    // 3. Trigger repair and sync
+    const res = await syncEngine.syncNow(userId);
+
+    expect(res.successCount).toBe(3);
+
+    // Verify member updated with serverId
+    const memberAfter = await memberRepository.getMemberById(memberLocalId, userId);
+    expect(memberAfter?.serverId).toBe(801);
+    expect(memberAfter?.syncStatus).toBe('synced');
+
+    // Verify all queue items removed
+    const remainingOps = await offlineRepository.getPending(userId);
+    expect(remainingOps.length).toBe(0);
+  });
 });

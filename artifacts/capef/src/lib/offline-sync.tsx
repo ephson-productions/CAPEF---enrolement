@@ -60,7 +60,22 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
 
   const enqueueActivityAction = useCallback(async (action: any) => {
     const type = action.type;
-    await offlineRepository.enqueue(type, action, effectiveUserId);
+    const memberRef = action.memberRef || action.data?.memberRef || action._local?.memberLocalId;
+    const activityRef = action.activityRef || action.data?.activityRef || action._local?.activityLocalId;
+
+    const enrichedPayload = {
+      ...action,
+      memberRef,
+      activityRef,
+      _local: {
+        ...(action._local || {}),
+        memberLocalId: memberRef,
+        activityLocalId: activityRef,
+        localId: action._local?.localId || action.localId || action.data?.localId,
+      },
+    };
+
+    await offlineRepository.enqueue(type, enrichedPayload, effectiveUserId);
     await updateQueueCount();
     toast({
       title: t('offline.toast.action_saved_title', 'Action enregistrée hors ligne'),

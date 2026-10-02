@@ -23,6 +23,83 @@ export class SyncEngine {
   }
 
   /**
+   * Automatically repair missing localId/memberRef/activityRef dependencies and
+   * normalize payloads for stuck/blocked operations in the Dexie queue.
+   */
+  async repairAndResetStuckOperations(userId?: string | null): Promise<void> {
+    try {
+      const ops = await db.operations.toArray();
+      for (const op of ops) {
+        if (!op.id) continue;
+        if (userId && op.userId !== userId) continue;
+        let modified = false;
+        const payload = { ...(op.payload || {}) };
+
+        if (op.operationType === 'create_member') {
+          if (payload.category && typeof payload.category === 'string') {
+            const lowerCat = payload.category.toLowerCase().trim();
+            if (lowerCat !== payload.category) {
+              payload.category = lowerCat;
+              modified = true;
+            }
+          }
+          if (payload.memberType && typeof payload.memberType === 'string') {
+            const lowerType = payload.memberType.toLowerCase().trim();
+            if (lowerType !== payload.memberType) {
+              payload.memberType = lowerType;
+              modified = true;
+            }
+          }
+        } else if (op.operationType === 'create_activity') {
+          if (!payload.memberRef && !payload._local?.memberLocalId) {
+            const localAct = op.payload.data?.localId
+              ? await db.activities.where('localId').equals(op.payload.data.localId).first()
+              : null;
+            const memberLocalId = localAct?.memberLocalId || (await db.members.toCollection().first())?.localId;
+            if (memberLocalId) {
+              payload.memberRef = memberLocalId;
+              payload._local = { ...(payload._local || {}), memberLocalId };
+              modified = true;
+            }
+          }
+        } else if (op.operationType === 'create_line_item') {
+          if (!payload.memberRef || !payload.activityRef || !payload._local?.memberLocalId) {
+            const localLine = op.payload.data?.localId
+              ? await db.lineItems.where('localId').equals(op.payload.data.localId).first()
+              : null;
+            const localAct = localLine?.activityLocalId
+              ? await db.activities.where('localId').equals(localLine.activityLocalId).first()
+              : null;
+            const memberLocalId = localAct?.memberLocalId || (await db.members.toCollection().first())?.localId;
+            const activityLocalId = localAct?.localId;
+
+            if (memberLocalId) payload.memberRef = memberLocalId;
+            if (activityLocalId) payload.activityRef = activityLocalId;
+            payload._local = {
+              ...(payload._local || {}),
+              memberLocalId: memberLocalId || payload._local?.memberLocalId,
+              activityLocalId: activityLocalId || payload._local?.activityLocalId,
+            };
+            modified = true;
+          }
+        }
+
+        const isStuck = op.status === 'blocked' || op.status === 'failed' || op.status === 'waiting' || op.retryCount > 0;
+        if (isStuck || modified) {
+          await db.operations.update(op.id, {
+            payload,
+            status: 'pending',
+            retryCount: 0,
+            lastError: null,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[SyncEngine] Error repairing stuck operations:', err);
+    }
+  }
+
+  /**
    * Verify online connectivity using a fast 3-second timeout healthz ping
    */
   async checkOnlineHealth(): Promise<boolean> {
@@ -71,6 +148,8 @@ export class SyncEngine {
     if (!isHealthy) {
       return { successCount: 0, hasError: true };
     }
+
+    await this.repairAndResetStuckOperations(userId);
 
     const pendingItems = await offlineRepository.getPending(userId);
     if (pendingItems.length === 0) {
@@ -121,7 +200,10 @@ export class SyncEngine {
           });
         } else if (item.operationType === 'create_activity') {
           const { memberRef, memberId, data } = item.payload;
-          const ref = memberRef || memberId || item.payload._local?.memberLocalId;
+          const ref = memberRef || item.payload._local?.memberLocalId || (memberId && memberId > 0 ? memberId : null);
+          if (!ref) {
+            throw new UnresolvedDependencyError('member', 'missing_member_ref');
+          }
           const resolvedMemberId = await idReconciliationService.resolveRef('member', ref);
 
           const cleanData = { ...data };
@@ -137,8 +219,15 @@ export class SyncEngine {
           });
         } else if (item.operationType === 'create_line_item') {
           const { memberRef, memberId, activityRef, activityId, data } = item.payload;
-          const mRef = memberRef || memberId || item.payload._local?.memberLocalId;
-          const aRef = activityRef || activityId || item.payload._local?.activityLocalId;
+          const mRef = memberRef || item.payload._local?.memberLocalId || (memberId && memberId > 0 ? memberId : null);
+          const aRef = activityRef || item.payload._local?.activityLocalId || (activityId && activityId > 0 ? activityId : null);
+
+          if (!mRef) {
+            throw new UnresolvedDependencyError('member', 'missing_member_ref');
+          }
+          if (!aRef) {
+            throw new UnresolvedDependencyError('activity', 'missing_activity_ref');
+          }
 
           const resolvedMemberId = await idReconciliationService.resolveRef('member', mRef);
           const resolvedActivityId = await idReconciliationService.resolveRef('activity', aRef);
@@ -206,6 +295,9 @@ export class SyncEngine {
           item.payload,
           serverResponse
         );
+
+        // Unblock child operations waiting for parent creation
+        await db.operations.where('status').equals('waiting').modify({ status: 'pending' });
 
         successCount++;
         if (onProgress) onProgress(successCount);
