@@ -3,6 +3,7 @@ import { useRoute, useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { memberRepository, type LocalMemberWithDetails } from '@/lib/repositories/MemberRepository';
 import { useOfflineQueue } from '@/lib/offline-sync';
+import { useGetMember } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import MemberForm, { type MemberFormValues } from './MemberForm';
 import { Button } from '@/components/ui/button';
@@ -15,20 +16,30 @@ export default function MemberEdit() {
   const idOrLocalId = params?.id || '';
 
   const { toast } = useToast();
-  const { effectiveUserId, enqueueUpdateMember } = useOfflineQueue();
+  const { effectiveUserId, isOnline, enqueueUpdateMember } = useOfflineQueue();
+
+  const isNumericServerId = !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0;
+  const numericId = isNumericServerId ? Number(idOrLocalId) : 0;
+
+  const { data: serverMember } = useGetMember(numericId, {
+    query: { enabled: isOnline && isNumericServerId, queryKey: ['member', numericId] }
+  });
 
   const [localMember, setLocalMember] = useState<LocalMemberWithDetails | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const loadLocalMember = async () => {
-    setLoading(true);
     try {
       const data = await memberRepository.getMemberById(idOrLocalId, effectiveUserId);
-      setLocalMember(data);
+      if (data) {
+        setLocalMember(data);
+        setLoading(false);
+      } else if (!isOnline || !isNumericServerId) {
+        setLoading(false);
+      }
     } catch (err) {
       console.error('[MemberEdit] Error loading member:', err);
-    } finally {
       setLoading(false);
     }
   };
@@ -36,6 +47,14 @@ export default function MemberEdit() {
   useEffect(() => {
     loadLocalMember();
   }, [idOrLocalId, effectiveUserId]);
+
+  useEffect(() => {
+    if (serverMember && isOnline) {
+      memberRepository.upsertServerMembers(effectiveUserId, [serverMember]).then(() => {
+        loadLocalMember().finally(() => setLoading(false));
+      });
+    }
+  }, [serverMember, isOnline]);
 
   const handleSubmit = async (formValues: MemberFormValues) => {
     if (!localMember) return;

@@ -50,18 +50,21 @@ export default function MemberDetail() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Network query fallback
-  const { data: serverMember, refetch: refetchServerMember } = useGetMember(numericId, {
+  const { data: serverMember, isFetching: isServerLoading, refetch: refetchServerMember } = useGetMember(numericId, {
     query: { enabled: isOnline && isNumericServerId, queryKey: ['member', numericId] }
   });
 
   const loadLocalMember = async () => {
-    setLoading(true);
     try {
       const data = await memberRepository.getMemberById(idOrLocalId, effectiveUserId);
-      setLocalMember(data);
+      if (data) {
+        setLocalMember(data);
+        setLoading(false);
+      } else if (!isOnline || !isNumericServerId) {
+        setLoading(false);
+      }
     } catch (err) {
       console.error('[MemberDetail] Error loading local member:', err);
-    } finally {
       setLoading(false);
     }
   };
@@ -73,10 +76,12 @@ export default function MemberDetail() {
   useEffect(() => {
     if (serverMember && isOnline) {
       memberRepository.upsertServerMembers(effectiveUserId, [serverMember]).then(() => {
-        loadLocalMember();
+        loadLocalMember().finally(() => setLoading(false));
       });
+    } else if (!isServerLoading && !localMember && (!isOnline || !isNumericServerId)) {
+      setLoading(false);
     }
-  }, [serverMember, isOnline]);
+  }, [serverMember, isOnline, isServerLoading]);
 
   // Reference tables for resolving raw location IDs for representatives
   const isPhysiqueMember = localMember?.memberType === 'physique';

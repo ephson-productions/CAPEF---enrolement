@@ -118,7 +118,11 @@ export class MemberRepository {
       member = await db.members.where('localId').equals(idOrLocalId).first();
     }
 
-    if (!member || member.userId !== userId || member.deletedLocally) {
+    if (!member || member.deletedLocally) {
+      return null;
+    }
+
+    if (member.userId !== userId && !member.serverId) {
       return null;
     }
 
