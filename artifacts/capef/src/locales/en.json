@@ -458,6 +458,79 @@
         "cultures_sucrieres": "Sugar crops",
         "autres": "Other"
       },
+      "crops_cereales": {
+        "mais": "Maize",
+        "riz": "Rice",
+        "sorgho": "Sorghum",
+        "millet": "Millet",
+        "fonio": "Fonio",
+        "ble": "Wheat",
+        "autre": "Other (specify)"
+      },
+      "crops_oleagineux": {
+        "palmier_huile": "Oil palm",
+        "sesame": "Sesame",
+        "soja": "Soybean",
+        "arachide": "Groundnut",
+        "coton": "Cotton (seed)",
+        "tournesol": "Sunflower",
+        "autre": "Other (specify)"
+      },
+      "crops_racines_tubercules": {
+        "manioc": "Cassava",
+        "macabo_taro": "Cocoyam / Taro",
+        "igname": "Yam",
+        "patate_douce": "Sweet potato",
+        "pomme_de_terre": "Irish potato",
+        "autre": "Other (specify)"
+      },
+      "crops_legumes": {
+        "tomate": "Tomato",
+        "oignon": "Onion",
+        "gombo": "Okra",
+        "piment": "Chili pepper",
+        "poivron": "Sweet pepper",
+        "carotte": "Carrot",
+        "chou": "Cabbage",
+        "ndole": "Bitterleaf (Ndole)",
+        "autre": "Other (specify)"
+      },
+      "crops_fruits_noix": {
+        "bananier_plantain": "Plantain banana",
+        "bananier_doux": "Sweet banana",
+        "ananas": "Pineapple",
+        "mangue": "Mango",
+        "papaye": "Papaya",
+        "agrumes": "Citrus (Orange, Lemon)",
+        "avocat": "Avocado",
+        "noix_cajou": "Cashew nut",
+        "autre": "Other (specify)"
+      },
+      "crops_plantes_stimulantes": {
+        "cacao": "Cocoa",
+        "cafe_robusta": "Robusta coffee",
+        "cafe_arabica": "Arabica coffee",
+        "the": "Tea",
+        "autre": "Other (specify)"
+      },
+      "crops_legumineuses": {
+        "haricot": "Common bean",
+        "niebe": "Cowpea",
+        "voandzou": "Bambara groundnut (Voandzou)",
+        "pois_chiche": "Chickpea",
+        "autre": "Other (specify)"
+      },
+      "crops_cultures_sucrieres": {
+        "canne_a_sucre": "Sugarcane",
+        "stevia": "Stevia",
+        "autre": "Other (specify)"
+      },
+      "crops_autres": {
+        "hevea": "Rubber tree",
+        "plantes_medicinales": "Medicinal plants",
+        "fleurs_horticulture": "Flowers / Horticulture",
+        "autre": "Other (specify)"
+      },
       "culture_type": {
         "pure": "Pure (sole crop)",
         "associee": "Intercropped"

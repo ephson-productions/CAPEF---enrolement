@@ -27,7 +27,8 @@ export function SyncDashboardModal({ isOpen, onClose }: { isOpen: boolean; onClo
   const { t } = useTranslation();
   const { isOnline, queueCount, syncNow, isSyncing } = useOfflineQueue();
   const { user } = useAuthContext();
-  const userId = user?.clerkUserId || 'anonymous_user';
+  const lastKnownUserId = typeof localStorage !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') : null;
+  const userId = user?.clerkUserId || lastKnownUserId || '';
 
   const [pendingCount, setPendingCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);

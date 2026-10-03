@@ -13,6 +13,28 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type OccConflictResponseCurrentMember = { [key: string]: unknown };
+
+export interface OccConflictResponse {
+  error: string;
+  message: string;
+  serverVersion: number;
+  currentMember?: OccConflictResponseCurrentMember;
+}
+
+export type IdempotencyErrorResponseCode = typeof IdempotencyErrorResponseCode[keyof typeof IdempotencyErrorResponseCode];
+
+
+export const IdempotencyErrorResponseCode = {
+  REUSED_OPERATION_ID: 'REUSED_OPERATION_ID',
+} as const;
+
+export interface IdempotencyErrorResponse {
+  error: string;
+  code: IdempotencyErrorResponseCode;
+  message: string;
+}
+
 export interface ZoneAssignment {
   regionId: number;
   /** @nullable */
@@ -384,6 +406,8 @@ export type ActivityLineItemProductsItem = {
 
 export interface ActivityLineItem {
   id: number;
+  /** Optimistic Concurrency Control (OCC) version counter */
+  version: number;
   activityId: number;
   /** @nullable */
   parcelleGroupId?: string | null;
@@ -430,6 +454,8 @@ export interface ActivityLineItem {
 
 export interface MemberActivity {
   id: number;
+  /** Optimistic Concurrency Control (OCC) version counter */
+  version: number;
   memberId: number;
   activityType: MemberActivityActivityType;
   isPrimary: boolean;
@@ -458,6 +484,8 @@ export const MemberActivityInputActivityType = {
 } as const;
 
 export interface MemberActivityInput {
+  /** Expected current version for Optimistic Concurrency Control (OCC) check */
+  version?: number;
   activityType: MemberActivityInputActivityType;
   isPrimary?: boolean;
   /** @nullable */
@@ -479,6 +507,8 @@ export type ActivityLineItemInputProductsItem = {
 };
 
 export interface ActivityLineItemInput {
+  /** Expected current version for Optimistic Concurrency Control (OCC) check */
+  version?: number;
   /** @nullable */
   parcelleGroupId?: string | null;
   /** @nullable */
@@ -816,6 +846,11 @@ export interface UploadResult {
   url: string;
   fileName: string;
 }
+
+/**
+ * Client-generated unique UUID for backend request idempotency and deduplication
+ */
+export type XClientOperationIDParameter = string;
 
 export type ListUsersParams = {
 role?: ListUsersRole;

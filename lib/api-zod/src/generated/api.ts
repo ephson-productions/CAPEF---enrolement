@@ -331,6 +331,10 @@ export const ListMembersResponse = zod.object({
 /**
  * @summary Enroll a new member
  */
+export const CreateMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const createMemberBodyMoraleDataOneNombreMembresMin = 0;
 
 export const createMemberBodyMoraleDataOneNombreFemmesMin = 0;
@@ -408,7 +412,8 @@ export const createMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const createMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const createMemberResponseActivitiesItemVersionDefault = 1;
+export const createMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const CreateMemberResponse = zod.object({
   "id": zod.number(),
@@ -489,6 +494,7 @@ export const CreateMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(createMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -500,6 +506,7 @@ export const CreateMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(createMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -558,7 +565,8 @@ export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreMembresMin = 
 
 export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const getPublicMemberByBadgeTokenResponseActivitiesItemVersionDefault = 1;
+export const getPublicMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const GetPublicMemberByBadgeTokenResponse = zod.object({
   "id": zod.number(),
@@ -639,6 +647,7 @@ export const GetPublicMemberByBadgeTokenResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(getPublicMemberByBadgeTokenResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -650,6 +659,7 @@ export const GetPublicMemberByBadgeTokenResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(getPublicMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -694,7 +704,8 @@ export const getMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const getMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const getMemberResponseActivitiesItemVersionDefault = 1;
+export const getMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const GetMemberResponse = zod.object({
   "id": zod.number(),
@@ -775,6 +786,7 @@ export const GetMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(getMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -786,6 +798,7 @@ export const GetMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(getMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -823,6 +836,10 @@ export const GetMemberResponse = zod.object({
  */
 export const UpdateMemberParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const UpdateMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
 })
 
 export const updateMemberBodyMoraleDataOneNombreMembresMin = 0;
@@ -903,7 +920,8 @@ export const updateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const updateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const updateMemberResponseActivitiesItemVersionDefault = 1;
+export const updateMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const UpdateMemberResponse = zod.object({
   "id": zod.number(),
@@ -984,6 +1002,7 @@ export const UpdateMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(updateMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -995,6 +1014,7 @@ export const UpdateMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(updateMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1032,6 +1052,10 @@ export const UpdateMemberResponse = zod.object({
  */
 export const DeleteMemberParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const DeleteMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
 })
 
 export const DeleteMemberResponse = zod.void()
@@ -1141,8 +1165,12 @@ export const ListMemberActivitiesParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const listMemberActivitiesResponseVersionDefault = 1;
+export const listMemberActivitiesResponseLineItemsItemVersionDefault = 1;
+
 export const ListMemberActivitiesResponseItem = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(listMemberActivitiesResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1154,6 +1182,7 @@ export const ListMemberActivitiesResponseItem = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(listMemberActivitiesResponseLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1193,7 +1222,12 @@ export const CreateMemberActivityParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const CreateMemberActivityHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const CreateMemberActivityBody = zod.object({
+  "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean().optional(),
   "regionId": zod.number().nullish(),
@@ -1203,8 +1237,12 @@ export const CreateMemberActivityBody = zod.object({
   "maillons": zod.array(zod.string()).optional()
 })
 
+export const createMemberActivityResponseVersionDefault = 1;
+export const createMemberActivityResponseLineItemsItemVersionDefault = 1;
+
 export const CreateMemberActivityResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(createMemberActivityResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1216,6 +1254,7 @@ export const CreateMemberActivityResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(createMemberActivityResponseLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1255,7 +1294,12 @@ export const UpdateMemberActivityParams = zod.object({
   "activityId": zod.coerce.number()
 })
 
+export const UpdateMemberActivityHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const UpdateMemberActivityBody = zod.object({
+  "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean().optional(),
   "regionId": zod.number().nullish(),
@@ -1265,8 +1309,12 @@ export const UpdateMemberActivityBody = zod.object({
   "maillons": zod.array(zod.string()).optional()
 })
 
+export const updateMemberActivityResponseVersionDefault = 1;
+export const updateMemberActivityResponseLineItemsItemVersionDefault = 1;
+
 export const UpdateMemberActivityResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(updateMemberActivityResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1278,6 +1326,7 @@ export const UpdateMemberActivityResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(updateMemberActivityResponseLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1317,6 +1366,10 @@ export const DeleteMemberActivityParams = zod.object({
   "activityId": zod.coerce.number()
 })
 
+export const DeleteMemberActivityHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const DeleteMemberActivityResponse = zod.void()
 
 
@@ -1328,7 +1381,12 @@ export const CreateActivityLineItemParams = zod.object({
   "activityId": zod.coerce.number()
 })
 
+export const CreateActivityLineItemHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const CreateActivityLineItemBody = zod.object({
+  "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
   "cropName": zod.string().nullish(),
@@ -1356,8 +1414,11 @@ export const CreateActivityLineItemBody = zod.object({
   "rawMaterials": zod.string().nullish()
 })
 
+export const createActivityLineItemResponseVersionDefault = 1;
+
 export const CreateActivityLineItemResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(createActivityLineItemResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1397,7 +1458,12 @@ export const UpdateActivityLineItemParams = zod.object({
   "itemId": zod.coerce.number()
 })
 
+export const UpdateActivityLineItemHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const UpdateActivityLineItemBody = zod.object({
+  "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
   "cropName": zod.string().nullish(),
@@ -1425,8 +1491,11 @@ export const UpdateActivityLineItemBody = zod.object({
   "rawMaterials": zod.string().nullish()
 })
 
+export const updateActivityLineItemResponseVersionDefault = 1;
+
 export const UpdateActivityLineItemResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().default(updateActivityLineItemResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1466,6 +1535,10 @@ export const DeleteActivityLineItemParams = zod.object({
   "itemId": zod.coerce.number()
 })
 
+export const DeleteActivityLineItemHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const DeleteActivityLineItemResponse = zod.void()
 
 
@@ -1476,12 +1549,17 @@ export const ValidateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const ValidateMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const validateMemberResponseVersionDefault = 1;
 export const validateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const validateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const validateMemberResponseActivitiesItemVersionDefault = 1;
+export const validateMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const ValidateMemberResponse = zod.object({
   "id": zod.number(),
@@ -1562,6 +1640,7 @@ export const ValidateMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(validateMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1573,6 +1652,7 @@ export const ValidateMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(validateMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1612,12 +1692,17 @@ export const DeactivateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const DeactivateMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const deactivateMemberResponseVersionDefault = 1;
 export const deactivateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const deactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const deactivateMemberResponseActivitiesItemVersionDefault = 1;
+export const deactivateMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const DeactivateMemberResponse = zod.object({
   "id": zod.number(),
@@ -1698,6 +1783,7 @@ export const DeactivateMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(deactivateMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1709,6 +1795,7 @@ export const DeactivateMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(deactivateMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1748,12 +1835,17 @@ export const ReactivateMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const ReactivateMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const reactivateMemberResponseVersionDefault = 1;
 export const reactivateMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const reactivateMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const reactivateMemberResponseActivitiesItemVersionDefault = 1;
+export const reactivateMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const ReactivateMemberResponse = zod.object({
   "id": zod.number(),
@@ -1834,6 +1926,7 @@ export const ReactivateMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(reactivateMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1845,6 +1938,7 @@ export const ReactivateMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(reactivateMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),
@@ -1884,12 +1978,17 @@ export const BlockMemberParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const BlockMemberHeader = zod.object({
+  "X-Client-Operation-ID": zod.string().optional().describe('Client-generated unique UUID for backend request idempotency and deduplication')
+})
+
 export const blockMemberResponseVersionDefault = 1;
 export const blockMemberResponseMoraleDataOneNombreMembresMin = 0;
 
 export const blockMemberResponseMoraleDataOneNombreFemmesMin = 0;
 
-
+export const blockMemberResponseActivitiesItemVersionDefault = 1;
+export const blockMemberResponseActivitiesItemLineItemsItemVersionDefault = 1;
 
 export const BlockMemberResponse = zod.object({
   "id": zod.number(),
@@ -1970,6 +2069,7 @@ export const BlockMemberResponse = zod.object({
   "updatedAt": zod.string().optional(),
   "activities": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(blockMemberResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberId": zod.number(),
   "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
   "isPrimary": zod.boolean(),
@@ -1981,6 +2081,7 @@ export const BlockMemberResponse = zod.object({
   "createdAt": zod.string().optional(),
   "lineItems": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().default(blockMemberResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "activityId": zod.number(),
   "parcelleGroupId": zod.string().nullish(),
   "cropCategory": zod.string().nullish(),

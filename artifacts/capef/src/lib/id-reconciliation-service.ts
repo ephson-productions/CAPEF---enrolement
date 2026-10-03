@@ -77,20 +77,22 @@ export class IdReconciliationService {
 
       // 1. Save mappings
       if (operationType === 'create_member' && serverResponse) {
-        if (payload._local?.localId && serverResponse.id) {
+        const memberLocalId = payload._local?.localId || payload.localId;
+        if (memberLocalId && serverResponse.id) {
           await db.entityMappings.put({
-            localId: payload._local.localId,
+            localId: memberLocalId,
             entityType: 'member',
             serverId: serverResponse.id,
             syncStatus: 'synced',
             createdAt: now,
           });
         }
-        if (payload._local?.primaryActivityLocalId && Array.isArray(serverResponse.activities)) {
+        const primActId = payload._local?.primaryActivityLocalId || payload.primaryActivityLocalId;
+        if (primActId && Array.isArray(serverResponse.activities)) {
           const primaryAct = serverResponse.activities.find((a: any) => a.isPrimary);
           if (primaryAct && primaryAct.id) {
             await db.entityMappings.put({
-              localId: payload._local.primaryActivityLocalId,
+              localId: primActId,
               entityType: 'activity',
               serverId: primaryAct.id,
               syncStatus: 'synced',
@@ -99,9 +101,10 @@ export class IdReconciliationService {
           }
         }
       } else if (operationType === 'create_activity' && serverResponse?.id) {
-        if (payload._local?.localId) {
+        const actLocalId = payload._local?.localId || payload.data?.localId || payload.localId;
+        if (actLocalId) {
           await db.entityMappings.put({
-            localId: payload._local.localId,
+            localId: actLocalId,
             entityType: 'activity',
             serverId: serverResponse.id,
             syncStatus: 'synced',
@@ -109,9 +112,10 @@ export class IdReconciliationService {
           });
         }
       } else if (operationType === 'create_line_item' && serverResponse?.id) {
-        if (payload._local?.localId) {
+        const lineLocalId = payload._local?.localId || payload.data?.localId || payload.localId;
+        if (lineLocalId) {
           await db.entityMappings.put({
-            localId: payload._local.localId,
+            localId: lineLocalId,
             entityType: 'line_item',
             serverId: serverResponse.id,
             syncStatus: 'synced',

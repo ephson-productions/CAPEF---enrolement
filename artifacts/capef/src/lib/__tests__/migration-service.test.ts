@@ -91,10 +91,10 @@ describe('Phase 12 — Migration Service & Schema Versioning Tests', () => {
   });
 
   it('validates schema compatibility check against app version', () => {
-    const valid = migrationService.checkSchemaCompatibility('1.0.0', 2);
+    const valid = migrationService.checkSchemaCompatibility('1.0.0', 3);
     expect(valid.isCompatible).toBe(true);
 
-    const incompatible = migrationService.checkSchemaCompatibility('1.0.0', 3);
+    const incompatible = migrationService.checkSchemaCompatibility('1.0.0', 4);
     expect(incompatible.isCompatible).toBe(false);
     expect(incompatible.message).toContain('supérieure');
   });

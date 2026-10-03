@@ -8,6 +8,8 @@
 import type { MemberActivityInputActivityType } from './memberActivityInputActivityType';
 
 export interface MemberActivityInput {
+  /** Expected current version for Optimistic Concurrency Control (OCC) check */
+  version?: number;
   activityType: MemberActivityInputActivityType;
   isPrimary?: boolean;
   /** @nullable */
