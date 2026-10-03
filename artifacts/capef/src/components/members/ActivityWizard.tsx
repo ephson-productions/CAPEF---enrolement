@@ -253,6 +253,38 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       return false;
     }
 
+    // Duplicate crop/product check on local line items for current activity
+    const existingItems = activeActivity?.lineItems || [];
+    const isDuplicate = existingItems.some((item: any) => {
+      if (selectedType === 'agriculteur') {
+        return item.cropName?.toLowerCase().trim() === payload.cropName?.toLowerCase().trim() &&
+          item.cropCategory === payload.cropCategory;
+      }
+      if (selectedType === 'pecheur') {
+        return item.speciesPêche?.toLowerCase().trim() === payload.speciesPêche?.toLowerCase().trim();
+      }
+      if (selectedType === 'eleveur') {
+        return item.species?.toLowerCase().trim() === payload.species?.toLowerCase().trim();
+      }
+      if (selectedType === 'forestier') {
+        return item.essence?.toLowerCase().trim() === payload.essence?.toLowerCase().trim() &&
+          item.subCategory === payload.subCategory;
+      }
+      if (selectedType === 'artisan') {
+        return item.artisanatProducts?.toLowerCase().trim() === payload.artisanatProducts?.toLowerCase().trim();
+      }
+      return false;
+    });
+
+    if (isDuplicate) {
+      toast({
+        variant: 'destructive',
+        title: t('common.error', 'Doublon détecté'),
+        description: t('activities.toast.duplicate_item', 'Cette culture ou ce produit existe déjà pour cette activité.'),
+      });
+      return false;
+    }
+
     const now = new Date().toISOString();
     const actLocalId = activeActivity?.localId || crypto.randomUUID();
     const liLocalId = crypto.randomUUID();
@@ -291,6 +323,15 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       syncStatus: 'pending',
     };
     await db.lineItems.put(localLineRecord);
+
+    // Update local member status from incomplet -> en_attente upon first line item creation
+    if (member?.status === 'incomplet') {
+      await memberRepository.updateLocalMember(stringMemberLocalId, effectiveUserId, {
+        status: 'en_attente',
+        syncStatus: 'pending',
+      });
+    }
+
     await loadLocalActivities();
 
     // 2. Enqueue offline mutation action or send to server

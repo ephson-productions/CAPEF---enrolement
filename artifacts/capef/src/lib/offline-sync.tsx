@@ -14,10 +14,13 @@ type OfflineQueueContextType = {
   syncNow: () => Promise<void>;
   isSyncing: boolean;
   enqueueActivityAction: (action: {
-    type: 'create_activity' | 'create_line_item' | 'delete_line_item';
+    type: 'create_activity' | 'update_activity' | 'delete_activity' | 'create_line_item' | 'update_line_item' | 'delete_line_item';
     memberId: number;
     activityId?: number;
     itemId?: number;
+    memberRef?: string;
+    activityRef?: string;
+    itemRef?: string;
     data?: any;
   }) => void;
 };

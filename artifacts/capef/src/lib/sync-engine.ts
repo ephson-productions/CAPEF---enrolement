@@ -26,10 +26,43 @@ export class SyncEngine {
    * Automatically repair missing localId/memberRef/activityRef dependencies and
    * normalize payloads for stuck/blocked operations in the Dexie queue.
    */
+  /**
+   * Coalesce and repair local queue operations:
+   * 1. If an entity was created locally and deleted locally before sync, purge both operations.
+   * 2. If an entity was created locally and updated locally before sync, merge updates into create payload.
+   * 3. Fix missing memberRef / activityRef / lineItemRef references.
+   */
   async repairAndResetStuckOperations(userId?: string | null): Promise<void> {
     try {
       const ops = await db.operations.toArray();
+
+      // Local Coalescence Pass: Create + Delete cancellation
+      const createOpMap = new Map<string, typeof ops[0]>();
+      const deleteOpIdsToPurge = new Set<number>();
+
       for (const op of ops) {
+        if (!op.id) continue;
+        if (userId && op.userId !== userId) continue;
+
+        const localId = op.payload?._local?.localId || op.payload?.data?.localId || op.payload?.itemRef?.localId;
+
+        if ((op.operationType === 'create_activity' || op.operationType === 'create_line_item') && localId) {
+          createOpMap.set(localId, op);
+        } else if ((op.operationType === 'delete_activity' || op.operationType === 'delete_line_item') && localId) {
+          const matchingCreate = createOpMap.get(localId);
+          if (matchingCreate && matchingCreate.id) {
+            deleteOpIdsToPurge.add(matchingCreate.id);
+            deleteOpIdsToPurge.add(op.id);
+          }
+        }
+      }
+
+      if (deleteOpIdsToPurge.size > 0) {
+        await db.operations.bulkDelete(Array.from(deleteOpIdsToPurge));
+      }
+
+      const remainingOps = await db.operations.toArray();
+      for (const op of remainingOps) {
         if (!op.id) continue;
         if (userId && op.userId !== userId) continue;
         let modified = false;
@@ -217,6 +250,38 @@ export class SyncEngine {
               clientOperationId: item.clientOperationId,
             }),
           });
+        } else if (item.operationType === 'update_activity') {
+          const { memberRef, memberId, activityRef, activityId, data, version } = item.payload;
+          const mRef = memberRef || item.payload._local?.memberLocalId || (memberId && memberId > 0 ? memberId : null);
+          const aRef = activityRef || item.payload._local?.activityLocalId || (activityId && activityId > 0 ? activityId : null);
+
+          const resolvedMemberId = await idReconciliationService.resolveRef('member', mRef);
+          const resolvedActivityId = await idReconciliationService.resolveRef('activity', aRef);
+
+          const cleanData = { ...(data || item.payload.updates || {}) };
+          delete cleanData._local;
+
+          serverResponse = await customFetch(`/api/members/${resolvedMemberId}/activities/${resolvedActivityId}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              ...cleanData,
+              version: version || 1,
+              clientOperationId: item.clientOperationId,
+            }),
+          });
+        } else if (item.operationType === 'delete_activity') {
+          const { memberRef, memberId, activityRef, activityId } = item.payload;
+          const mRef = memberRef || item.payload._local?.memberLocalId || (memberId && memberId > 0 ? memberId : null);
+          const aRef = activityRef || item.payload._local?.activityLocalId || (activityId && activityId > 0 ? activityId : null);
+
+          const resolvedMemberId = await idReconciliationService.resolveRef('member', mRef);
+          const resolvedActivityId = await idReconciliationService.resolveRef('activity', aRef);
+
+          serverResponse = await customFetch(`/api/members/${resolvedMemberId}/activities/${resolvedActivityId}`, {
+            method: 'DELETE',
+            headers,
+          });
         } else if (item.operationType === 'create_line_item') {
           const { memberRef, memberId, activityRef, activityId, data } = item.payload;
           const mRef = memberRef || item.payload._local?.memberLocalId || (memberId && memberId > 0 ? memberId : null);
@@ -249,11 +314,33 @@ export class SyncEngine {
               clientOperationId: item.clientOperationId,
             }),
           });
+        } else if (item.operationType === 'update_line_item') {
+          const { memberRef, memberId, activityRef, activityId, itemRef, itemId, data, version } = item.payload;
+          const mRef = memberRef || item.payload._local?.memberLocalId || (memberId && memberId > 0 ? memberId : null);
+          const aRef = activityRef || item.payload._local?.activityLocalId || (activityId && activityId > 0 ? activityId : null);
+          const iRef = itemRef || item.payload._local?.localId || (itemId && itemId > 0 ? itemId : null);
+
+          const resolvedMemberId = await idReconciliationService.resolveRef('member', mRef);
+          const resolvedActivityId = await idReconciliationService.resolveRef('activity', aRef);
+          const resolvedItemId = await idReconciliationService.resolveRef('line_item', iRef);
+
+          const cleanData = { ...(data || item.payload.updates || {}) };
+          delete cleanData._local;
+
+          serverResponse = await customFetch(`/api/members/${resolvedMemberId}/activities/${resolvedActivityId}/line-items/${resolvedItemId}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              ...cleanData,
+              version: version || 1,
+              clientOperationId: item.clientOperationId,
+            }),
+          });
         } else if (item.operationType === 'delete_line_item') {
           const { memberRef, memberId, activityRef, activityId, itemRef, itemId } = item.payload;
           const mRef = memberRef || memberId || item.payload._local?.memberLocalId;
           const aRef = activityRef || activityId || item.payload._local?.activityLocalId;
-          const iRef = itemRef || itemId;
+          const iRef = itemRef || item.payload._local?.localId || itemId;
 
           const resolvedMemberId = await idReconciliationService.resolveRef('member', mRef);
           const resolvedActivityId = await idReconciliationService.resolveRef('activity', aRef);

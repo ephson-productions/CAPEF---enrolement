@@ -1,7 +1,7 @@
 import { syncRepository, type ISyncRepository } from './repositories/SyncRepository';
 import { migrationService } from './migration-service';
 
-export type OperationType = 'create_activity' | 'create_line_item' | 'delete_line_item' | 'create_member' | 'update_member';
+export type OperationType = 'create_member' | 'update_member' | 'create_activity' | 'update_activity' | 'delete_activity' | 'create_line_item' | 'update_line_item' | 'delete_line_item';
 export type QueueItemStatus = 'pending' | 'processing' | 'waiting' | 'retry' | 'blocked' | 'failed' | 'completed';
 
 export interface OfflineQueueItem<T = any> {
