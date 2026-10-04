@@ -86,9 +86,10 @@ export class MemberRepository {
       const nom = m.memberType === 'physique'
         ? `${m.physiqueData?.nom ?? ''} ${m.physiqueData?.prenom ?? ''}`.trim()
         : (m.moraleData?.nom ?? '');
+      const displayNameToUse = m.displayName || nom || m.memberNumber || m.localId;
       return {
         ...m,
-        displayName: nom || m.memberNumber || m.localId,
+        displayName: displayNameToUse,
         regionName: m.regionName || (m.regionId ? regMap.get(m.regionId) ?? null : null),
         departmentName: m.departmentName || (m.departmentId ? deptMap.get(m.departmentId) ?? null : null),
         arrondissementName: m.arrondissementName || (m.arrondissementId ? arrMap.get(m.arrondissementId) ?? null : null),
@@ -190,11 +191,18 @@ export class MemberRepository {
       if (arr) arrName = arr.name;
     }
 
+    const nom = memberData.displayName || (
+      memberData.memberType === 'physique'
+        ? `${memberData.physiqueData?.nom ?? ''} ${memberData.physiqueData?.prenom ?? ''}`.trim()
+        : (memberData.moraleData?.nom ?? '')
+    ) || null;
+
     const memberRecord: LocalMember = {
       localId,
       userId,
       serverId: memberData.serverId ?? null,
       memberNumber: memberData.memberNumber ?? `TMP-${localId.slice(0, 8).toUpperCase()}`,
+      displayName: nom,
       memberType: memberData.memberType || 'physique',
       category: memberData.category || 'agriculteur',
       individualOrOrg: memberData.individualOrOrg || 'individuel',
@@ -284,12 +292,19 @@ export class MemberRepository {
         const localId = existing?.localId || crypto.randomUUID();
         const now = new Date().toISOString();
 
+        const displayName = sm.displayName || (
+          sm.memberType === 'physique'
+            ? `${sm.physiqueData?.nom ?? ''} ${sm.physiqueData?.prenom ?? ''}`.trim()
+            : (sm.moraleData?.nom ?? '')
+        ) || existing?.displayName || null;
+
         const localMember: LocalMember = {
           id: existing?.id,
           localId,
           serverId: sm.id,
           userId,
           memberNumber: sm.memberNumber,
+          displayName,
           memberType: sm.memberType,
           category: sm.category,
           individualOrOrg: sm.individualOrOrg || existing?.individualOrOrg || 'individuel',

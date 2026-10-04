@@ -3,6 +3,7 @@ import { useRoute, useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { memberRepository, type LocalMemberWithDetails } from '@/lib/repositories/MemberRepository';
 import { useOfflineQueue } from '@/lib/offline-sync';
+import { useAuth } from '@clerk/react';
 import { useGetMember } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import MemberForm, { type MemberFormValues } from './MemberForm';
@@ -17,12 +18,13 @@ export default function MemberEdit() {
 
   const { toast } = useToast();
   const { effectiveUserId, isOnline, enqueueUpdateMember } = useOfflineQueue();
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
 
   const isNumericServerId = !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0;
   const numericId = isNumericServerId ? Number(idOrLocalId) : 0;
 
-  const { data: serverMember } = useGetMember(numericId, {
-    query: { enabled: isOnline && isNumericServerId, queryKey: ['member', numericId] }
+  const { data: serverMember, isFetching: isServerLoading, error: serverError } = useGetMember(numericId, {
+    query: { enabled: isOnline && isNumericServerId && isAuthLoaded && !!isSignedIn, queryKey: ['member', numericId], retry: 2 }
   });
 
   const [localMember, setLocalMember] = useState<LocalMemberWithDetails | null>(null);
@@ -109,7 +111,7 @@ export default function MemberEdit() {
     }
   };
 
-  if (loading) {
+  if (loading || (isOnline && isNumericServerId && !serverMember && !serverError && (isServerLoading || !isAuthLoaded))) {
     return (
       <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-2">
         <RefreshCw className="w-5 h-5 animate-spin" />

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
+import { useAuth } from '@clerk/react';
 import { useOfflineQueue } from '@/lib/offline-sync';
 import { memberRepository, type LocalMemberWithDetails } from '@/lib/repositories/MemberRepository';
 import ActivityWizard from '@/components/members/ActivityWizard';
@@ -41,6 +42,7 @@ export default function MemberDetail() {
 
   const { toast } = useToast();
   const { isAdmin } = useAuthContext();
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const { effectiveUserId, isOnline } = useOfflineQueue();
 
   const isNumericServerId = !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0;
@@ -50,8 +52,8 @@ export default function MemberDetail() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Network query fallback
-  const { data: serverMember, isFetching: isServerLoading, refetch: refetchServerMember } = useGetMember(numericId, {
-    query: { enabled: isOnline && isNumericServerId, queryKey: ['member', numericId] }
+  const { data: serverMember, isFetching: isServerLoading, error: serverError, refetch: refetchServerMember } = useGetMember(numericId, {
+    query: { enabled: isOnline && isNumericServerId && isAuthLoaded && !!isSignedIn, queryKey: ['member', numericId], retry: 2 }
   });
 
   const loadLocalMember = async () => {
@@ -178,7 +180,7 @@ export default function MemberDetail() {
     }
   };
 
-  if (loading) {
+  if (loading || (isOnline && isNumericServerId && !serverMember && !serverError && (isServerLoading || !isAuthLoaded))) {
     return (
       <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-2">
         <RefreshCw className="w-5 h-5 animate-spin" />

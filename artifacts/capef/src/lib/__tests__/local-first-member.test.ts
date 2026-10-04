@@ -233,4 +233,27 @@ describe('Phase P5 — Local-First Member & Repository Integration Tests', () =>
     expect(updatedRecord?.syncStatus).toBe('synced');
     expect(updatedRecord?.serverId).toBe(201);
   });
+
+  it('7. Upserting server member list summary preserves displayName even when physiqueData/moraleData is null', async () => {
+    const serverSummaryMembers = [
+      {
+        id: 14,
+        memberNumber: 'CAPEF-ELV-000014',
+        memberType: 'physique',
+        category: 'eleveur',
+        status: 'valide',
+        displayName: 'First Sync',
+        regionName: 'Centre',
+        createdByName: 'Agent 1',
+        createdAt: '2026-10-01T10:00:00.000Z',
+      },
+    ];
+
+    await memberRepository.upsertServerMembers(userIdAgent1, serverSummaryMembers);
+
+    const listRes = await memberRepository.getMembers(userIdAgent1);
+    expect(listRes.total).toBe(1);
+    expect(listRes.data[0].displayName).toBe('First Sync');
+    expect(listRes.data[0].memberNumber).toBe('CAPEF-ELV-000014');
+  });
 });

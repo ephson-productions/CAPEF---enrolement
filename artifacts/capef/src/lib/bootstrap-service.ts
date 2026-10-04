@@ -71,18 +71,35 @@ export class BootstrapService {
     }
 
     // 2. Members scoped by role with progressive details (activities + line items)
-    try {
-      const params = new URLSearchParams();
-      params.set('limit', '100'); // Scoped preloading chunk
-      if (user.role === 'agent') {
-        params.set('createdById', userId);
-      } else if (user.role === 'superviseur' && user.regionId) {
-        params.set('regionId', String(user.regionId));
+    let members: any[] = [];
+    let attempts = 0;
+    const params = new URLSearchParams();
+    params.set('limit', '100'); // Scoped preloading chunk
+    if (user.role === 'agent') {
+      params.set('createdById', userId);
+    } else if (user.role === 'superviseur' && user.regionId) {
+      params.set('regionId', String(user.regionId));
+    }
+
+    while (attempts < 3) {
+      try {
+        const response = await customFetch(`/api/members?${params.toString()}`) as any;
+        members = Array.isArray(response) ? response : response?.data || [];
+        break; // Success!
+      } catch (err: any) {
+        attempts++;
+        if (err?.status === 401 && attempts < 3) {
+          console.warn(`[BootstrapService] Cold start 401 on members preload, retrying (attempt ${attempts}/3)...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        } else {
+          console.warn('[BootstrapService] Failed to load preload scoped members:', err);
+          hasPartialError = true;
+          break;
+        }
       }
+    }
 
-      const response = await customFetch(`/api/members?${params.toString()}`) as any;
-      const members = Array.isArray(response) ? response : response?.data || [];
-
+    try {
       if (Array.isArray(members)) {
         for (const m of members) {
           if (this.abortController?.signal.aborted) break;

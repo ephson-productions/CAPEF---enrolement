@@ -267,10 +267,11 @@ function ClerkQueryClientCacheInvalidator() {
 
 function OfflineBootstrapTrigger() {
   const { user } = useAuthContext();
+  const { isLoaded, isSignedIn } = useAuth();
   const bootstrappedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (user && user.id !== undefined && user.id !== null) {
+    if (isLoaded && isSignedIn && user && user.id !== undefined && user.id !== null) {
       const userStrId = String(user.id);
       if (bootstrappedRef.current !== userStrId) {
         bootstrappedRef.current = userStrId;
@@ -279,7 +280,7 @@ function OfflineBootstrapTrigger() {
         });
       }
     }
-  }, [user]);
+  }, [isLoaded, isSignedIn, user]);
 
   return null;
 }

@@ -6,6 +6,7 @@ export interface LocalMember {
   serverId?: number | null;
   userId: string;
   memberNumber?: string | null;
+  displayName?: string | null;
   memberType: 'physique' | 'morale';
   category: string;
   individualOrOrg: string;
