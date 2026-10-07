@@ -47,6 +47,7 @@ export default function MemberDetail() {
 
   const isNumericServerId = !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0;
   const numericId = isNumericServerId ? Number(idOrLocalId) : 0;
+  const resolvedServerId = localMember?.serverId || numericId;
 
   const [localMember, setLocalMember] = useState<LocalMemberWithDetails | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -129,20 +130,20 @@ export default function MemberDetail() {
   const blockMutation = useBlockMember();
 
   const handleStatusAction = async (action: 'validate' | 'deactivate' | 'reactivate' | 'block') => {
-    if (!numericId) return;
+    if (!resolvedServerId) return;
     try {
       if (action === 'validate') {
-        await validateMutation.mutateAsync({ id: numericId });
+        await validateMutation.mutateAsync({ id: resolvedServerId });
         toast({ title: t('common.success', 'Succès'), description: t('members.toast.validated', 'Membre validé.') });
       } else if (action === 'deactivate') {
-        await deactivateMutation.mutateAsync({ id: numericId });
+        await deactivateMutation.mutateAsync({ id: resolvedServerId });
         toast({ title: t('common.success', 'Succès'), description: t('members.toast.deactivated', 'Membre désactivé.') });
       } else if (action === 'reactivate') {
-        await reactivateMutation.mutateAsync({ id: numericId });
+        await reactivateMutation.mutateAsync({ id: resolvedServerId });
         toast({ title: t('common.success', 'Succès'), description: t('members.toast.reactivated', 'Membre réactivé.') });
       } else if (action === 'block') {
         if (confirm(t('members.confirm_block', 'Êtes-vous sûr de vouloir bloquer ce membre définitivement ? Cette action est irréversible.'))) {
-          await blockMutation.mutateAsync({ id: numericId });
+          await blockMutation.mutateAsync({ id: resolvedServerId });
           toast({ title: t('common.success', 'Succès'), description: t('members.toast.blocked', 'Membre bloqué définitivement.') });
         }
       }
@@ -154,9 +155,9 @@ export default function MemberDetail() {
   };
 
   const handleGenerateBadge = async () => {
-    if (!numericId) return;
+    if (!resolvedServerId) return;
     try {
-      const result = await generateBadge.mutateAsync({ id: numericId });
+      const result = await generateBadge.mutateAsync({ id: resolvedServerId });
       if (result.badgeUrl) {
         const base64Data = result.badgeUrl.split(',')[1];
         const byteCharacters = atob(base64Data);
@@ -255,7 +256,7 @@ export default function MemberDetail() {
           <ArrowLeft className="h-4 w-4 mr-2" /> {t('users.back_to_list', 'Retour à la liste')}
         </Link>
         <div className="flex gap-2 flex-wrap">
-          {isAdmin && isNumericServerId && (
+          {isAdmin && resolvedServerId > 0 && (
             <div className="flex gap-1.5 border-r border-border pr-3 mr-1 flex-wrap">
               {localMember.status === 'en_attente' && (
                 <button
@@ -299,7 +300,7 @@ export default function MemberDetail() {
             <Plus className="h-4 w-4" />
             {t('activities.add_activity_wizard', 'Saisir Activité (Wizard)')}
           </button>
-          {isNumericServerId && (
+          {resolvedServerId > 0 && (
             <button
               onClick={handleGenerateBadge}
               disabled={generateBadge.isPending}
@@ -562,7 +563,7 @@ export default function MemberDetail() {
           <div className="p-6 grid grid-cols-1 gap-6">
             <dl className="space-y-4 text-sm">
               <div className="grid grid-cols-3 gap-4 border-b border-border/50 pb-2"><dt className="text-muted-foreground font-medium">{t('members.detail.registered_on', 'Enregistré le')}</dt><dd className="col-span-2 font-medium">{format(new Date(localMember.createdAt || ''), 'dd MMMM yyyy HH:mm', { locale: dateLocale })}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">{t('users.table.agent', 'Agent')}</dt><dd className="col-span-2 font-medium">{localMember.userId}</dd></div>
+              <div className="grid grid-cols-3 gap-4"><dt className="text-muted-foreground font-medium">{t('users.table.agent', 'Agent')}</dt><dd className="col-span-2 font-medium">{localMember.createdByName || t('members.detail.agent_not_available_offline', 'Agent non disponible hors ligne')}</dd></div>
             </dl>
           </div>
         </div>

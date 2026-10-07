@@ -107,16 +107,20 @@ export class MemberRepository {
   async getMemberById(idOrLocalId: string | number, userId: string): Promise<LocalMemberWithDetails | null> {
     let member: LocalMember | undefined;
 
-    if (typeof idOrLocalId === 'number' || (typeof idOrLocalId === 'string' && !isNaN(Number(idOrLocalId)))) {
-      const numId = Number(idOrLocalId);
-      member = await db.members.where('id').equals(numId).first();
-      if (!member) {
-        member = await db.members.where('serverId').equals(numId).first();
-      }
+    // 1. If numeric ID or numeric string (e.g. 31 or "31"), query strictly by PostgreSQL serverId
+    if (typeof idOrLocalId === 'number' || (typeof idOrLocalId === 'string' && !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0)) {
+      const numServerId = Number(idOrLocalId);
+      member = await db.members.where('serverId').equals(numServerId).first();
     }
 
+    // 2. If not found by serverId or if string localId (UUID / TMP-), query by localId
     if (!member && typeof idOrLocalId === 'string') {
       member = await db.members.where('localId').equals(idOrLocalId).first();
+    }
+
+    // 3. Fallback: query by memberNumber
+    if (!member && typeof idOrLocalId === 'string') {
+      member = await db.members.where('memberNumber').equals(idOrLocalId).first();
     }
 
     if (!member || member.deletedLocally) {
@@ -153,13 +157,15 @@ export class MemberRepository {
     const deptMap = new Map(departments.map(d => [d.id, d.name]));
     const arrMap = new Map(arrondissements.map(a => [a.id, a.name]));
 
-    const displayName = member.memberType === 'physique'
+    const nom = member.memberType === 'physique'
       ? `${member.physiqueData?.nom ?? ''} ${member.physiqueData?.prenom ?? ''}`.trim()
       : (member.moraleData?.nom ?? '');
 
+    const displayName = member.displayName || nom || member.memberNumber || member.localId;
+
     return {
       ...member,
-      displayName: displayName || member.memberNumber || member.localId,
+      displayName,
       activities: activitiesWithLineItems,
       regionName: member.regionName || (member.regionId ? regMap.get(member.regionId) ?? null : null),
       departmentName: member.departmentName || (member.departmentId ? deptMap.get(member.departmentId) ?? null : null),
@@ -255,6 +261,14 @@ export class MemberRepository {
       member: memberRecord,
       primaryActivity: primaryActivityRecord,
     };
+  }
+
+  async getMemberByServerId(serverId: number, userId: string): Promise<LocalMemberWithDetails | null> {
+    return this.getMemberById(serverId, userId);
+  }
+
+  async getMemberByLocalId(localId: string, userId: string): Promise<LocalMemberWithDetails | null> {
+    return this.getMemberById(localId, userId);
   }
 
   async updateLocalMember(

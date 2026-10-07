@@ -13,7 +13,7 @@ export default function MemberNew() {
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { isOnline, enqueueMember, effectiveUserId } = useOfflineQueue();
+  const { isOnline, enqueueMember, syncNow, effectiveUserId } = useOfflineQueue();
   const createMember = useCreateMember();
 
   const [createdLocalId, setCreatedLocalId] = React.useState<string | null>(null);
@@ -59,16 +59,10 @@ export default function MemberNew() {
         : t('members.toast.base_created_offline', 'Enrôlement enregistré en mode hors ligne.'),
     });
 
-    // 4. In background when online, attempt server creation call
+    // 4. In background when online, trigger unified single-path queue sync
     if (isOnline) {
-      createMember.mutateAsync({ data: payload }).then((res) => {
-        memberRepository.updateLocalMember(localId, effectiveUserId, {
-          serverId: res.id,
-          memberNumber: res.memberNumber,
-          syncStatus: 'synced',
-        });
-      }).catch((err) => {
-        console.warn('[MemberNew] Online mutation failed, operation remains queued in Dexie:', err);
+      syncNow().catch((err) => {
+        console.warn('[MemberNew] Online sync trigger deferred:', err);
       });
     }
   };
