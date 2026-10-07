@@ -22,6 +22,7 @@ type OfflineQueueContextType = {
     activityRef?: string;
     itemRef?: string;
     data?: any;
+    _local?: any;
   }) => void;
 };
 

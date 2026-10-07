@@ -72,7 +72,7 @@ export class IdReconciliationService {
     payload: any,
     serverResponse: any
   ): Promise<void> {
-    await db.transaction('rw', [db.operations, db.entityMappings], async () => {
+    await db.transaction('rw', [db.operations, db.entityMappings, db.members, db.activities, db.lineItems], async () => {
       const now = new Date().toISOString();
 
       // 1. Save mappings
@@ -86,6 +86,11 @@ export class IdReconciliationService {
             syncStatus: 'synced',
             createdAt: now,
           });
+          await db.members.where('localId').equals(memberLocalId).modify({
+            serverId: serverResponse.id,
+            memberNumber: serverResponse.memberNumber || undefined,
+            syncStatus: 'synced',
+          });
         }
         const primActId = payload._local?.primaryActivityLocalId || payload.primaryActivityLocalId;
         if (primActId && Array.isArray(serverResponse.activities)) {
@@ -97,6 +102,10 @@ export class IdReconciliationService {
               serverId: primaryAct.id,
               syncStatus: 'synced',
               createdAt: now,
+            });
+            await db.activities.where('localId').equals(primActId).modify({
+              serverId: primaryAct.id,
+              syncStatus: 'synced',
             });
           }
         }
@@ -110,6 +119,10 @@ export class IdReconciliationService {
             syncStatus: 'synced',
             createdAt: now,
           });
+          await db.activities.where('localId').equals(actLocalId).modify({
+            serverId: serverResponse.id,
+            syncStatus: 'synced',
+          });
         }
       } else if (operationType === 'create_line_item' && serverResponse?.id) {
         const lineLocalId = payload._local?.localId || payload.data?.localId || payload.localId;
@@ -120,6 +133,10 @@ export class IdReconciliationService {
             serverId: serverResponse.id,
             syncStatus: 'synced',
             createdAt: now,
+          });
+          await db.lineItems.where('localId').equals(lineLocalId).modify({
+            serverId: serverResponse.id,
+            syncStatus: 'synced',
           });
         }
       }

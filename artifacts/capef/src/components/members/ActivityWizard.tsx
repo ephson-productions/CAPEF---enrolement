@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useOfflineQueue } from '@/lib/offline-sync';
 import { memberRepository } from '@/lib/repositories/MemberRepository';
 import { db, type LocalActivity, type LocalLineItem } from '@/lib/repositories/CapefDexieDatabase';
+import { idReconciliationService } from '@/lib/id-reconciliation-service';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCategoryLabel, getOptionLabel } from '@/lib/i18n-helpers';
@@ -186,24 +187,35 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       await loadLocalActivities();
 
       if (isOnline && isNumericMemberId && numericMemberId > 0) {
-        if (activeActivity && activeActivity.id) {
+        if (activeActivity && activeActivity.serverId) {
           await updateActivity.mutateAsync({
             id: numericMemberId,
-            activityId: activeActivity.id,
+            activityId: activeActivity.serverId,
             data: payload,
           });
         } else {
-          await createActivity.mutateAsync({
+          const createdActivity = await createActivity.mutateAsync({
             id: numericMemberId,
             data: payload,
           });
+          if (createdActivity && createdActivity.id) {
+            await db.activities.where('localId').equals(actLocalId).modify({
+              serverId: createdActivity.id,
+              syncStatus: 'synced',
+            });
+            await idReconciliationService.saveMapping(actLocalId, 'activity', createdActivity.id);
+          }
         }
         await refetchActivities();
       } else {
         enqueueActivityAction({
-          type: 'create_activity',
+          type: activeActivity?.serverId ? 'update_activity' : 'create_activity',
           memberId: numericMemberId,
-          data: payload,
+          activityId: activeActivity?.serverId || undefined,
+          memberRef: stringMemberLocalId,
+          activityRef: activeActivity?.serverId ? String(activeActivity.serverId) : actLocalId,
+          data: { ...payload, localId: actLocalId },
+          _local: { localId: actLocalId, memberLocalId: stringMemberLocalId, activityLocalId: actLocalId },
         });
       }
       setStep(2);
@@ -335,11 +347,12 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
     await loadLocalActivities();
 
     // 2. Enqueue offline mutation action or send to server
-    if (isOnline && isNumericMemberId && numericMemberId > 0 && activeActivity?.id) {
+    const targetActivityServerId = activeActivity?.serverId;
+    if (isOnline && isNumericMemberId && numericMemberId > 0 && targetActivityServerId) {
       try {
         await createLineItem.mutateAsync({
           id: numericMemberId,
-          activityId: activeActivity.id,
+          activityId: targetActivityServerId,
           data: payload,
         });
         await refetchActivities();
@@ -350,8 +363,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       enqueueActivityAction({
         type: 'create_line_item',
         memberId: numericMemberId,
-        activityId: activeActivity?.id,
-        data: payload,
+        activityId: targetActivityServerId || undefined,
+        memberRef: stringMemberLocalId,
+        activityRef: targetActivityServerId ? String(targetActivityServerId) : actLocalId,
+        data: { ...payload, localId: liLocalId },
+        _local: { localId: liLocalId, memberLocalId: stringMemberLocalId, activityLocalId: actLocalId },
       });
     }
 
@@ -380,10 +396,11 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         await db.lineItems.where('localId').equals(itemIdOrLocalId).delete();
       } else {
         await db.lineItems.where('serverId').equals(itemIdOrLocalId).delete();
-        if (isOnline && isNumericMemberId && numericMemberId > 0 && activeActivity?.id) {
+        const targetActivityServerId = activeActivity?.serverId;
+        if (isOnline && isNumericMemberId && numericMemberId > 0 && targetActivityServerId) {
           await deleteLineItem.mutateAsync({
             id: numericMemberId,
-            activityId: activeActivity.id,
+            activityId: targetActivityServerId,
             itemId: itemIdOrLocalId,
           });
           await refetchActivities();
@@ -391,8 +408,10 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
           enqueueActivityAction({
             type: 'delete_line_item',
             memberId: numericMemberId,
-            activityId: activeActivity?.id,
+            activityId: targetActivityServerId || undefined,
             itemId: itemIdOrLocalId,
+            memberRef: stringMemberLocalId,
+            activityRef: targetActivityServerId ? String(targetActivityServerId) : activeActivity?.localId,
           });
         }
       }
