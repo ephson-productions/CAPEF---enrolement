@@ -39,13 +39,42 @@ export default function MembersList() {
   const isAdmin = userRole === 'admin';
   const isSupervisor = userRole === 'supervisor' || userRole === 'superviseur';
 
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [representantGenre, setRepresentantGenre] = useState<string>('all');
-  const [agentId, setAgentId] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [page, setPage] = useState<number>(1);
+  // Parse query params from URL as single source of truth
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const initialPage = parseInt(searchParams.get('page') || '1', 10);
+  const initialCategory = searchParams.get('category') || 'all';
+  const initialMemberType = searchParams.get('memberType') || 'all';
+  const initialStatus = searchParams.get('status') || 'all';
+  const initialRepresentantGenre = searchParams.get('representantGenre') || 'all';
+  const initialAgentId = searchParams.get('agentId') || 'all';
+  const initialSearch = searchParams.get('search') || '';
+
+  const [filterCategory, setFilterCategory] = useState<string>(initialCategory);
+  const [filterType, setFilterType] = useState<string>(initialMemberType);
+  const [filterStatus, setFilterStatus] = useState<string>(initialStatus);
+  const [representantGenre, setRepresentantGenre] = useState<string>(initialRepresentantGenre);
+  const [agentId, setAgentId] = useState<string>(initialAgentId);
+  const [searchQuery, setSearchQuery] = useState<string>(initialSearch);
+  const [page, setPage] = useState<number>(isNaN(initialPage) || initialPage < 1 ? 1 : initialPage);
+
+  // Synchronize React state to URL search parameters
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (page > 1) params.set('page', String(page));
+    if (filterCategory !== 'all') params.set('category', filterCategory);
+    if (filterType !== 'all') params.set('memberType', filterType);
+    if (filterStatus !== 'all') params.set('status', filterStatus);
+    if (representantGenre !== 'all') params.set('representantGenre', representantGenre);
+    if (agentId !== 'all') params.set('agentId', agentId);
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `/members?${queryString}` : '/members';
+    if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== newUrl) {
+      window.history.replaceState(null, '', newUrl);
+      sessionStorage.setItem('capef:members-registry-from', newUrl);
+    }
+  }, [page, filterCategory, filterType, filterStatus, representantGenre, agentId, searchQuery]);
 
   const [users, setUsers] = useState<Array<{ id: number; name: string; role: string }>>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -98,6 +127,15 @@ export default function MembersList() {
         if (!isCancelled) {
           setMembersData(localRes);
           setLoading(false);
+
+          // Restore scroll position if saved
+          const savedScroll = sessionStorage.getItem('capef:members-registry-scroll');
+          if (savedScroll) {
+            setTimeout(() => {
+              window.scrollTo(0, Number(savedScroll));
+              sessionStorage.removeItem('capef:members-registry-scroll');
+            }, 50);
+          }
         }
 
         // 2. Network revalidation (write-through into Dexie)
@@ -427,7 +465,12 @@ export default function MembersList() {
                   <tr
                     key={member.localId}
                     className="hover:bg-muted/10 transition-colors cursor-pointer"
-                    onClick={() => setLocation(`/members/${member.serverId || member.localId}`)}
+                    onClick={() => {
+                      sessionStorage.setItem('capef:members-registry-scroll', String(window.scrollY));
+                      const currentFrom = window.location.search ? `/members${window.location.search}` : '/members';
+                      sessionStorage.setItem('capef:members-registry-from', currentFrom);
+                      setLocation(`/members/${member.serverId || member.localId}`);
+                    }}
                   >
                     {/* Member Avatar & Title */}
                     <td className="px-6 py-4">

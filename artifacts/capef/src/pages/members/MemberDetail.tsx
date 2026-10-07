@@ -223,6 +223,13 @@ export default function MemberDetail() {
     );
   }
 
+  // Determine back navigation link restoring registry filters/pagination context
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const fromParam = searchParams.get('from');
+  const registryBackUrl = fromParam
+    ? decodeURIComponent(fromParam)
+    : (typeof window !== 'undefined' ? sessionStorage.getItem('capef:members-registry-from') : null) || '/members';
+
   const isPhysique = localMember.memberType === 'physique';
   const info = isPhysique ? localMember.physiqueData : localMember.moraleData;
 
@@ -252,9 +259,12 @@ export default function MemberDetail() {
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       {/* Header Actions */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <Link href="/members" className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium">
+        <button
+          onClick={() => setLocation(registryBackUrl)}
+          className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors font-medium cursor-pointer"
+        >
           <ArrowLeft className="h-4 w-4 mr-2" /> {t('users.back_to_list', 'Retour à la liste')}
-        </Link>
+        </button>
         <div className="flex gap-2 flex-wrap">
           {isAdmin && resolvedServerId > 0 && (
             <div className="flex gap-1.5 border-r border-border pr-3 mr-1 flex-wrap">

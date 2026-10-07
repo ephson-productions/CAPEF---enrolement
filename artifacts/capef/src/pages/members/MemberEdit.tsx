@@ -120,12 +120,19 @@ export default function MemberEdit() {
     );
   }
 
+  // Determine back navigation link restoring registry filters/pagination context
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const fromParam = searchParams.get('from');
+  const registryBackUrl = fromParam
+    ? decodeURIComponent(fromParam)
+    : (typeof window !== 'undefined' ? sessionStorage.getItem('capef:members-registry-from') : null) || '/members';
+
   if (!localMember) {
     return (
       <div className="p-12 text-center text-muted-foreground space-y-4">
         <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
         <h2 className="text-xl font-bold">{t('members.not_found', 'Membre introuvable')}</h2>
-        <Button onClick={() => setLocation('/members')} variant="outline">
+        <Button onClick={() => setLocation(registryBackUrl)} variant="outline">
           <ArrowLeft className="w-4 h-4 mr-2" />
           {t('common.back_to_list', 'Retour à la liste')}
         </Button>
@@ -136,7 +143,7 @@ export default function MemberEdit() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon" onClick={() => setLocation(`/members/${idOrLocalId}`)}>
+        <Button variant="outline" size="icon" onClick={() => setLocation(registryBackUrl)}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
