@@ -45,12 +45,12 @@ export default function MemberDetail() {
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const { effectiveUserId, isOnline } = useOfflineQueue();
 
+  const [localMember, setLocalMember] = useState<LocalMemberWithDetails | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
   const isNumericServerId = !isNaN(Number(idOrLocalId)) && Number(idOrLocalId) > 0;
   const numericId = isNumericServerId ? Number(idOrLocalId) : 0;
   const resolvedServerId = localMember?.serverId || numericId;
-
-  const [localMember, setLocalMember] = useState<LocalMemberWithDetails | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
 
   // Network query fallback
   const { data: serverMember, isFetching: isServerLoading, error: serverError, refetch: refetchServerMember } = useGetMember(numericId, {
