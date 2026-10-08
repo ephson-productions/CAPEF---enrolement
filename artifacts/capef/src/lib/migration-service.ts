@@ -1,5 +1,6 @@
 import { db, type LocalOfflineOperation } from './repositories/CapefDexieDatabase';
 import { syncRepository } from './repositories/SyncRepository';
+import { memberRepository } from './repositories/MemberRepository';
 
 const LEGACY_STORAGE_KEYS = [
   'capef_offline_queue_v2',
@@ -82,6 +83,9 @@ export class MigrationService {
 
     // Migrate any legacy 'anonymous_user' operations inside Dexie to active user
     await this.migrateAnonymousOperationsToUser(activeUserId);
+
+    // Clean up any historical duplicate activities in Dexie
+    await memberRepository.cleanupDuplicateActivities(activeUserId);
 
     return { migratedCount };
   }

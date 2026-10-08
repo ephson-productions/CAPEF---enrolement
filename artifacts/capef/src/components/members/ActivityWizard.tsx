@@ -187,10 +187,19 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
       await loadLocalActivities();
 
       if (isOnline && isNumericMemberId && numericMemberId > 0) {
-        if (activeActivity && activeActivity.serverId) {
+        const serverMatch = (activities || []).find((sa: any) => sa.activityType === selectedType);
+        const resolvedServerId = activeActivity?.serverId || serverMatch?.id;
+
+        if (resolvedServerId) {
+          await db.activities.where('localId').equals(actLocalId).modify({
+            serverId: resolvedServerId,
+            syncStatus: 'synced',
+          });
+          await idReconciliationService.saveMapping(actLocalId, 'activity', resolvedServerId);
+
           await updateActivity.mutateAsync({
             id: numericMemberId,
-            activityId: activeActivity.serverId,
+            activityId: resolvedServerId,
             data: payload,
           });
         } else {
@@ -208,12 +217,15 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         }
         await refetchActivities();
       } else {
+        const serverMatch = (activities || []).find((sa: any) => sa.activityType === selectedType);
+        const resolvedServerId = activeActivity?.serverId || serverMatch?.id;
+
         enqueueActivityAction({
-          type: activeActivity?.serverId ? 'update_activity' : 'create_activity',
+          type: resolvedServerId ? 'update_activity' : 'create_activity',
           memberId: numericMemberId,
-          activityId: activeActivity?.serverId || undefined,
+          activityId: resolvedServerId || undefined,
           memberRef: stringMemberLocalId,
-          activityRef: activeActivity?.serverId ? String(activeActivity.serverId) : actLocalId,
+          activityRef: resolvedServerId ? String(resolvedServerId) : actLocalId,
           data: { ...payload, localId: actLocalId },
           _local: { localId: actLocalId, memberLocalId: stringMemberLocalId, activityLocalId: actLocalId },
         });
@@ -347,14 +359,23 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
     await loadLocalActivities();
 
     // 2. Enqueue offline mutation action or send to server
-    const targetActivityServerId = activeActivity?.serverId;
+    const serverMatch = (activities || []).find((sa: any) => sa.activityType === selectedType);
+    const targetActivityServerId = activeActivity?.serverId || serverMatch?.id;
+
     if (isOnline && isNumericMemberId && numericMemberId > 0 && targetActivityServerId) {
       try {
-        await createLineItem.mutateAsync({
+        const createdLineItem = await createLineItem.mutateAsync({
           id: numericMemberId,
           activityId: targetActivityServerId,
           data: payload,
         });
+        if (createdLineItem && createdLineItem.id) {
+          await db.lineItems.where('localId').equals(liLocalId).modify({
+            serverId: createdLineItem.id,
+            syncStatus: 'synced',
+          });
+          await idReconciliationService.saveMapping(liLocalId, 'line_item', createdLineItem.id);
+        }
         await refetchActivities();
       } catch (err: any) {
         console.warn('[ActivityWizard] Online create line item failed, saved locally:', err);

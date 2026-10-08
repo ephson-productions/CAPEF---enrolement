@@ -131,13 +131,39 @@ export class MemberRepository {
       return null;
     }
 
-    const activities = await db.activities
+    // Canonical activity filtering:
+    // 1. Keep all server-synced activities (serverId != null)
+    // 2. Keep local drafts belonging to current user (serverId == null && userId === currentUserId)
+    // 3. Exclude drafts belonging to other users on shared device
+    // 4. Deduplicate by activityType (preferring synced over pending)
+    const rawActivities = await db.activities
       .where('memberLocalId')
       .equals(member.localId)
       .toArray();
 
+    const filteredActivities = rawActivities.filter((act) => {
+      if (act.serverId !== null && act.serverId !== undefined) return true;
+      return act.userId === userId;
+    });
+
+    // Group by activityType to build canonical list
+    const canonicalMap = new Map<string, LocalActivity>();
+    for (const act of filteredActivities) {
+      const existing = canonicalMap.get(act.activityType);
+      if (!existing) {
+        canonicalMap.set(act.activityType, act);
+      } else {
+        // Prefer server-synced activity over pending local draft
+        if (!existing.serverId && act.serverId) {
+          canonicalMap.set(act.activityType, act);
+        }
+      }
+    }
+
+    const canonicalActivities = Array.from(canonicalMap.values());
+
     const activitiesWithLineItems = await Promise.all(
-      activities.map(async (act) => {
+      canonicalActivities.map(async (act) => {
         const lineItems = await db.lineItems
           .where('activityLocalId')
           .equals(act.localId)
@@ -356,8 +382,41 @@ export class MemberRepository {
 
         if (Array.isArray(sm.activities)) {
           for (const sa of sm.activities) {
+            // 1. Search by serverId
             let existingAct = await db.activities.where('serverId').equals(sa.id).first();
+
+            // 2. If absent, search for pending local draft for this member & activityType
+            if (!existingAct) {
+              const localCandidates = await db.activities
+                .where('memberLocalId')
+                .equals(localId)
+                .toArray();
+              existingAct = localCandidates.find(
+                a => a.activityType === sa.activityType && (!a.serverId || a.serverId === sa.id)
+              );
+            }
+
             const actLocalId = existingAct?.localId || crypto.randomUUID();
+
+            // Clean up any remaining unsynced duplicate local activity records for this member and activityType
+            const allMemberActs = await db.activities.where('memberLocalId').equals(localId).toArray();
+            for (const duplicateAct of allMemberActs) {
+              if (
+                duplicateAct.activityType === sa.activityType &&
+                duplicateAct.localId !== actLocalId &&
+                (!duplicateAct.serverId || duplicateAct.serverId === sa.id)
+              ) {
+                // Re-link line items from duplicate to canonical actLocalId
+                await db.lineItems
+                  .where('activityLocalId')
+                  .equals(duplicateAct.localId)
+                  .modify({ activityLocalId: actLocalId, activityServerId: sa.id });
+                // Delete duplicate activity record
+                if (duplicateAct.id) {
+                  await db.activities.delete(duplicateAct.id);
+                }
+              }
+            }
 
             const localAct: LocalActivity = {
               id: existingAct?.id,
@@ -368,18 +427,19 @@ export class MemberRepository {
               userId,
               activityType: sa.activityType,
               isPrimary: sa.isPrimary ?? false,
-              regionId: sa.regionId ?? null,
-              departmentId: sa.departmentId ?? null,
-              arrondissementId: sa.arrondissementId ?? null,
-              village: sa.village ?? null,
-              maillons: sa.maillons || [],
-              version: sa.version || 1,
-              createdAt: sa.createdAt || now,
+              regionId: sa.regionId ?? existingAct?.regionId ?? null,
+              departmentId: sa.departmentId ?? existingAct?.departmentId ?? null,
+              arrondissementId: sa.arrondissementId ?? existingAct?.arrondissementId ?? null,
+              village: sa.village ?? existingAct?.village ?? null,
+              maillons: sa.maillons || existingAct?.maillons || [],
+              version: sa.version || existingAct?.version || 1,
+              createdAt: sa.createdAt || existingAct?.createdAt || now,
               updatedAt: now,
               syncStatus: 'synced',
             };
 
             await db.activities.put(localAct);
+            await db.activities.where('localId').equals(actLocalId).modify({ serverId: sa.id, syncStatus: 'synced' });
 
             await db.entityMappings.put({
               entityType: 'activity',
@@ -442,6 +502,111 @@ export class MemberRepository {
         }
       }
     });
+  }
+  async upsertActivity(
+    userId: string,
+    activityData: Partial<LocalActivity> & { memberLocalId: string; activityType: string }
+  ): Promise<LocalActivity> {
+    const now = new Date().toISOString();
+    let existing: LocalActivity | undefined;
+
+    if (activityData.serverId) {
+      existing = await db.activities.where('serverId').equals(activityData.serverId).first();
+    }
+
+    if (!existing && activityData.localId) {
+      existing = await db.activities.where('localId').equals(activityData.localId).first();
+    }
+
+    if (!existing) {
+      const candidates = await db.activities
+        .where('memberLocalId')
+        .equals(activityData.memberLocalId)
+        .toArray();
+      existing = candidates.find(a => a.activityType === activityData.activityType);
+    }
+
+    const localId = existing?.localId || activityData.localId || crypto.randomUUID();
+
+    const record: LocalActivity = {
+      id: existing?.id,
+      localId,
+      serverId: activityData.serverId ?? existing?.serverId ?? null,
+      memberLocalId: activityData.memberLocalId,
+      memberServerId: activityData.memberServerId ?? existing?.memberServerId ?? null,
+      userId,
+      activityType: activityData.activityType,
+      isPrimary: activityData.isPrimary ?? existing?.isPrimary ?? false,
+      regionId: activityData.regionId ?? existing?.regionId ?? null,
+      departmentId: activityData.departmentId ?? existing?.departmentId ?? null,
+      arrondissementId: activityData.arrondissementId ?? existing?.arrondissementId ?? null,
+      village: activityData.village ?? existing?.village ?? null,
+      maillons: activityData.maillons || existing?.maillons || [],
+      version: activityData.version || existing?.version || 1,
+      createdAt: activityData.createdAt || existing?.createdAt || now,
+      updatedAt: now,
+      syncStatus: activityData.syncStatus || existing?.syncStatus || 'pending',
+    };
+
+    const id = await db.activities.put(record);
+    record.id = id;
+    return record;
+  }
+
+  async cleanupDuplicateActivities(userId?: string): Promise<number> {
+    let cleaned = 0;
+    const allMembers = await db.members.toArray();
+
+    for (const member of allMembers) {
+      const memberActs = await db.activities.where('memberLocalId').equals(member.localId).toArray();
+      const byType = new Map<string, LocalActivity[]>();
+
+      for (const act of memberActs) {
+        if (!byType.has(act.activityType)) {
+          byType.set(act.activityType, []);
+        }
+        byType.get(act.activityType)!.push(act);
+      }
+
+      for (const [, acts] of byType.entries()) {
+        if (acts.length <= 1) continue;
+
+        // Sort: prefer synced record (serverId != null) first, then highest version/newest
+        acts.sort((a, b) => {
+          if (a.serverId && !b.serverId) return -1;
+          if (!a.serverId && b.serverId) return 1;
+          return (b.version || 1) - (a.version || 1);
+        });
+
+        const canonical = acts[0];
+        const duplicates = acts.slice(1);
+
+        for (const dup of duplicates) {
+          // Re-link line items to canonical activity
+          await db.lineItems
+            .where('activityLocalId')
+            .equals(dup.localId)
+            .modify({
+              activityLocalId: canonical.localId,
+              activityServerId: canonical.serverId || undefined,
+            });
+
+          // Re-link entityMappings
+          await db.entityMappings.where({ localId: dup.localId, entityType: 'activity' }).delete();
+
+          // Delete duplicate
+          if (dup.id) {
+            await db.activities.delete(dup.id);
+            cleaned++;
+          }
+        }
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[MemberRepository] Cleaned up ${cleaned} duplicate local activity records.`);
+    }
+    return cleaned;
   }
 }
 
