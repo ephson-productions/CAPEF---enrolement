@@ -117,8 +117,13 @@ export class SyncEngine {
           }
         }
 
-        const isStuck = op.status === 'blocked' || op.status === 'failed' || op.status === 'waiting' || op.retryCount > 0;
-        if (isStuck || modified) {
+        const isLegacyStuck = op.status === 'blocked' && op.lastError && (
+          op.lastError.includes('invalid') ||
+          op.lastError.includes('ID membre') ||
+          op.lastError.includes('Pending operation')
+        );
+
+        if (isLegacyStuck || modified) {
           await db.operations.update(op.id, {
             payload,
             status: 'pending',
@@ -173,6 +178,45 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * Upload all pending binary media Blobs from Dexie db.media before syncing member payloads
+   */
+  async uploadPendingMediaBlobs(userId?: string | null): Promise<Record<string, string>> {
+    const activeUser = userId || (typeof localStorage !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') : null) || 'unassigned_user';
+    const pendingMedia = await db.media.where('syncStatus').equals('pending').toArray();
+    const mediaUrlMap: Record<string, string> = {};
+
+    for (const item of pendingMedia) {
+      if (item.userId !== activeUser && item.userId !== 'unassigned_user') continue;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', item.blob, item.fileName);
+        formData.append('mediaId', item.mediaId);
+
+        const res = await customFetch('/api/media/upload', {
+          method: 'POST',
+          headers: {
+            'X-Client-Operation-ID': item.mediaId,
+          },
+          body: formData,
+        }) as any;
+
+        const remoteUrl = res?.url || res?.path || `/uploads/${item.fileName}`;
+        mediaUrlMap[item.mediaId] = remoteUrl;
+
+        await db.media.update(item.id!, {
+          remoteUrl,
+          syncStatus: 'uploaded',
+        });
+      } catch (err) {
+        console.warn(`[SyncEngine] Media Blob upload skipped or failed for mediaId=${item.mediaId}:`, err);
+      }
+    }
+
+    return mediaUrlMap;
+  }
+
   private async executeSync(userId?: string | null, onProgress?: (count: number) => void): Promise<{ successCount: number; hasError: boolean }> {
     let successCount = 0;
     let hasError = false;
@@ -182,6 +226,7 @@ export class SyncEngine {
       return { successCount: 0, hasError: true };
     }
 
+    await this.uploadPendingMediaBlobs(userId);
     await this.repairAndResetStuckOperations(userId);
 
     const pendingItems = await offlineRepository.getPending(userId);
@@ -386,6 +431,10 @@ export class SyncEngine {
         // Unblock child operations waiting for parent creation
         await db.operations.where('status').equals('waiting').modify({ status: 'pending' });
 
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('capef_last_successful_sync', new Date().toISOString());
+        }
+
         successCount++;
         if (onProgress) onProgress(successCount);
       } catch (err: any) {
@@ -404,6 +453,25 @@ export class SyncEngine {
         const isTerminalError = status >= 400 && status < 500;
 
         if (isConflictError) {
+          const activeUser = userId || (typeof localStorage !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') : null) || 'unassigned_user';
+          const localId = item.payload._local?.localId || item.payload.localId || 'unknown';
+          const serverVersion = err?.response?.data?.serverVersion || err?.data?.serverVersion || (item.payload.version || 1) + 1;
+          const serverData = err?.response?.data?.currentMember || err?.data?.currentMember || null;
+
+          await db.syncConflicts.put({
+            conflictId: crypto.randomUUID(),
+            userId: activeUser,
+            entityType: item.operationType.includes('member') ? 'member' : item.operationType.includes('activity') ? 'activity' : 'line_item',
+            localId,
+            serverId: item.payload.serverId || item.payload.id || null,
+            clientVersion: item.payload.version || 1,
+            serverVersion,
+            localData: item.payload,
+            serverData,
+            status: 'unresolved',
+            createdAt: new Date().toISOString(),
+          });
+
           await offlineRepository.updateStatus(item.id, 'blocked', `Conflit OCC (409): ${errorMsg}`, userId);
         } else if (isTerminalError) {
           await offlineRepository.updateStatus(item.id, 'blocked', errorMsg, userId);

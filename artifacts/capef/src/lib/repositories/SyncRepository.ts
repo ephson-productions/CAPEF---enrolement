@@ -69,9 +69,11 @@ export class DexieSyncRepository implements ISyncRepository {
     try {
       const op = await db.operations.where({ operationId, userId }).first();
       if (op && op.id) {
+        const newRetryCount = (op.retryCount || 0) + 1;
+        const newStatus = newRetryCount >= 5 ? 'blocked' : 'pending';
         await db.operations.update(op.id, {
-          retryCount: (op.retryCount || 0) + 1,
-          status: 'pending' as any,
+          retryCount: newRetryCount,
+          status: newStatus as any,
           lastError: error,
         });
       }
