@@ -4,6 +4,7 @@ import type { MemberInput } from '@workspace/api-client-react';
 import { useLocation } from 'wouter';
 import { useOfflineQueue } from '@/lib/offline-sync';
 import { useToast } from '@/hooks/use-toast';
+import { memberRepository } from '@/lib/repositories/MemberRepository';
 import MemberForm, { type MemberFormValues } from './MemberForm';
 import ActivityWizard from '@/components/members/ActivityWizard';
 import { useTranslation } from 'react-i18next';
@@ -12,10 +13,10 @@ export default function MemberNew() {
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { isOnline, enqueueMember } = useOfflineQueue();
+  const { isOnline, enqueueMember, syncNow, effectiveUserId } = useOfflineQueue();
   const createMember = useCreateMember();
 
-  const [createdMemberId, setCreatedMemberId] = React.useState<number | null>(null);
+  const [createdLocalId, setCreatedLocalId] = React.useState<string | null>(null);
 
   const onSubmit = async (data: MemberFormValues) => {
     const payload: MemberInput = {
@@ -36,32 +37,44 @@ export default function MemberNew() {
       payload.moraleData = data.moraleData as MemberInput['moraleData'];
     }
 
-    if (!isOnline) {
-      enqueueMember(payload);
-      setLocation('/members');
-      return;
-    }
+    const localId = crypto.randomUUID();
 
-    try {
-      const res = await createMember.mutateAsync({ data: payload });
-      toast({ title: t('common.success', 'Succès'), description: t('members.toast.base_created', 'Enrôlement de base créé avec succès.') });
-      setCreatedMemberId(res.id);
-    } catch (error) {
-      console.error(error);
-      toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('common.error_occurred', 'Une erreur est survenue lors de la soumission.') });
-      enqueueMember(payload);
-      setLocation('/members');
+    // 1. Write to local IndexedDB MemberRepository first
+    await memberRepository.saveLocalMember(effectiveUserId, {
+      ...payload,
+      localId,
+      syncStatus: 'pending',
+    });
+
+    // 2. Enqueue the mutation item for sync engine processing
+    enqueueMember(payload, localId);
+
+    // 3. Immediately set state to allow user to proceed to Activity Wizard locally
+    setCreatedLocalId(localId);
+
+    toast({
+      title: t('common.success', 'Succès'),
+      description: isOnline
+        ? t('members.toast.base_created_online', 'Enrôlement local créé avec succès. Synchronisation en cours.')
+        : t('members.toast.base_created_offline', 'Enrôlement enregistré en mode hors ligne.'),
+    });
+
+    // 4. In background when online, trigger unified single-path queue sync
+    if (isOnline) {
+      syncNow().catch((err) => {
+        console.warn('[MemberNew] Online sync trigger deferred:', err);
+      });
     }
   };
 
-  if (createdMemberId !== null) {
+  if (createdLocalId !== null) {
     return (
       <div className="space-y-6">
         <div className="mb-6 max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold text-foreground">{t('activities.next_step_title', 'Étape Suivante : Questionnaire Activité')}</h1>
           <p className="text-muted-foreground mt-1">{t('activities.next_step_subtitle', 'Veuillez compléter le questionnaire lié à l\'activité de ce membre.')}</p>
         </div>
-        <ActivityWizard memberId={createdMemberId} onComplete={() => setLocation(`/members/${createdMemberId}`)} />
+        <ActivityWizard memberId={createdLocalId} onComplete={() => setLocation(`/members/${createdLocalId}`)} />
       </div>
     );
   }

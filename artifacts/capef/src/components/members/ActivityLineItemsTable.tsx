@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertCircle } from 'lucide-react';
 import {
   formatLineItemTitle,
   getOptionLabel,
@@ -24,6 +24,13 @@ export const ActivityLineItemsTable: React.FC<ActivityLineItemsTableProps> = ({
   const incompleteBadge = (
     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ml-1">
       {t('activities.validation.legacy_incomplete', 'à compléter')}
+    </span>
+  );
+
+  const pendingSyncBadge = (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 ml-1">
+      <AlertCircle className="w-2.5 h-2.5" />
+      {t('members.sync_pending', 'En attente de synchro')}
     </span>
   );
 
@@ -165,9 +172,12 @@ export const ActivityLineItemsTable: React.FC<ActivityLineItemsTableProps> = ({
         </thead>
         <tbody className="divide-y divide-border">
           {items.map((item) => (
-            <tr key={item.id} className="hover:bg-muted/10">
+            <tr key={item.id || item.localId} className="hover:bg-muted/10">
               <td className="p-3 font-medium text-foreground">
-                {formatLineItemTitle(item, activityType, t) || '—'}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span>{formatLineItemTitle(item, activityType, t) || '—'}</span>
+                  {item.syncStatus === 'pending' && pendingSyncBadge}
+                </div>
               </td>
               <td className="p-3">{renderSpecifics(item)}</td>
               <td className="p-3">{renderProduction(item)}</td>

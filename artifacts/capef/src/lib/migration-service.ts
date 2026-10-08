@@ -1,5 +1,6 @@
 import { db, type LocalOfflineOperation } from './repositories/CapefDexieDatabase';
 import { syncRepository } from './repositories/SyncRepository';
+import { memberRepository } from './repositories/MemberRepository';
 
 const LEGACY_STORAGE_KEYS = [
   'capef_offline_queue_v2',
@@ -19,7 +20,7 @@ function generateUUID(): string {
 }
 
 export class MigrationService {
-  private currentSchemaVersion = 2;
+  private currentSchemaVersion = 3;
 
   /**
    * Migrate legacy localStorage queues (v2, members, actions) into Dexie IndexedDB.
@@ -27,7 +28,9 @@ export class MigrationService {
    * CRITICAL GUARANTEE:
    * Legacy localStorage keys are ONLY purged after Dexie database insertion is fully confirmed.
    */
-  async migrateLegacyLocalStorageToDexie(userId: string = 'anonymous_user'): Promise<{ migratedCount: number }> {
+  async migrateLegacyLocalStorageToDexie(targetUserId?: string | null): Promise<{ migratedCount: number }> {
+    const activeUserId = targetUserId || (typeof localStorage !== 'undefined' ? localStorage.getItem('capef_last_known_user_id') : null) || 'unassigned_user';
+
     if (typeof localStorage === 'undefined') {
       return { migratedCount: 0 };
     }
@@ -51,7 +54,7 @@ export class MigrationService {
             const op: Omit<LocalOfflineOperation, 'id'> = {
               operationId: opId,
               clientOperationId: clientOpId,
-              userId: item.userId || userId,
+              userId: (item.userId && item.userId !== 'anonymous_user') ? item.userId : activeUserId,
               operationType: opType,
               payload,
               status: item.status || 'pending',
@@ -78,7 +81,39 @@ export class MigrationService {
       console.log(`[MigrationService] Successfully migrated ${migratedCount} operations to Dexie IndexedDB and purged ${keysToPurge.length} legacy localStorage keys.`);
     }
 
+    // Migrate any legacy 'anonymous_user' operations inside Dexie to active user
+    await this.migrateAnonymousOperationsToUser(activeUserId);
+
+    // Clean up any historical duplicate activities in Dexie
+    await memberRepository.cleanupDuplicateActivities(activeUserId);
+
     return { migratedCount };
+  }
+
+  /**
+   * Controlled migration of any legacy 'anonymous_user' Dexie operations into the active user's namespace.
+   */
+  async migrateAnonymousOperationsToUser(targetUserId: string): Promise<number> {
+    if (!targetUserId || targetUserId === 'anonymous_user') return 0;
+
+    try {
+      const anonymousOps = await db.operations.where('userId').equals('anonymous_user').toArray();
+      if (anonymousOps.length === 0) return 0;
+
+      await db.transaction('rw', db.operations, async () => {
+        for (const op of anonymousOps) {
+          if (op.id !== undefined) {
+            await db.operations.update(op.id, { userId: targetUserId });
+          }
+        }
+      });
+
+      console.log(`[MigrationService] Successfully migrated ${anonymousOps.length} legacy anonymous_user operations to active user ${targetUserId}.`);
+      return anonymousOps.length;
+    } catch (err) {
+      console.error('[MigrationService] Error migrating anonymous operations:', err);
+      return 0;
+    }
   }
 
   /**

@@ -72,50 +72,71 @@ export class IdReconciliationService {
     payload: any,
     serverResponse: any
   ): Promise<void> {
-    await db.transaction('rw', [db.operations, db.entityMappings], async () => {
+    await db.transaction('rw', [db.operations, db.entityMappings, db.members, db.activities, db.lineItems], async () => {
       const now = new Date().toISOString();
 
       // 1. Save mappings
       if (operationType === 'create_member' && serverResponse) {
-        if (payload._local?.localId && serverResponse.id) {
+        const memberLocalId = payload._local?.localId || payload.localId;
+        if (memberLocalId && serverResponse.id) {
           await db.entityMappings.put({
-            localId: payload._local.localId,
+            localId: memberLocalId,
             entityType: 'member',
             serverId: serverResponse.id,
             syncStatus: 'synced',
             createdAt: now,
           });
+          await db.members.where('localId').equals(memberLocalId).modify({
+            serverId: serverResponse.id,
+            memberNumber: serverResponse.memberNumber || undefined,
+            syncStatus: 'synced',
+          });
         }
-        if (payload._local?.primaryActivityLocalId && Array.isArray(serverResponse.activities)) {
+        const primActId = payload._local?.primaryActivityLocalId || payload.primaryActivityLocalId;
+        if (primActId && Array.isArray(serverResponse.activities)) {
           const primaryAct = serverResponse.activities.find((a: any) => a.isPrimary);
           if (primaryAct && primaryAct.id) {
             await db.entityMappings.put({
-              localId: payload._local.primaryActivityLocalId,
+              localId: primActId,
               entityType: 'activity',
               serverId: primaryAct.id,
               syncStatus: 'synced',
               createdAt: now,
             });
+            await db.activities.where('localId').equals(primActId).modify({
+              serverId: primaryAct.id,
+              syncStatus: 'synced',
+            });
           }
         }
       } else if (operationType === 'create_activity' && serverResponse?.id) {
-        if (payload._local?.localId) {
+        const actLocalId = payload._local?.localId || payload.data?.localId || payload.localId;
+        if (actLocalId) {
           await db.entityMappings.put({
-            localId: payload._local.localId,
+            localId: actLocalId,
             entityType: 'activity',
             serverId: serverResponse.id,
             syncStatus: 'synced',
             createdAt: now,
           });
+          await db.activities.where('localId').equals(actLocalId).modify({
+            serverId: serverResponse.id,
+            syncStatus: 'synced',
+          });
         }
       } else if (operationType === 'create_line_item' && serverResponse?.id) {
-        if (payload._local?.localId) {
+        const lineLocalId = payload._local?.localId || payload.data?.localId || payload.localId;
+        if (lineLocalId) {
           await db.entityMappings.put({
-            localId: payload._local.localId,
+            localId: lineLocalId,
             entityType: 'line_item',
             serverId: serverResponse.id,
             syncStatus: 'synced',
             createdAt: now,
+          });
+          await db.lineItems.where('localId').equals(lineLocalId).modify({
+            serverId: serverResponse.id,
+            syncStatus: 'synced',
           });
         }
       }

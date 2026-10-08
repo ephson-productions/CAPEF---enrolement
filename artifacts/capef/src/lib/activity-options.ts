@@ -10,6 +10,15 @@ export type OptionGroup =
   | 'maillons_forestier'
   | 'maillons_artisan'
   | 'crop_category'
+  | 'crops_cereales'
+  | 'crops_oleagineux'
+  | 'crops_racines_tubercules'
+  | 'crops_legumes'
+  | 'crops_fruits_noix'
+  | 'crops_plantes_stimulantes'
+  | 'crops_legumineuses'
+  | 'crops_cultures_sucrieres'
+  | 'crops_autres'
   | 'culture_type'
   | 'fish_species'
   | 'livestock_type'
@@ -86,6 +95,79 @@ export const ACTIVITY_OPTIONS: Record<OptionGroup, readonly ActivityOption[]> = 
     { value: 'Légumineuses', key: 'legumineuses' },
     { value: 'Cultures sucrières', key: 'cultures_sucrieres' },
     { value: 'Autres', key: 'autres' },
+  ],
+  crops_cereales: [
+    { value: 'Maïs', key: 'mais' },
+    { value: 'Riz', key: 'riz' },
+    { value: 'Sorgho', key: 'sorgho' },
+    { value: 'Millet', key: 'millet' },
+    { value: 'Fonio', key: 'fonio' },
+    { value: 'Blé', key: 'ble' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_oleagineux: [
+    { value: 'Palmier à huile', key: 'palmier_huile' },
+    { value: 'Sésame', key: 'sesame' },
+    { value: 'Soja', key: 'soja' },
+    { value: 'Arachide', key: 'arachide' },
+    { value: 'Coton (graine)', key: 'coton' },
+    { value: 'Tournesol', key: 'tournesol' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_racines_tubercules: [
+    { value: 'Manioc', key: 'manioc' },
+    { value: 'Macabo / Taro', key: 'macabo_taro' },
+    { value: 'Igname', key: 'igname' },
+    { value: 'Patate douce', key: 'patate_douce' },
+    { value: 'Pomme de terre', key: 'pomme_de_terre' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_legumes: [
+    { value: 'Tomate', key: 'tomate' },
+    { value: 'Oignon', key: 'oignon' },
+    { value: 'Gombo', key: 'gombo' },
+    { value: 'Piment', key: 'piment' },
+    { value: 'Poivron', key: 'poivron' },
+    { value: 'Carotte', key: 'carotte' },
+    { value: 'Chou', key: 'chou' },
+    { value: 'Morelle noire (Ndole)', key: 'ndole' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_fruits_noix: [
+    { value: 'Bananier plantain', key: 'bananier_plantain' },
+    { value: 'Bananier doux', key: 'bananier_doux' },
+    { value: 'Ananas', key: 'ananas' },
+    { value: 'Mangue', key: 'mangue' },
+    { value: 'Papaye', key: 'papaye' },
+    { value: 'Agrumes (Orange, Citron)', key: 'agrumes' },
+    { value: 'Avocat', key: 'avocat' },
+    { value: 'Noix de cajou', key: 'noix_cajou' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_plantes_stimulantes: [
+    { value: 'Cacaoyer', key: 'cacao' },
+    { value: 'Caféier Robusta', key: 'cafe_robusta' },
+    { value: 'Caféier Arabica', key: 'cafe_arabica' },
+    { value: 'Théier', key: 'the' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_legumineuses: [
+    { value: 'Haricot', key: 'haricot' },
+    { value: 'Niébé', key: 'niebe' },
+    { value: 'Pois de terre (Voandzou)', key: 'voandzou' },
+    { value: 'Pois chiche', key: 'pois_chiche' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_cultures_sucrieres: [
+    { value: 'Canne à sucre', key: 'canne_a_sucre' },
+    { value: 'Stevia', key: 'stevia' },
+    { value: 'Autre (préciser)', key: 'autre' },
+  ],
+  crops_autres: [
+    { value: 'Hévéa', key: 'hevea' },
+    { value: 'Plantes médicinales', key: 'plantes_medicinales' },
+    { value: 'Fleurs / Horticulture', key: 'fleurs_horticulture' },
+    { value: 'Autre (préciser)', key: 'autre' },
   ],
   culture_type: [
     { value: 'Pure', key: 'pure' },

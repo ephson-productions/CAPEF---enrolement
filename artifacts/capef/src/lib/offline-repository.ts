@@ -1,8 +1,8 @@
 import { syncRepository, type ISyncRepository } from './repositories/SyncRepository';
 import { migrationService } from './migration-service';
 
-export type OperationType = 'create_activity' | 'create_line_item' | 'delete_line_item' | 'create_member' | 'update_member';
-export type QueueItemStatus = 'pending' | 'processing' | 'failed' | 'completed';
+export type OperationType = 'create_member' | 'update_member' | 'create_activity' | 'update_activity' | 'delete_activity' | 'create_line_item' | 'update_line_item' | 'delete_line_item';
+export type QueueItemStatus = 'pending' | 'processing' | 'waiting' | 'retry' | 'blocked' | 'failed' | 'completed';
 
 export interface OfflineQueueItem<T = any> {
   id: string;
@@ -43,7 +43,7 @@ export class DexieOfflineQueueRepository implements IOfflineQueueRepository {
   }
 
   private resolveUserId(userId?: string | null): string {
-    if (userId) {
+    if (userId && userId !== 'anonymous_user') {
       if (typeof window !== 'undefined' && window.localStorage) {
         try { window.localStorage.setItem('capef_last_known_user_id', userId); } catch {}
       }
@@ -52,10 +52,10 @@ export class DexieOfflineQueueRepository implements IOfflineQueueRepository {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const cached = window.localStorage.getItem('capef_last_known_user_id');
-        if (cached) return cached;
+        if (cached && cached !== 'anonymous_user') return cached;
       } catch {}
     }
-    return 'anonymous_user';
+    return 'unassigned_user';
   }
 
   async enqueue<T>(type: OperationType, payload: T, userId?: string | null): Promise<OfflineQueueItem<T>> {
@@ -95,7 +95,6 @@ export class DexieOfflineQueueRepository implements IOfflineQueueRepository {
   async getAll(userId?: string | null): Promise<OfflineQueueItem[]> {
     const activeUser = this.resolveUserId(userId);
     try {
-      // Migrate legacy localStorage queues on retrieval
       await migrationService.migrateLegacyLocalStorageToDexie(activeUser);
       const ops = await this.syncRepo.getOperationsByUser(activeUser);
       return ops.map((op) => ({
@@ -117,7 +116,6 @@ export class DexieOfflineQueueRepository implements IOfflineQueueRepository {
   async getPending(userId?: string | null): Promise<OfflineQueueItem[]> {
     const activeUser = this.resolveUserId(userId);
     try {
-      // Migrate legacy localStorage queues on retrieval
       await migrationService.migrateLegacyLocalStorageToDexie(activeUser);
       const ops = await this.syncRepo.getPendingOperationsByUser(activeUser);
       return ops.map((op) => ({

@@ -39,6 +39,23 @@ pgMemClient.Client.prototype.query = function (config: any, values: any, callbac
 
 // Initialize tables in pg-mem database instance
 memDb.public.none(`
+  CREATE TABLE regions (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+  );
+
+  CREATE TABLE departments (
+    id SERIAL PRIMARY KEY,
+    region_id INTEGER NOT NULL REFERENCES regions(id),
+    name TEXT NOT NULL
+  );
+
+  CREATE TABLE arrondissements (
+    id SERIAL PRIMARY KEY,
+    department_id INTEGER NOT NULL REFERENCES departments(id),
+    name TEXT NOT NULL
+  );
+
   CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     clerk_user_id TEXT NOT NULL UNIQUE,
@@ -83,6 +100,7 @@ memDb.public.none(`
     id SERIAL PRIMARY KEY,
     member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
     activity_type TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
     is_primary BOOLEAN NOT NULL DEFAULT false,
     region_id INTEGER,
     department_id INTEGER,
@@ -95,6 +113,7 @@ memDb.public.none(`
   CREATE TABLE activity_line_items (
     id SERIAL PRIMARY KEY,
     activity_id INTEGER NOT NULL REFERENCES member_activities(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL DEFAULT 1,
     parcelle_group_id TEXT,
     crop_category TEXT,
     crop_name TEXT,
@@ -119,15 +138,19 @@ memDb.public.none(`
   );
 
   CREATE TABLE processed_operations (
-    client_operation_id UUID PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id),
+    client_operation_id UUID NOT NULL,
     operation_type TEXT NOT NULL,
     resource_id INTEGER,
+    payload_hash TEXT,
     result_payload JSONB,
-    processed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (user_id, client_operation_id)
   );
 
   CREATE SEQUENCE seq_member_number START WITH 1 INCREMENT BY 1;
+
+  INSERT INTO regions (id, name) VALUES (1, 'Centre'), (2, 'Littoral');
 `);
 
 const testPool = new pgMemClient.Pool();

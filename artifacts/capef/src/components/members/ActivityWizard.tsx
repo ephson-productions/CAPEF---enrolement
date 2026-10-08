@@ -15,6 +15,10 @@ import {
 } from '@/lib/offline-hooks';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
+import { useOfflineQueue } from '@/lib/offline-sync';
+import { memberRepository } from '@/lib/repositories/MemberRepository';
+import { db, type LocalActivity, type LocalLineItem } from '@/lib/repositories/CapefDexieDatabase';
+import { idReconciliationService } from '@/lib/id-reconciliation-service';
 import { ArrowLeft, ArrowRight, Check, AlertTriangle, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCategoryLabel, getOptionLabel } from '@/lib/i18n-helpers';
@@ -27,7 +31,7 @@ import { CraftForm } from './CraftForm';
 import { ActivityLineItemsTable } from './ActivityLineItemsTable';
 
 interface ActivityWizardProps {
-  memberId: number;
+  memberId: number | string;
   onComplete?: () => void;
 }
 
@@ -35,9 +39,39 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { effectiveUserId, enqueueActivityAction, isOnline } = useOfflineQueue();
 
-  const { data: member } = useGetMember(memberId);
-  const { data: activities, refetch: refetchActivities } = useListMemberActivities(memberId);
+  const isNumericMemberId = typeof memberId === 'number' || (!isNaN(Number(memberId)) && Number(memberId) > 0);
+  const numericMemberId = isNumericMemberId ? Number(memberId) : 0;
+  const stringMemberLocalId = String(memberId);
+
+  const { data: member } = useGetMember(numericMemberId, {
+    query: { enabled: isOnline && isNumericMemberId && numericMemberId > 0, queryKey: ['member', numericMemberId] },
+  });
+  const { data: activities, refetch: refetchActivities } = useListMemberActivities(numericMemberId, {
+    query: { enabled: isOnline && isNumericMemberId && numericMemberId > 0, queryKey: ['memberActivities', numericMemberId] },
+  });
+
+  // Local state for activities when offline or for local UUID member
+  const [localActivities, setLocalActivities] = useState<any[]>([]);
+
+  const loadLocalActivities = async () => {
+    try {
+      const memberRecord = await memberRepository.getMemberById(stringMemberLocalId, effectiveUserId);
+      if (memberRecord) {
+        setLocalActivities(memberRecord.activities);
+      }
+    } catch (err) {
+      console.error('[ActivityWizard] Error loading local activities:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadLocalActivities();
+  }, [memberId, effectiveUserId]);
+
+  // Combined active activities list prioritizing local DB state
+  const activeActivitiesList = localActivities.length > 0 ? localActivities : (activities || []);
 
   // Geographic ref data for activity localisation
   const { data: regions } = useOfflineFallbackRegions();
@@ -83,7 +117,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   const deleteLineItem = useDeleteActivityLineItem();
 
   // Active activity for current selected type
-  const activeActivity = activities?.find((act) => act.activityType === selectedType);
+  const activeActivity = activeActivitiesList.find((act) => act.activityType === selectedType);
 
   // Sync member category on initial load
   useEffect(() => {
@@ -128,19 +162,74 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         maillons: selectedMaillons,
       };
 
-      if (activeActivity) {
-        await updateActivity.mutateAsync({
-          id: memberId,
-          activityId: activeActivity.id,
-          data: payload,
-        });
+      const now = new Date().toISOString();
+      const actLocalId = activeActivity?.localId || crypto.randomUUID();
+
+      // Always write to Dexie IndexedDB
+      const localActRecord: LocalActivity = {
+        localId: actLocalId,
+        memberLocalId: stringMemberLocalId,
+        memberServerId: isNumericMemberId ? numericMemberId : null,
+        userId: effectiveUserId,
+        activityType: selectedType,
+        isPrimary: payload.isPrimary ?? false,
+        regionId: selectedReg,
+        departmentId: selectedDept,
+        arrondissementId: selectedArr,
+        village,
+        maillons: selectedMaillons,
+        version: activeActivity?.version || 1,
+        createdAt: activeActivity?.createdAt || now,
+        updatedAt: now,
+        syncStatus: 'pending',
+      };
+      await db.activities.put(localActRecord);
+      await loadLocalActivities();
+
+      if (isOnline && isNumericMemberId && numericMemberId > 0) {
+        const serverMatch = (activities || []).find((sa: any) => sa.activityType === selectedType);
+        const resolvedServerId = activeActivity?.serverId || serverMatch?.id;
+
+        if (resolvedServerId) {
+          await db.activities.where('localId').equals(actLocalId).modify({
+            serverId: resolvedServerId,
+            syncStatus: 'synced',
+          });
+          await idReconciliationService.saveMapping(actLocalId, 'activity', resolvedServerId);
+
+          await updateActivity.mutateAsync({
+            id: numericMemberId,
+            activityId: resolvedServerId,
+            data: payload,
+          });
+        } else {
+          const createdActivity = await createActivity.mutateAsync({
+            id: numericMemberId,
+            data: payload,
+          });
+          if (createdActivity && createdActivity.id) {
+            await db.activities.where('localId').equals(actLocalId).modify({
+              serverId: createdActivity.id,
+              syncStatus: 'synced',
+            });
+            await idReconciliationService.saveMapping(actLocalId, 'activity', createdActivity.id);
+          }
+        }
+        await refetchActivities();
       } else {
-        await createActivity.mutateAsync({
-          id: memberId,
-          data: payload,
+        const serverMatch = (activities || []).find((sa: any) => sa.activityType === selectedType);
+        const resolvedServerId = activeActivity?.serverId || serverMatch?.id;
+
+        enqueueActivityAction({
+          type: resolvedServerId ? 'update_activity' : 'create_activity',
+          memberId: numericMemberId,
+          activityId: resolvedServerId || undefined,
+          memberRef: stringMemberLocalId,
+          activityRef: resolvedServerId ? String(resolvedServerId) : actLocalId,
+          data: { ...payload, localId: actLocalId },
+          _local: { localId: actLocalId, memberLocalId: stringMemberLocalId, activityLocalId: actLocalId },
         });
       }
-      await refetchActivities();
       setStep(2);
     } catch (err) {
       toast({
@@ -183,36 +272,133 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
   };
 
   const handleAddLineItem = async (): Promise<boolean> => {
-    if (!activeActivity) return false;
-
     const { valid, payload } = validateAndBuildLine();
     if (!valid || !payload) {
       return false;
     }
 
-    try {
-      await createLineItem.mutateAsync({
-        id: memberId,
-        activityId: activeActivity.id,
-        data: payload,
-      });
-      await refetchActivities();
-      setCurrentLinePayload(null);
-      setValidationErrors({});
-      toast({
-        title: t('common.success', 'Succès'),
-        description: t('activities.toast.line_added', 'Ligne ajoutée avec succès.'),
-      });
-      return true;
-    } catch (err: any) {
-      const serverMsg = err?.data?.error || err?.message;
+    // Duplicate crop/product check on local line items for current activity
+    const existingItems = activeActivity?.lineItems || [];
+    const isDuplicate = existingItems.some((item: any) => {
+      if (selectedType === 'agriculteur') {
+        return item.cropName?.toLowerCase().trim() === payload.cropName?.toLowerCase().trim() &&
+          item.cropCategory === payload.cropCategory;
+      }
+      if (selectedType === 'pecheur') {
+        return item.speciesPêche?.toLowerCase().trim() === payload.speciesPêche?.toLowerCase().trim();
+      }
+      if (selectedType === 'eleveur') {
+        return item.species?.toLowerCase().trim() === payload.species?.toLowerCase().trim();
+      }
+      if (selectedType === 'forestier') {
+        return item.essence?.toLowerCase().trim() === payload.essence?.toLowerCase().trim() &&
+          item.subCategory === payload.subCategory;
+      }
+      if (selectedType === 'artisan') {
+        return item.artisanatProducts?.toLowerCase().trim() === payload.artisanatProducts?.toLowerCase().trim();
+      }
+      return false;
+    });
+
+    if (isDuplicate) {
       toast({
         variant: 'destructive',
-        title: t('common.error', 'Erreur'),
-        description: serverMsg || t('activities.toast.add_line_failed', 'Échec de l\'ajout de la ligne.'),
+        title: t('common.error', 'Doublon détecté'),
+        description: t('activities.toast.duplicate_item', 'Cette culture ou ce produit existe déjà pour cette activité.'),
       });
       return false;
     }
+
+    const now = new Date().toISOString();
+    const actLocalId = activeActivity?.localId || crypto.randomUUID();
+    const liLocalId = crypto.randomUUID();
+
+    // 1. Write activity and line item to Dexie IndexedDB
+    if (!activeActivity) {
+      const localActRecord: LocalActivity = {
+        localId: actLocalId,
+        memberLocalId: stringMemberLocalId,
+        memberServerId: isNumericMemberId ? numericMemberId : null,
+        userId: effectiveUserId,
+        activityType: selectedType,
+        isPrimary: member?.category === selectedType,
+        regionId: selectedReg,
+        departmentId: selectedDept,
+        arrondissementId: selectedArr,
+        village,
+        maillons: selectedMaillons,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+        syncStatus: 'pending',
+      };
+      await db.activities.put(localActRecord);
+    }
+
+    const localLineRecord: LocalLineItem = {
+      localId: liLocalId,
+      activityLocalId: actLocalId,
+      activityServerId: activeActivity?.serverId || null,
+      userId: effectiveUserId,
+      ...payload,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 'pending',
+    };
+    await db.lineItems.put(localLineRecord);
+
+    // Update local member status from incomplet -> en_attente upon first line item creation
+    if (member?.status === 'incomplet') {
+      await memberRepository.updateLocalMember(stringMemberLocalId, effectiveUserId, {
+        status: 'en_attente',
+        syncStatus: 'pending',
+      });
+    }
+
+    await loadLocalActivities();
+
+    // 2. Enqueue offline mutation action or send to server
+    const serverMatch = (activities || []).find((sa: any) => sa.activityType === selectedType);
+    const targetActivityServerId = activeActivity?.serverId || serverMatch?.id;
+
+    if (isOnline && isNumericMemberId && numericMemberId > 0 && targetActivityServerId) {
+      try {
+        const createdLineItem = await createLineItem.mutateAsync({
+          id: numericMemberId,
+          activityId: targetActivityServerId,
+          data: payload,
+        });
+        if (createdLineItem && createdLineItem.id) {
+          await db.lineItems.where('localId').equals(liLocalId).modify({
+            serverId: createdLineItem.id,
+            syncStatus: 'synced',
+          });
+          await idReconciliationService.saveMapping(liLocalId, 'line_item', createdLineItem.id);
+        }
+        await refetchActivities();
+      } catch (err: any) {
+        console.warn('[ActivityWizard] Online create line item failed, saved locally:', err);
+      }
+    } else {
+      enqueueActivityAction({
+        type: 'create_line_item',
+        memberId: numericMemberId,
+        activityId: targetActivityServerId || undefined,
+        memberRef: stringMemberLocalId,
+        activityRef: targetActivityServerId ? String(targetActivityServerId) : actLocalId,
+        data: { ...payload, localId: liLocalId },
+        _local: { localId: liLocalId, memberLocalId: stringMemberLocalId, activityLocalId: actLocalId },
+      });
+    }
+
+    setCurrentLinePayload(null);
+    setValidationErrors({});
+    toast({
+      title: t('common.success', 'Succès'),
+      description: t('activities.toast.line_added', 'Ligne ajoutée avec succès.'),
+    });
+    return true;
   };
 
   const handleNextFromStep2 = async () => {
@@ -225,15 +411,32 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
     setStep(3);
   };
 
-  const handleDeleteLine = async (itemId: number) => {
-    if (!activeActivity) return;
+  const handleDeleteLine = async (itemIdOrLocalId: number | string) => {
     try {
-      await deleteLineItem.mutateAsync({
-        id: memberId,
-        activityId: activeActivity.id,
-        itemId,
-      });
-      await refetchActivities();
+      if (typeof itemIdOrLocalId === 'string') {
+        await db.lineItems.where('localId').equals(itemIdOrLocalId).delete();
+      } else {
+        await db.lineItems.where('serverId').equals(itemIdOrLocalId).delete();
+        const targetActivityServerId = activeActivity?.serverId;
+        if (isOnline && isNumericMemberId && numericMemberId > 0 && targetActivityServerId) {
+          await deleteLineItem.mutateAsync({
+            id: numericMemberId,
+            activityId: targetActivityServerId,
+            itemId: itemIdOrLocalId,
+          });
+          await refetchActivities();
+        } else {
+          enqueueActivityAction({
+            type: 'delete_line_item',
+            memberId: numericMemberId,
+            activityId: targetActivityServerId || undefined,
+            itemId: itemIdOrLocalId,
+            memberRef: stringMemberLocalId,
+            activityRef: targetActivityServerId ? String(targetActivityServerId) : activeActivity?.localId,
+          });
+        }
+      }
+      await loadLocalActivities();
       toast({ title: t('common.success', 'Succès'), description: t('activities.toast.line_deleted', 'Ligne supprimée.') });
     } catch (err) {
       toast({
@@ -255,7 +458,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
         <div>
           <h2 className="text-xl font-bold text-primary">{t('activities.title', 'Questionnaire d\'Activité')}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {t('activities.member_id', 'Enrôlement ID:')} {member?.memberNumber}
+            {t('activities.member_id', 'Enrôlement ID:')} {member?.memberNumber || String(memberId).slice(0, 8)}
           </p>
         </div>
         <button
@@ -470,7 +673,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                 <ActivityLineItemsTable
                   activityType={selectedType}
                   items={activeActivity.lineItems}
-                  onDeleteLine={handleDeleteLine}
+                  onDeleteLine={(id) => handleDeleteLine(id)}
                   isDeleting={deleteLineItem.isPending}
                 />
               </div>
@@ -521,15 +724,9 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
             <ActivityLineItemsTable
               activityType={selectedType}
               items={activeActivity?.lineItems || []}
-              onDeleteLine={handleDeleteLine}
+              onDeleteLine={(id) => handleDeleteLine(id)}
               isDeleting={deleteLineItem.isPending}
             />
-
-            {(!activeActivity?.lineItems || activeActivity.lineItems.length === 0) && (
-              <p className="text-xs text-destructive font-medium">
-                {t('activities.at_least_one_line_required', 'Vous devez enregistrer au moins une ligne d\'activité pour pouvoir valider.')}
-              </p>
-            )}
 
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-md p-4 flex gap-3 text-sm text-yellow-900 dark:text-yellow-200">
               <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
@@ -550,7 +747,6 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
 
               <button
                 type="button"
-                disabled={!activeActivity?.lineItems || activeActivity.lineItems.length === 0}
                 onClick={() => {
                   setWizardFinished(true);
                   if (onComplete) {
@@ -563,7 +759,7 @@ export default function ActivityWizard({ memberId, onComplete }: ActivityWizardP
                     });
                   }
                 }}
-                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1.5 text-sm"
               >
                 {t('common.validate_and_finish', 'Valider & Terminer')} <Check className="h-4 w-4" />
               </button>

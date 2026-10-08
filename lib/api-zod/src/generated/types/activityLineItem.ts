@@ -9,6 +9,8 @@ import type { ActivityLineItemProductsItem } from './activityLineItemProductsIte
 
 export interface ActivityLineItem {
   id: number;
+  /** Optimistic Concurrency Control (OCC) version counter */
+  version: number;
   activityId: number;
   /** @nullable */
   parcelleGroupId?: string | null;

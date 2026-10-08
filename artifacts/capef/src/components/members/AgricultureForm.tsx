@@ -36,15 +36,16 @@ export const AgricultureForm: React.FC<AgricultureFormProps> = ({
 
   const getCropGroupKey = (cat: string): OptionGroup | null => {
     switch (cat) {
-      case 'Céréales': return 'crops_cereales' as OptionGroup;
-      case 'Oléagineux': return 'crops_oleagineux' as OptionGroup;
-      case 'Racines-tubercules': return 'crops_racines_tubercules' as OptionGroup;
-      case 'Légumes': return 'crops_legumes' as OptionGroup;
-      case 'Fruits et noix': return 'crops_fruits_noix' as OptionGroup;
-      case 'Plantes stimulantes': return 'crops_plantes_stimulantes' as OptionGroup;
-      case 'Légumineuses': return 'crops_legumineuses' as OptionGroup;
-      case 'Cultures sucrières': return 'crops_cultures_sucrieres' as OptionGroup;
-      default: return 'crops_autres' as OptionGroup;
+      case 'Céréales': return 'crops_cereales';
+      case 'Oléagineux': return 'crops_oleagineux';
+      case 'Racines-tubercules': return 'crops_racines_tubercules';
+      case 'Légumes': return 'crops_legumes';
+      case 'Fruits et noix': return 'crops_fruits_noix';
+      case 'Plantes stimulantes': return 'crops_plantes_stimulantes';
+      case 'Légumineuses': return 'crops_legumineuses';
+      case 'Cultures sucrières': return 'crops_cultures_sucrieres';
+      case 'Autres': return 'crops_autres';
+      default: return null;
     }
   };
 
@@ -119,7 +120,7 @@ export const AgricultureForm: React.FC<AgricultureFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1 text-foreground">
-            {t('activities.crop_category', 'Catégorie de culture')} <span className="text-destructive">*</span>
+            {t('activities.crop_category', 'Catégorie de culture principale')} <span className="text-destructive">*</span>
           </label>
           <select
             value={cropCategory}
@@ -130,7 +131,7 @@ export const AgricultureForm: React.FC<AgricultureFormProps> = ({
               errors.cropCategory ? 'border-destructive' : 'border-input'
             }`}
           >
-            <option value="">{t('common.select', 'Sélectionner')}</option>
+            <option value="">{t('common.select', 'Sélectionner une catégorie')}</option>
             {ACTIVITY_OPTIONS.crop_category.map((opt) => (
               <option key={opt.key} value={opt.value}>
                 {getOptionLabel('crop_category', opt.value, t)}
@@ -148,11 +149,15 @@ export const AgricultureForm: React.FC<AgricultureFormProps> = ({
             value={cropName}
             disabled={!cropCategory}
             onChange={(e) => updateState({ cropName: e.target.value })}
-            className={`w-full border rounded-md p-2 bg-background text-foreground text-sm ${
+            className={`w-full border rounded-md p-2 bg-background text-foreground text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
               errors.cropName ? 'border-destructive' : 'border-input'
             }`}
           >
-            <option value="">{t('common.select', 'Sélectionner une culture')}</option>
+            <option value="">
+              {!cropCategory
+                ? t('activities.select_category_first', 'Veuillez d\'abord sélectionner une catégorie')
+                : t('common.select', 'Sélectionner une culture')}
+            </option>
             {cropOptions.map((opt) => (
               <option key={opt.key} value={opt.value}>
                 {cropGroup ? getOptionLabel(cropGroup, opt.value, t) : opt.value}

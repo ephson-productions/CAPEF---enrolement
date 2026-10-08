@@ -46,6 +46,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         navigateFallback: 'index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: ['**/stats.html'],
         runtimeCaching: [
           {
             urlPattern: /^\/api\/(regions|departments|arrondissements)$/i,

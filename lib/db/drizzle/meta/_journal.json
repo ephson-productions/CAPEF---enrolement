@@ -29,6 +29,13 @@
       "when": 1789720123818,
       "tag": "0003_shiny_random",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790868528315,
+      "tag": "0004_mighty_meltdown",
+      "breakpoints": true
     }
   ]
 }
