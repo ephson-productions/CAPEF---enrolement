@@ -151,6 +151,37 @@ describe("Phase P3 Security & Multi-Role Authorization Tests", () => {
       .returning();
   });
 
+  describe("Member List Search & Role Scoping", () => {
+    it("Agent 1 search query respects createdById scoping and does not return Agent 2 members", async () => {
+      // Agent 1 searches for "0000" which matches both CAPEF-AGR-000001 (Agent 1) and CAPEF-ELV-000002 (Agent 2)
+      const res = await request(app)
+        .get("/api/members?search=0000")
+        .set("Authorization", `Bearer ${agent1.clerkUserId}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.data[0].id).toBe(member1.id);
+    });
+
+    it("Supervisor Region B search query returns 0 results for Region 1 members", async () => {
+      const res = await request(app)
+        .get("/api/members?search=CAPEF")
+        .set("Authorization", `Bearer ${supervisorRegionB.clerkUserId}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(0);
+    });
+
+    it("Admin search query returns all matching members regardless of creator", async () => {
+      const res = await request(app)
+        .get("/api/members?search=0000")
+        .set("Authorization", `Bearer ${adminUser.clerkUserId}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(2);
+    });
+  });
+
   describe("Member Activities Access Controls", () => {
     it("Agent 1 -> GET Member 1 activities succeeds (200 OK)", async () => {
       const res = await request(app)

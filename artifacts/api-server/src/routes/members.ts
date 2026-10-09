@@ -403,6 +403,13 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     }
   }
 
+  if (search) {
+    const s = `%${String(search)}%`;
+    conditions.push(
+      sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`
+    );
+  }
+
   let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(membersTable);
   if (conditions.length) {
     countQuery = countQuery.where(and(...conditions)) as any;
@@ -410,7 +417,16 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 
   let joinedQuery = db
     .select({
-      member: membersTable,
+      id: membersTable.id,
+      memberNumber: membersTable.memberNumber,
+      memberType: membersTable.memberType,
+      category: membersTable.category,
+      version: membersTable.version,
+      status: membersTable.status,
+      createdAt: membersTable.createdAt,
+      physiqueNom: sql<string | null>`${membersTable.physiqueData}->>'nom'`,
+      physiquePrenom: sql<string | null>`${membersTable.physiqueData}->>'prenom'`,
+      moraleNom: sql<string | null>`${membersTable.moraleData}->>'nom'`,
       regionName: regionsTable.name,
       departmentName: departmentsTable.name,
       arrondissementName: arrondissementsTable.name,
@@ -426,13 +442,6 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     joinedQuery = joinedQuery.where(and(...conditions)) as any;
   }
 
-  if (search) {
-    const s = `%${String(search)}%`;
-    const searchCond = sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`;
-    joinedQuery = joinedQuery.where(searchCond) as any;
-    countQuery = countQuery.where(searchCond) as any;
-  }
-
   const [totalResult] = await countQuery;
   const total = totalResult?.count ?? 0;
 
@@ -441,7 +450,24 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     .limit(limitNum)
     .offset(offset);
 
-  const summaries = rows.map((row) => formatPreJoinedMember(row, false));
+  const summaries = rows.map((row) => {
+    const displayName = row.memberType === "physique"
+      ? `${row.physiqueNom ?? ""} ${row.physiquePrenom ?? ""}`.trim() || null
+      : (row.moraleNom ?? null);
+
+    return {
+      id: row.id,
+      memberNumber: row.memberNumber,
+      memberType: row.memberType,
+      category: row.category,
+      version: row.version ?? 1,
+      displayName,
+      regionName: row.regionName ?? null,
+      createdByName: row.createdByName ?? null,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    };
+  });
 
   res.json({
     data: summaries,
@@ -645,14 +671,30 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     artisan: "artisanat"
   };
 
+  const MAX_EXPORT_ROWS = 5000;
   const batchSize = 500;
   let offset = 0;
   let hasMore = true;
+  let exportedRows = 0;
 
-  while (hasMore) {
+  while (hasMore && exportedRows < MAX_EXPORT_ROWS) {
+    const currentLimit = Math.min(batchSize, MAX_EXPORT_ROWS - exportedRows);
+
     let query = db
       .select({
-        member: membersTable,
+        id: membersTable.id,
+        memberNumber: membersTable.memberNumber,
+        memberType: membersTable.memberType,
+        category: membersTable.category,
+        village: membersTable.village,
+        status: membersTable.status,
+        createdAt: membersTable.createdAt,
+        physiqueNom: sql<string | null>`${membersTable.physiqueData}->>'nom'`,
+        physiquePrenom: sql<string | null>`${membersTable.physiqueData}->>'prenom'`,
+        physiqueTel: sql<string | null>`${membersTable.physiqueData}->>'telephone1'`,
+        moraleNom: sql<string | null>`${membersTable.moraleData}->>'nom'`,
+        moraleOrg: sql<string | null>`${membersTable.moraleData}->>'typeOrganisation'`,
+        moraleTel: sql<string | null>`${membersTable.moraleData}->>'telephone1'`,
         regionName: regionsTable.name,
         departmentName: departmentsTable.name,
         arrondissementName: arrondissementsTable.name,
@@ -670,7 +712,7 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
 
     const batch = await query
       .orderBy(sql`${membersTable.id} ASC`)
-      .limit(batchSize)
+      .limit(currentLimit)
       .offset(offset);
 
     if (batch.length === 0) {
@@ -678,7 +720,7 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
       break;
     }
 
-    const memberIds = batch.map((r) => r.member.id);
+    const memberIds = batch.map((r) => r.id);
     const batchActivities = await db
       .select({
         memberId: memberActivitiesTable.memberId,
@@ -704,20 +746,17 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
       natureMap.set(act.memberId, list);
     }
 
-    for (const row of batch) {
-      const m = row.member;
-      const physique = m.physiqueData as any;
-      const morale = m.moraleData as any;
+    for (const m of batch) {
       const name = m.memberType === "physique"
-        ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
-        : (morale?.nom ?? "");
+        ? `${m.physiqueNom ?? ""} ${m.physiquePrenom ?? ""}`.trim()
+        : (m.moraleNom ?? "");
       const forme = m.memberType === "morale"
-        ? (morale?.typeOrganisation ?? "")
+        ? (m.moraleOrg ?? "")
         : "";
       const activite = categoryTranslation[m.category] || m.category;
       const mobile = m.memberType === "physique"
-        ? (physique?.telephone1 ?? "")
-        : (morale?.telephone1 ?? "");
+        ? (m.physiqueTel ?? "")
+        : (m.moraleTel ?? "");
 
       const lineItems = natureMap.get(m.id) || [];
       const nature = lineItems.length > 0 ? Array.from(new Set(lineItems)).join("; ") : "";
@@ -729,13 +768,13 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
         activite,
         nature,
         date_creation: m.createdAt.toISOString().split("T")[0],
-        region: row.regionName ?? "",
-        departement: row.departmentName ?? "",
-        commune: row.arrondissementName ?? "",
+        region: m.regionName ?? "",
+        departement: m.departmentName ?? "",
+        commune: m.arrondissementName ?? "",
         mobile,
         village: m.village ?? "",
         statut: m.status,
-        agent: row.createdByName ?? "",
+        agent: m.createdByName ?? "",
         inscription: "",
         cotisation: "",
         adhesion_yunus: "",
@@ -743,10 +782,12 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
         cotisation_restant: "",
         adhesion_yunus_restant: "",
       }).commit();
+
+      exportedRows++;
     }
 
     offset += batch.length;
-    if (batch.length < batchSize) {
+    if (batch.length < currentLimit) {
       hasMore = false;
     }
   }
