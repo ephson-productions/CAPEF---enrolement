@@ -29,9 +29,9 @@ export default function AssignedZones() {
 
   const assignedZones = user?.assignedZones || [];
 
-  const regMap = new Map(regionsQuery.data?.map(r => [r.id, r.name]) || []);
-  const deptMap = new Map(departmentsQuery.data?.map(d => [d.id, d.name]) || []);
-  const arrMap = new Map(arrondissementsQuery.data?.map(a => [a.id, a.name]) || []);
+  const regMap = new Map<number, string>(regionsQuery.data?.map((r: any) => [r.id, r.name]) || []);
+  const deptMap = new Map<number, string>(departmentsQuery.data?.map((d: any) => [d.id, d.name]) || []);
+  const arrMap = new Map<number, string>(arrondissementsQuery.data?.map((a: any) => [a.id, a.name]) || []);
 
   const getRoleLabel = (role?: string) => {
     if (role === 'admin') return t('users.roles.admin', 'Administrateur');
@@ -106,14 +106,18 @@ export default function AssignedZones() {
       {assignedZones.length > 0 ? (
         <div className="space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-            {t('profile.zones_list_header', 'Combinaisons de zones ({{count}})', { count: assignedZones.length })}
+            {t('profile.zones_list_header', { defaultValue: 'Combinaisons de zones ({{count}})', count: assignedZones.length })}
           </h3>
 
           <div className="grid grid-cols-1 gap-4">
             {assignedZones.map((zone, idx) => {
-              const regName = zone.regionId ? regMap.get(zone.regionId) || `${t('members.region', 'Région')} ID ${zone.regionId}` : t('profile.all_regions', 'Toutes les régions');
-              const deptName = zone.departmentId ? deptMap.get(zone.departmentId) || `${t('members.department', 'Département')} ID ${zone.departmentId}` : t('users.all_departments', 'Tous les départements');
-              const arrName = zone.arrondissementId ? arrMap.get(zone.arrondissementId) || `${t('members.arrondissement', 'Arrondissement')} ID ${zone.arrondissementId}` : t('users.all_arrondissements', 'Tous les arrondissements');
+              const regLabel = t('members.region', 'Région');
+              const deptLabel = t('members.department', 'Département');
+              const arrLabel = t('members.arrondissement', 'Arrondissement');
+
+              const regName = zone.regionId ? (regMap.get(zone.regionId) || `${regLabel} ID ${zone.regionId}`) : t('profile.all_regions', 'Toutes les régions');
+              const deptName = zone.departmentId ? (deptMap.get(zone.departmentId) || `${deptLabel} ID ${zone.departmentId}`) : t('users.all_departments', 'Tous les départements');
+              const arrName = zone.arrondissementId ? (arrMap.get(zone.arrondissementId) || `${arrLabel} ID ${zone.arrondissementId}`) : t('users.all_arrondissements', 'Tous les arrondissements');
 
               return (
                 <div
@@ -123,7 +127,7 @@ export default function AssignedZones() {
                   <div className="flex items-center justify-between border-b border-border pb-3">
                     <span className="text-xs font-bold text-primary flex items-center gap-1.5">
                       <CheckCircle className="h-4 w-4" />
-                      {t('profile.zone_number', 'Zone #{{num}}', { num: idx + 1 })}
+                      {t('profile.zone_number', { defaultValue: 'Zone #{{num}}', num: idx + 1 })}
                     </span>
                     <span className="text-xs text-muted-foreground font-mono">
                       [R:{zone.regionId || '*'}/D:{zone.departmentId || '*'}/A:{zone.arrondissementId || '*'}]
