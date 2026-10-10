@@ -480,6 +480,25 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
   });
 });
 
+// Helper to validate geographic hierarchy
+async function validateGeographicCascade(regionId?: number | null, departmentId?: number | null, arrondissementId?: number | null): Promise<string | null> {
+  if (departmentId && regionId) {
+    const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, departmentId)).limit(1);
+    if (!dept || dept.regionId !== regionId) {
+      return `Le département (ID ${departmentId}) n'appartient pas à la région sélectionnée (ID ${regionId}).`;
+    }
+  }
+
+  if (arrondissementId && departmentId) {
+    const [arr] = await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, arrondissementId)).limit(1);
+    if (!arr || arr.departmentId !== departmentId) {
+      return `L'arrondissement (ID ${arrondissementId}) n'appartient pas au département sélectionné (ID ${departmentId}).`;
+    }
+  }
+
+  return null;
+}
+
 // POST /api/members
 router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
@@ -492,6 +511,17 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
 
   if (!memberType || !category) {
     res.status(400).json({ error: "memberType et category sont requis" });
+    return;
+  }
+
+  const geoError = await validateGeographicCascade(
+    coerceNumeric(regionId),
+    coerceNumeric(departmentId),
+    coerceNumeric(arrondissementId)
+  );
+
+  if (geoError) {
+    res.status(400).json({ error: geoError, code: "INVALID_GEOGRAPHY_CASCADE" });
     return;
   }
 
