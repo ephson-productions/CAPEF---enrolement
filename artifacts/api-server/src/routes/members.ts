@@ -15,6 +15,7 @@ import { CreateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
+import { resolveMemberMediaUrls, resolveSignedMediaUrl } from "../lib/storage";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -318,10 +319,12 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
     activities.map((act: any) => formatMemberActivity(act, executor))
   );
 
-  return {
+  const fullMember = {
     ...formattedBase,
     activities: formattedActivities,
   };
+
+  return await resolveMemberMediaUrls(fullMember);
 }
 
 async function updateMemberStatusIfNeeded(memberId: number, executor: any = db): Promise<void> {
@@ -671,15 +674,11 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     artisan: "artisanat"
   };
 
-  const MAX_EXPORT_ROWS = 5000;
   const batchSize = 500;
   let offset = 0;
   let hasMore = true;
-  let exportedRows = 0;
 
-  while (hasMore && exportedRows < MAX_EXPORT_ROWS) {
-    const currentLimit = Math.min(batchSize, MAX_EXPORT_ROWS - exportedRows);
-
+  while (hasMore) {
     let query = db
       .select({
         id: membersTable.id,
@@ -712,7 +711,7 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
 
     const batch = await query
       .orderBy(sql`${membersTable.id} ASC`)
-      .limit(currentLimit)
+      .limit(batchSize)
       .offset(offset);
 
     if (batch.length === 0) {
@@ -783,11 +782,10 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
         adhesion_yunus_restant: "",
       }).commit();
 
-      exportedRows++;
     }
 
     offset += batch.length;
-    if (batch.length < currentLimit) {
+    if (batch.length < batchSize) {
       hasMore = false;
     }
   }
@@ -2321,12 +2319,30 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   </g>
 </svg>`;
 
-  const base64Badge = Buffer.from(badgeSvg, "utf-8").toString("base64");
-  const badgeUrl = `data:image/svg+xml;base64,${base64Badge}`;
+  const badgeFileName = `badge_m${id}_${Date.now()}.svg`;
+  let badgePath = `member-documents/${badgeFileName}`;
 
-  await db.update(membersTable).set({ badgeUrl }).where(eq(membersTable.id, id));
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseKey) {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      await supabase.storage.from("member-documents").upload(badgeFileName, Buffer.from(badgeSvg, "utf-8"), {
+        contentType: "image/svg+xml",
+        upsert: true,
+      });
+      badgePath = badgeFileName;
+    }
+  } catch (err) {
+    console.error("Failed to upload badge SVG to Supabase Storage:", err);
+  }
 
-  res.json({ badgeUrl, memberNumber: member.memberNumber });
+  await db.update(membersTable).set({ badgeUrl: badgePath }).where(eq(membersTable.id, id));
+
+  const resolvedBadgeUrl = await resolveSignedMediaUrl(badgePath);
+
+  res.json({ badgeUrl: resolvedBadgeUrl, memberNumber: member.memberNumber });
 });
 
 // POST /api/members/sync — bulk offline sync
