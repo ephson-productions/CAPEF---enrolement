@@ -29,6 +29,10 @@ interface StorageEstimate {
   usageMb: string;
   quotaMb: string;
   percentUsed: string;
+  isPersisted: boolean;
+  isApproximate: boolean;
+  payloadSizeApproxMb: string;
+  warningNotice: string | null;
 }
 
 export function SyncDashboardModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -53,6 +57,62 @@ export function SyncDashboardModal({ isOpen, onClose }: { isOpen: boolean; onClo
   const [lastSuccessfulSync, setLastSuccessfulSync] = useState<string | null>(null);
   const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null);
   const [isOfflineReady, setIsOfflineReady] = useState(false);
+
+  const fetchStorageEstimate = async (pendingOpsCount: number, mediaCount: number): Promise<StorageEstimate> => {
+    let isPersisted = false;
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persisted) {
+      try {
+        isPersisted = await navigator.storage.persisted();
+      } catch (e) {
+        console.warn('[SyncDashboardModal] Persisted check failed:', e);
+      }
+    }
+
+    // Estimate payload size (approx 50 KB per JSON op + 500 KB per media Blob)
+    const approxPayloadBytes = pendingOpsCount * 50 * 1024 + mediaCount * 500 * 1024;
+    const payloadSizeApproxMb = (approxPayloadBytes / (1024 * 1024)).toFixed(2);
+
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+      try {
+        const est = await navigator.storage.estimate();
+        const usageBytes = est.usage || 0;
+        const quotaBytes = est.quota || 0;
+
+        const usageMb = (usageBytes / (1024 * 1024)).toFixed(1);
+        const quotaMb = (quotaBytes / (1024 * 1024)).toFixed(1);
+        const percentVal = quotaBytes > 0 ? (usageBytes / quotaBytes) * 100 : 0;
+        const percentUsed = percentVal.toFixed(1);
+
+        let warningNotice: string | null = null;
+        if (percentVal > 80) {
+          warningNotice = t('offline.dashboard.quota_warning', 'Attention : Utilisation du stockage supérieure à 80%. Pensez à synchroniser vos données.');
+        }
+
+        return {
+          usageMb,
+          quotaMb,
+          percentUsed,
+          isPersisted,
+          isApproximate: false,
+          payloadSizeApproxMb,
+          warningNotice,
+        };
+      } catch (err) {
+        console.warn('[SyncDashboardModal] Storage estimate error:', err);
+      }
+    }
+
+    // Fallback if navigator.storage.estimate is unsupported
+    return {
+      usageMb: payloadSizeApproxMb,
+      quotaMb: '500.0',
+      percentUsed: '1.0',
+      isPersisted,
+      isApproximate: true,
+      payloadSizeApproxMb,
+      warningNotice: null,
+    };
+  };
 
   const refreshData = async () => {
     if (!userId) return;
@@ -79,6 +139,9 @@ export function SyncDashboardModal({ isOpen, onClose }: { isOpen: boolean; onClo
     setFailedCount(failed.length);
     setConflictCount(conflicts.length);
     setPendingMediaCount(mediaPending);
+
+    const est = await fetchStorageEstimate(pending.length, mediaPending);
+    setStorageEstimate(est);
   };
 
   const handleResolveConflict = async (conflict: LocalSyncConflict, action: 'keep_mine' | 'accept_server' | 'edit_retry') => {
@@ -362,22 +425,51 @@ export function SyncDashboardModal({ isOpen, onClose }: { isOpen: boolean; onClo
           {/* Real Storage Estimate (navigator.storage.estimate()) */}
           <div className="p-4 bg-muted/20 border border-border rounded-xl space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <HardDrive className="h-4 w-4 text-primary" /> {t('offline.dashboard.storage_usage', 'Utilisation du Stockage Appareil')}
-              </span>
-              {storageEstimate && (
-                <span className="text-xs font-black text-primary">
-                  {storageEstimate.usageMb} Mo / {storageEstimate.quotaMb} Mo ({storageEstimate.percentUsed}%)
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <HardDrive className="h-4 w-4 text-primary" /> {t('offline.dashboard.storage_usage', 'Utilisation du Stockage Appareil')}
                 </span>
-              )}
+                {storageEstimate?.isPersisted && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+                    Persistent
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={refreshData}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                  title={t('common.refresh', 'Rafraîchir')}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                {storageEstimate && (
+                  <span className="text-xs font-black text-primary">
+                    {storageEstimate.usageMb} Mo / {storageEstimate.quotaMb} Mo ({storageEstimate.percentUsed}%)
+                  </span>
+                )}
+              </div>
             </div>
 
             {storageEstimate && (
-              <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
-                <div
-                  className="bg-primary h-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Number(storageEstimate.percentUsed))}%` }}
-                />
+              <div className="space-y-1.5">
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
+                  <div
+                    className="bg-primary h-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Number(storageEstimate.percentUsed))}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-muted-foreground font-medium">
+                  <span>Queue en attente : {pendingCount + pendingMediaCount} élément(s)</span>
+                  <span>Payload estimé : ~{storageEstimate.payloadSizeApproxMb} Mo</span>
+                </div>
+                {storageEstimate.warningNotice && (
+                  <p className="text-[11px] text-yellow-600 dark:text-yellow-400 font-semibold pt-1 flex items-center gap-1">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    {storageEstimate.warningNotice}
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -161,6 +161,7 @@ export interface LocalUserProfileRecord {
   role: string;
   regionId?: number | null;
   zones?: string[];
+  assignedZones?: any[];
   lastOnlineVerification: string;
   pinHash?: string | null;
   pinSalt?: string | null;

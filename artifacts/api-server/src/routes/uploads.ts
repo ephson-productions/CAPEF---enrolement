@@ -56,31 +56,39 @@ router.post("/uploads", requireAppUser, async (req, res): Promise<void> => {
   try {
     const supabase = getSupabaseClient();
 
-    if (supabase) {
-      const bucketName = "member-documents";
-      const { data, error } = await supabase.storage
-        .from(bucketName)
-        .upload(safeName, buffer, {
-          contentType: mimeType,
-          upsert: true,
-        });
-
-      if (error) {
-        logger.error({ error }, "Failed to upload file to Supabase Storage");
-        throw error;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(safeName);
-
-      res.json({ url: publicUrlData.publicUrl, fileName: safeName });
+    if (!supabase) {
+      logger.error("Supabase Storage configuration missing (SUPABASE_URL or keys not set)");
+      res.status(503).json({
+        error: "Le service de stockage de fichiers est indisponible. Veuillez vérifier la configuration serveur.",
+        code: "STORAGE_NOT_CONFIGURED"
+      });
       return;
     }
 
-    // Fallback if Supabase credentials are not configured in local environment
-    const fallbackDataUrl = `data:${mimeType};base64,${cleanBase64}`;
-    res.json({ url: fallbackDataUrl, fileName: safeName });
+    const bucketName = "member-documents";
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(safeName, buffer, {
+        contentType: mimeType,
+        upsert: true,
+      });
+
+    if (error) {
+      logger.error({ error }, "Failed to upload file to Supabase Storage");
+      throw error;
+    }
+
+    // Generate a private short-lived signed URL (3600s = 1 hour) instead of a permanent public URL
+    const { data: signedUrlData, error: signedError } = await supabase.storage
+      .from(bucketName)
+      .createSignedUrl(safeName, 3600);
+
+    if (signedError || !signedUrlData) {
+      logger.error({ signedError }, "Failed to generate signed URL");
+      throw signedError || new Error("Failed to generate signed URL");
+    }
+
+    res.json({ url: signedUrlData.signedUrl, path: safeName, fileName: safeName });
   } catch (err: any) {
     logger.error({ err }, "Error processing file upload");
     res.status(500).json({ error: "Erreur lors de l'enregistrement du fichier" });

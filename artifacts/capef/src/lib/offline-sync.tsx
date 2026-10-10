@@ -37,7 +37,20 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueCount, setQueueCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [transientNotice, setTransientNotice] = useState<{ type: 'offline' | 'online'; message: string } | null>(null);
+  const noticeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
+
+  const showTransientNotice = useCallback((type: 'offline' | 'online', message: string) => {
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+    }
+    setTransientNotice({ type, message });
+    noticeTimerRef.current = setTimeout(() => {
+      setTransientNotice(null);
+      noticeTimerRef.current = null;
+    }, 4000);
+  }, []);
 
   const updateQueueCount = useCallback(async () => {
     const pending = await offlineRepository.getPending(effectiveUserId);
@@ -119,13 +132,17 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
 
     const handleOnline = async () => {
       setIsOnline(true);
+      showTransientNotice('online', t('offline.notice_online', 'Connexion rétablie, synchronisation...'));
       const isHealthy = await syncEngine.checkOnlineHealth();
       if (isHealthy) {
         syncNow();
       }
     };
 
-    const handleOffline = () => setIsOnline(false);
+    const handleOffline = () => {
+      setIsOnline(false);
+      showTransientNotice('offline', t('offline.notice_offline', 'Mode hors ligne activé. Les enrôlements seront sauvegardés localement.'));
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -141,15 +158,40 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
     };
-  }, [syncNow, updateQueueCount]);
+  }, [syncNow, updateQueueCount, showTransientNotice, t]);
 
   return (
     <OfflineQueueContext.Provider value={{ isOnline, queueCount, effectiveUserId, enqueueMember, enqueueUpdateMember, enqueueActivityAction, syncNow, isSyncing }}>
       {children}
-      {!isOnline && (
-        <div className="fixed bottom-0 left-0 right-0 bg-yellow-500 text-yellow-950 p-2 text-center text-sm font-semibold z-50">
-          {t('offline.banner_offline', 'Vous êtes actuellement hors ligne. Les enrôlements seront sauvegardés localement.')}
+      {transientNotice && (
+        <div
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-2"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}
+        >
+          <div
+            className={`pointer-events-auto px-4 py-2.5 rounded-full shadow-lg border text-xs font-bold flex items-center gap-2 ${
+              transientNotice.type === 'offline'
+                ? 'bg-amber-500 text-amber-950 border-amber-600'
+                : 'bg-emerald-600 text-white border-emerald-700'
+            }`}
+          >
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${transientNotice.type === 'offline' ? 'bg-amber-900' : 'bg-white'}`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${transientNotice.type === 'offline' ? 'bg-amber-900' : 'bg-white'}`}></span>
+            </span>
+            <span>{transientNotice.message}</span>
+            <button
+              type="button"
+              onClick={() => setTransientNotice(null)}
+              className="ml-1 opacity-70 hover:opacity-100 transition-opacity font-bold"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
     </OfflineQueueContext.Provider>

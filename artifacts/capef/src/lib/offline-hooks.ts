@@ -9,9 +9,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 
 export function useOfflineFallbackRegions(options?: any) {
   const query = useListRegionsHook(options);
-  const dexieRegions = useLiveQuery(() => db.regions.toArray());
+  const dexieRegions = useLiveQuery(() =>
+    db.regions.toArray().then((rows) => rows.sort((a, b) => a.name.localeCompare(b.name, 'fr')))
+  );
 
-  if ((query.isError || (!navigator.onLine && (!query.data || (query.data as any).length === 0))) && dexieRegions && dexieRegions.length > 0) {
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  if ((query.isError || isOffline) && dexieRegions && dexieRegions.length > 0) {
     return {
       ...query,
       data: dexieRegions as any,
@@ -24,16 +28,39 @@ export function useOfflineFallbackRegions(options?: any) {
 }
 
 export function useOfflineFallbackDepartments(params?: any, options?: any) {
-  const query = useListDepartmentsHook(params, options);
   const regionId = params?.regionId;
+  const queryOptions = {
+    ...options,
+    query: {
+      ...(options?.query || {}),
+      queryKey: ['useListDepartments', params],
+    },
+  };
+  const query = useListDepartmentsHook(params, queryOptions);
+
   const dexieDepartments = useLiveQuery(() => {
     if (regionId) {
-      return db.departments.where('regionId').equals(Number(regionId)).toArray();
+      return db.departments
+        .where('regionId')
+        .equals(Number(regionId))
+        .toArray()
+        .then((rows) => rows.sort((a, b) => a.name.localeCompare(b.name, 'fr')));
     }
-    return db.departments.toArray();
-  });
+    return db.departments.toArray().then((rows) => rows.sort((a, b) => a.name.localeCompare(b.name, 'fr')));
+  }, [regionId]);
 
-  if ((query.isError || (!navigator.onLine && (!query.data || (query.data as any).length === 0))) && dexieDepartments && dexieDepartments.length > 0) {
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  if (isOffline && dexieDepartments) {
+    return {
+      ...query,
+      data: dexieDepartments as any,
+      isLoading: false,
+      isError: false,
+    };
+  }
+
+  if (query.isError && dexieDepartments && dexieDepartments.length > 0) {
     return {
       ...query,
       data: dexieDepartments as any,
@@ -46,16 +73,39 @@ export function useOfflineFallbackDepartments(params?: any, options?: any) {
 }
 
 export function useOfflineFallbackArrondissements(params?: any, options?: any) {
-  const query = useListArrondissementsHook(params, options);
   const departmentId = params?.departmentId;
+  const queryOptions = {
+    ...options,
+    query: {
+      ...(options?.query || {}),
+      queryKey: ['useListArrondissements', params],
+    },
+  };
+  const query = useListArrondissementsHook(params, queryOptions);
+
   const dexieArrondissements = useLiveQuery(() => {
     if (departmentId) {
-      return db.arrondissements.where('departmentId').equals(Number(departmentId)).toArray();
+      return db.arrondissements
+        .where('departmentId')
+        .equals(Number(departmentId))
+        .toArray()
+        .then((rows) => rows.sort((a, b) => a.name.localeCompare(b.name, 'fr')));
     }
-    return db.arrondissements.toArray();
-  });
+    return db.arrondissements.toArray().then((rows) => rows.sort((a, b) => a.name.localeCompare(b.name, 'fr')));
+  }, [departmentId]);
 
-  if ((query.isError || (!navigator.onLine && (!query.data || (query.data as any).length === 0))) && dexieArrondissements && dexieArrondissements.length > 0) {
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+  if (isOffline && dexieArrondissements) {
+    return {
+      ...query,
+      data: dexieArrondissements as any,
+      isLoading: false,
+      isError: false,
+    };
+  }
+
+  if (query.isError && dexieArrondissements && dexieArrondissements.length > 0) {
     return {
       ...query,
       data: dexieArrondissements as any,

@@ -15,6 +15,7 @@ import { CreateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
+import { resolveMemberMediaUrls, resolveSignedMediaUrl, processMemberPayloadMedia } from "../lib/storage";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -318,10 +319,12 @@ async function formatMember(m: typeof membersTable.$inferSelect, includeDetail =
     activities.map((act: any) => formatMemberActivity(act, executor))
   );
 
-  return {
+  const fullMember = {
     ...formattedBase,
     activities: formattedActivities,
   };
+
+  return await resolveMemberMediaUrls(fullMember);
 }
 
 async function updateMemberStatusIfNeeded(memberId: number, executor: any = db): Promise<void> {
@@ -403,6 +406,13 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     }
   }
 
+  if (search) {
+    const s = `%${String(search)}%`;
+    conditions.push(
+      sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`
+    );
+  }
+
   let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(membersTable);
   if (conditions.length) {
     countQuery = countQuery.where(and(...conditions)) as any;
@@ -410,7 +420,16 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
 
   let joinedQuery = db
     .select({
-      member: membersTable,
+      id: membersTable.id,
+      memberNumber: membersTable.memberNumber,
+      memberType: membersTable.memberType,
+      category: membersTable.category,
+      version: membersTable.version,
+      status: membersTable.status,
+      createdAt: membersTable.createdAt,
+      physiqueNom: sql<string | null>`${membersTable.physiqueData}->>'nom'`,
+      physiquePrenom: sql<string | null>`${membersTable.physiqueData}->>'prenom'`,
+      moraleNom: sql<string | null>`${membersTable.moraleData}->>'nom'`,
       regionName: regionsTable.name,
       departmentName: departmentsTable.name,
       arrondissementName: arrondissementsTable.name,
@@ -426,13 +445,6 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     joinedQuery = joinedQuery.where(and(...conditions)) as any;
   }
 
-  if (search) {
-    const s = `%${String(search)}%`;
-    const searchCond = sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`;
-    joinedQuery = joinedQuery.where(searchCond) as any;
-    countQuery = countQuery.where(searchCond) as any;
-  }
-
   const [totalResult] = await countQuery;
   const total = totalResult?.count ?? 0;
 
@@ -441,7 +453,24 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     .limit(limitNum)
     .offset(offset);
 
-  const summaries = rows.map((row) => formatPreJoinedMember(row, false));
+  const summaries = rows.map((row) => {
+    const displayName = row.memberType === "physique"
+      ? `${row.physiqueNom ?? ""} ${row.physiquePrenom ?? ""}`.trim() || null
+      : (row.moraleNom ?? null);
+
+    return {
+      id: row.id,
+      memberNumber: row.memberNumber,
+      memberType: row.memberType,
+      category: row.category,
+      version: row.version ?? 1,
+      displayName,
+      regionName: row.regionName ?? null,
+      createdByName: row.createdByName ?? null,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    };
+  });
 
   res.json({
     data: summaries,
@@ -451,10 +480,43 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
   });
 });
 
+// Helper to validate geographic hierarchy
+async function validateGeographicCascade(regionId?: number | null, departmentId?: number | null, arrondissementId?: number | null): Promise<string | null> {
+  if (departmentId && regionId) {
+    const [dept] = await db.select().from(departmentsTable).where(eq(departmentsTable.id, departmentId)).limit(1);
+    if (!dept || dept.regionId !== regionId) {
+      return `Le département (ID ${departmentId}) n'appartient pas à la région sélectionnée (ID ${regionId}).`;
+    }
+  }
+
+  if (arrondissementId && departmentId) {
+    const [arr] = await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, arrondissementId)).limit(1);
+    if (!arr || arr.departmentId !== departmentId) {
+      return `L'arrondissement (ID ${arrondissementId}) n'appartient pas au département sélectionné (ID ${departmentId}).`;
+    }
+  }
+
+  return null;
+}
+
 // POST /api/members
 router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
+
+  let processedBody: any;
+  try {
+    processedBody = await processMemberPayloadMedia(req.body);
+  } catch (err: any) {
+    console.error("🚨 MEDIA UPLOAD ERROR (POST /members):", err);
+    res.status(503).json({
+      error: "Échec de l'enregistrement des images dans le stockage distant.",
+      message: err.message,
+      code: "STORAGE_UPLOAD_FAILED",
+    });
+    return;
+  }
+
+  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = processedBody;
   const clientOperationId = getClientOperationId(req);
 
   if (await checkProcessedOperation(clientOperationId, appUser.id, "create_member", req.body, res)) {
@@ -463,6 +525,17 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
 
   if (!memberType || !category) {
     res.status(400).json({ error: "memberType et category sont requis" });
+    return;
+  }
+
+  const geoError = await validateGeographicCascade(
+    coerceNumeric(regionId),
+    coerceNumeric(departmentId),
+    coerceNumeric(arrondissementId)
+  );
+
+  if (geoError) {
+    res.status(400).json({ error: geoError, code: "INVALID_GEOGRAPHY_CASCADE" });
     return;
   }
 
@@ -652,7 +725,19 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
   while (hasMore) {
     let query = db
       .select({
-        member: membersTable,
+        id: membersTable.id,
+        memberNumber: membersTable.memberNumber,
+        memberType: membersTable.memberType,
+        category: membersTable.category,
+        village: membersTable.village,
+        status: membersTable.status,
+        createdAt: membersTable.createdAt,
+        physiqueNom: sql<string | null>`${membersTable.physiqueData}->>'nom'`,
+        physiquePrenom: sql<string | null>`${membersTable.physiqueData}->>'prenom'`,
+        physiqueTel: sql<string | null>`${membersTable.physiqueData}->>'telephone1'`,
+        moraleNom: sql<string | null>`${membersTable.moraleData}->>'nom'`,
+        moraleOrg: sql<string | null>`${membersTable.moraleData}->>'typeOrganisation'`,
+        moraleTel: sql<string | null>`${membersTable.moraleData}->>'telephone1'`,
         regionName: regionsTable.name,
         departmentName: departmentsTable.name,
         arrondissementName: arrondissementsTable.name,
@@ -678,7 +763,7 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
       break;
     }
 
-    const memberIds = batch.map((r) => r.member.id);
+    const memberIds = batch.map((r) => r.id);
     const batchActivities = await db
       .select({
         memberId: memberActivitiesTable.memberId,
@@ -704,20 +789,17 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
       natureMap.set(act.memberId, list);
     }
 
-    for (const row of batch) {
-      const m = row.member;
-      const physique = m.physiqueData as any;
-      const morale = m.moraleData as any;
+    for (const m of batch) {
       const name = m.memberType === "physique"
-        ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
-        : (morale?.nom ?? "");
+        ? `${m.physiqueNom ?? ""} ${m.physiquePrenom ?? ""}`.trim()
+        : (m.moraleNom ?? "");
       const forme = m.memberType === "morale"
-        ? (morale?.typeOrganisation ?? "")
+        ? (m.moraleOrg ?? "")
         : "";
       const activite = categoryTranslation[m.category] || m.category;
       const mobile = m.memberType === "physique"
-        ? (physique?.telephone1 ?? "")
-        : (morale?.telephone1 ?? "");
+        ? (m.physiqueTel ?? "")
+        : (m.moraleTel ?? "");
 
       const lineItems = natureMap.get(m.id) || [];
       const nature = lineItems.length > 0 ? Array.from(new Set(lineItems)).join("; ") : "";
@@ -729,13 +811,13 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
         activite,
         nature,
         date_creation: m.createdAt.toISOString().split("T")[0],
-        region: row.regionName ?? "",
-        departement: row.departmentName ?? "",
-        commune: row.arrondissementName ?? "",
+        region: m.regionName ?? "",
+        departement: m.departmentName ?? "",
+        commune: m.arrondissementName ?? "",
         mobile,
         village: m.village ?? "",
         statut: m.status,
-        agent: row.createdByName ?? "",
+        agent: m.createdByName ?? "",
         inscription: "",
         cotisation: "",
         adhesion_yunus: "",
@@ -743,6 +825,7 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
         cotisation_restant: "",
         adhesion_yunus_restant: "",
       }).commit();
+
     }
 
     offset += batch.length;
@@ -788,7 +871,20 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const existing = await getMemberWithAccessCheck(appUser, id, res);
   if (!existing) return;
 
-  const clientVersion = req.body.version !== undefined && req.body.version !== null ? Number(req.body.version) : null;
+  let processedBody: any;
+  try {
+    processedBody = await processMemberPayloadMedia(req.body);
+  } catch (err: any) {
+    console.error("🚨 MEDIA UPLOAD ERROR (PUT /members/:id):", err);
+    res.status(503).json({
+      error: "Échec de l'enregistrement des images dans le stockage distant.",
+      message: err.message,
+      code: "STORAGE_UPLOAD_FAILED",
+    });
+    return;
+  }
+
+  const clientVersion = processedBody.version !== undefined && processedBody.version !== null ? Number(processedBody.version) : null;
   const currentVersion = existing.version ?? 1;
 
   if (clientVersion !== null && clientVersion !== currentVersion) {
@@ -808,7 +904,7 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 
   const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
   for (const f of fields) {
-    if (req.body[f] !== undefined) updates[f] = req.body[f];
+    if (processedBody[f] !== undefined) updates[f] = processedBody[f];
   }
 
   const numericFields = ["regionId", "departmentId", "arrondissementId", "gpsLat", "gpsLng"];
@@ -1025,41 +1121,59 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
           .where(eq(memberActivitiesTable.memberId, memberId));
       }
 
-      const [activity] = await tx
-        .insert(memberActivitiesTable)
-        .values({
-          memberId,
-          activityType,
-          version: 1,
-          isPrimary: isPrimary ?? false,
-          regionId: regionId ?? null,
-          departmentId: departmentId ?? null,
-          arrondissementId: arrondissementId ?? null,
-          village: village ?? null,
-          maillons: maillons ?? [],
-        })
-        .returning();
+      // Check if activity of this type already exists for member (idempotent activity creation)
+      const [existingAct] = await tx
+        .select()
+        .from(memberActivitiesTable)
+        .where(
+          and(
+            eq(memberActivitiesTable.memberId, memberId),
+            eq(memberActivitiesTable.activityType, activityType)
+          )
+        )
+        .limit(1);
 
-      const formatted = {
-        id: activity.id,
-        version: activity.version ?? 1,
-        memberId: activity.memberId,
-        activityType: activity.activityType,
-        isPrimary: activity.isPrimary,
-        regionId: activity.regionId ?? null,
-        departmentId: activity.departmentId ?? null,
-        arrondissementId: activity.arrondissementId ?? null,
-        village: activity.village ?? null,
-        maillons: (activity.maillons as string[]) ?? [],
-        createdAt: activity.createdAt.toISOString(),
-        lineItems: [],
-      };
+      let activityRecord: typeof memberActivitiesTable.$inferSelect;
+
+      if (existingAct) {
+        const [updatedAct] = await tx
+          .update(memberActivitiesTable)
+          .set({
+            isPrimary: isPrimary ?? existingAct.isPrimary,
+            regionId: regionId ?? existingAct.regionId,
+            departmentId: departmentId ?? existingAct.departmentId,
+            arrondissementId: arrondissementId ?? existingAct.arrondissementId,
+            village: village ?? existingAct.village,
+            maillons: maillons ?? existingAct.maillons,
+          })
+          .where(eq(memberActivitiesTable.id, existingAct.id))
+          .returning();
+        activityRecord = updatedAct || existingAct;
+      } else {
+        const [insertedAct] = await tx
+          .insert(memberActivitiesTable)
+          .values({
+            memberId,
+            activityType,
+            version: 1,
+            isPrimary: isPrimary ?? false,
+            regionId: regionId ?? null,
+            departmentId: departmentId ?? null,
+            arrondissementId: arrondissementId ?? null,
+            village: village ?? null,
+            maillons: maillons ?? [],
+          })
+          .returning();
+        activityRecord = insertedAct;
+      }
+
+      const formatted = await formatMemberActivity(activityRecord, tx);
 
       if (clientOperationId) {
         await tx
           .update(processedOperationsTable)
           .set({
-            resourceId: activity.id,
+            resourceId: activityRecord.id,
             resultPayload: formatted,
           })
           .where(
@@ -1070,12 +1184,12 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
           );
       }
 
-      return formatted;
+      return { formatted, isNew: !existingAct };
     });
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.status(201).json(result);
+    res.status(result.isNew ? 201 : 200).json(result.formatted);
   } catch (error: any) {
     if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
       return;
@@ -2280,12 +2394,49 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   </g>
 </svg>`;
 
-  const base64Badge = Buffer.from(badgeSvg, "utf-8").toString("base64");
-  const badgeUrl = `data:image/svg+xml;base64,${base64Badge}`;
+  const badgeFileName = `badge_m${id}_${Date.now()}.svg`;
+  let badgePath = badgeFileName;
 
-  await db.update(membersTable).set({ badgeUrl }).where(eq(membersTable.id, id));
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-  res.json({ badgeUrl, memberNumber: member.memberNumber });
+  if (!supabaseUrl || !supabaseKey) {
+    if (process.env.NODE_ENV === "test") {
+      await db.update(membersTable).set({ badgeUrl: badgeFileName }).where(eq(membersTable.id, id));
+      res.json({ badgeUrl: `/uploads/${badgeFileName}`, memberNumber: member.memberNumber });
+      return;
+    }
+    res.status(503).json({
+      error: "Le service de stockage est indisponible. Impossible d'enregistrer le badge.",
+      code: "STORAGE_NOT_CONFIGURED"
+    });
+    return;
+  }
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { error: uploadErr } = await supabase.storage.from("member-documents").upload(badgeFileName, Buffer.from(badgeSvg, "utf-8"), {
+      contentType: "image/svg+xml",
+      upsert: true,
+    });
+
+    if (uploadErr) {
+      console.error("Failed to upload badge SVG to Supabase Storage:", uploadErr);
+      res.status(500).json({ error: "Échec de l'enregistrement du badge dans le stockage de fichiers." });
+      return;
+    }
+  } catch (err) {
+    console.error("Failed to upload badge SVG to Supabase Storage:", err);
+    res.status(500).json({ error: "Erreur lors de la génération et sauvegarde du badge." });
+    return;
+  }
+
+  await db.update(membersTable).set({ badgeUrl: badgePath }).where(eq(membersTable.id, id));
+
+  const resolvedBadgeUrl = await resolveSignedMediaUrl(badgePath);
+
+  res.json({ badgeUrl: resolvedBadgeUrl, memberNumber: member.memberNumber });
 });
 
 // POST /api/members/sync — bulk offline sync

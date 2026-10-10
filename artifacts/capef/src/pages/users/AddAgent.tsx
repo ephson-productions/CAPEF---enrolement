@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import {
   useCreateUser,
-  useListRegions,
-  useListDepartments,
-  useListArrondissements,
   useUploadFile
 } from '@workspace/api-client-react';
+import {
+  useOfflineFallbackRegions,
+  useOfflineFallbackDepartments,
+  useOfflineFallbackArrondissements
+} from '@/lib/offline-hooks';
 import { useLocation, Link } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Trash2, Camera, Mail } from 'lucide-react';
@@ -35,14 +37,14 @@ export default function AddAgent() {
   const [selectedArr, setSelectedArr] = useState<number | null>(null);
   const [assignedZones, setAssignedZones] = useState<Array<{ regionId: number; departmentId?: number | null; arrondissementId?: number | null; regionName?: string; departmentName?: string; arrondissementName?: string }>>([]);
 
-  const { data: regions } = useListRegions();
-  const { data: departments } = useListDepartments(
+  const { data: regions } = useOfflineFallbackRegions();
+  const { data: departments } = useOfflineFallbackDepartments(
     { regionId: selectedReg || undefined },
-    { query: { enabled: !!selectedReg, queryKey: ['departments', selectedReg] } }
+    { query: { enabled: !!selectedReg } }
   );
-  const { data: arrondissements } = useListArrondissements(
+  const { data: arrondissements } = useOfflineFallbackArrondissements(
     { departmentId: selectedDept || undefined },
-    { query: { enabled: !!selectedDept, queryKey: ['arrondissements', selectedDept] } }
+    { query: { enabled: !!selectedDept } }
   );
 
   const uploadFile = useUploadFile();
@@ -76,9 +78,9 @@ export default function AddAgent() {
       return;
     }
 
-    const regObj = regions?.find(r => r.id === selectedReg);
-    const deptObj = departments?.find(d => d.id === selectedDept);
-    const arrObj = arrondissements?.find(a => a.id === selectedArr);
+    const regObj = (regions as any[])?.find((r: any) => r.id === selectedReg);
+    const deptObj = (departments as any[])?.find((d: any) => d.id === selectedDept);
+    const arrObj = (arrondissements as any[])?.find((a: any) => a.id === selectedArr);
 
     // Prevent duplicate zone addition
     const duplicate = assignedZones.some(
@@ -246,7 +248,7 @@ export default function AddAgent() {
                 className="w-full border rounded p-1.5 text-xs bg-background"
               >
                 <option value="">{t('common.select', 'Sélectionner')}</option>
-                {regions?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                {(regions as any[])?.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             </div>
 
@@ -262,7 +264,7 @@ export default function AddAgent() {
                 className="w-full border rounded p-1.5 text-xs bg-background"
               >
                 <option value="">{t('users.all_departments', 'Tous')}</option>
-                {departments?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {(departments as any[])?.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
 
@@ -275,7 +277,7 @@ export default function AddAgent() {
                 className="w-full border rounded p-1.5 text-xs bg-background"
               >
                 <option value="">{t('users.all_arrondissements', 'Tous')}</option>
-                {arrondissements?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {(arrondissements as any[])?.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
 
