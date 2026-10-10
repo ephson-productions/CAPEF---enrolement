@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { db, membersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
-import logger from "../lib/logger";
+import { logger } from "./logger";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
