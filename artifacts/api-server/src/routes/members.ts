@@ -15,7 +15,7 @@ import { CreateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
-import { resolveMemberMediaUrls, resolveSignedMediaUrl } from "../lib/storage";
+import { resolveMemberMediaUrls, resolveSignedMediaUrl, processMemberPayloadMedia } from "../lib/storage";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -502,7 +502,21 @@ async function validateGeographicCascade(regionId?: number | null, departmentId?
 // POST /api/members
 router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = req.body;
+
+  let processedBody: any;
+  try {
+    processedBody = await processMemberPayloadMedia(req.body);
+  } catch (err: any) {
+    console.error("🚨 MEDIA UPLOAD ERROR (POST /members):", err);
+    res.status(503).json({
+      error: "Échec de l'enregistrement des images dans le stockage distant.",
+      message: err.message,
+      code: "STORAGE_UPLOAD_FAILED",
+    });
+    return;
+  }
+
+  const { memberType, category, individualOrOrg, regionId, departmentId, arrondissementId, village, gpsLat, gpsLng, physiqueData, moraleData, categoryData, initialLineItems } = processedBody;
   const clientOperationId = getClientOperationId(req);
 
   if (await checkProcessedOperation(clientOperationId, appUser.id, "create_member", req.body, res)) {
@@ -857,7 +871,20 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const existing = await getMemberWithAccessCheck(appUser, id, res);
   if (!existing) return;
 
-  const clientVersion = req.body.version !== undefined && req.body.version !== null ? Number(req.body.version) : null;
+  let processedBody: any;
+  try {
+    processedBody = await processMemberPayloadMedia(req.body);
+  } catch (err: any) {
+    console.error("🚨 MEDIA UPLOAD ERROR (PUT /members/:id):", err);
+    res.status(503).json({
+      error: "Échec de l'enregistrement des images dans le stockage distant.",
+      message: err.message,
+      code: "STORAGE_UPLOAD_FAILED",
+    });
+    return;
+  }
+
+  const clientVersion = processedBody.version !== undefined && processedBody.version !== null ? Number(processedBody.version) : null;
   const currentVersion = existing.version ?? 1;
 
   if (clientVersion !== null && clientVersion !== currentVersion) {
@@ -877,7 +904,7 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 
   const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
   for (const f of fields) {
-    if (req.body[f] !== undefined) updates[f] = req.body[f];
+    if (processedBody[f] !== undefined) updates[f] = processedBody[f];
   }
 
   const numericFields = ["regionId", "departmentId", "arrondissementId", "gpsLat", "gpsLng"];
@@ -2368,22 +2395,41 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
 </svg>`;
 
   const badgeFileName = `badge_m${id}_${Date.now()}.svg`;
-  let badgePath = `member-documents/${badgeFileName}`;
+  let badgePath = badgeFileName;
+
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    if (process.env.NODE_ENV === "test") {
+      await db.update(membersTable).set({ badgeUrl: badgeFileName }).where(eq(membersTable.id, id));
+      res.json({ badgeUrl: `/uploads/${badgeFileName}`, memberNumber: member.memberNumber });
+      return;
+    }
+    res.status(503).json({
+      error: "Le service de stockage est indisponible. Impossible d'enregistrer le badge.",
+      code: "STORAGE_NOT_CONFIGURED"
+    });
+    return;
+  }
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseKey) {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      await supabase.storage.from("member-documents").upload(badgeFileName, Buffer.from(badgeSvg, "utf-8"), {
-        contentType: "image/svg+xml",
-        upsert: true,
-      });
-      badgePath = badgeFileName;
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { error: uploadErr } = await supabase.storage.from("member-documents").upload(badgeFileName, Buffer.from(badgeSvg, "utf-8"), {
+      contentType: "image/svg+xml",
+      upsert: true,
+    });
+
+    if (uploadErr) {
+      console.error("Failed to upload badge SVG to Supabase Storage:", uploadErr);
+      res.status(500).json({ error: "Échec de l'enregistrement du badge dans le stockage de fichiers." });
+      return;
     }
   } catch (err) {
     console.error("Failed to upload badge SVG to Supabase Storage:", err);
+    res.status(500).json({ error: "Erreur lors de la génération et sauvegarde du badge." });
+    return;
   }
 
   await db.update(membersTable).set({ badgeUrl: badgePath }).where(eq(membersTable.id, id));
