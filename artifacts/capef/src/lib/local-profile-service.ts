@@ -5,7 +5,6 @@ export const MAX_OFFLINE_DURATION_MS = 21 * 24 * 60 * 60 * 1000; // 21 days conf
 export type VerificationStatus =
   | 'verified-online'
   | 'offline-valid'
-  | 'not-reverified-offline'
   | 'expired-readonly';
 
 export interface LocalUserProfile {
@@ -17,8 +16,6 @@ export interface LocalUserProfile {
   regionId?: number | null;
   zones?: string[];
   lastOnlineVerification: string;
-  pinHash?: string | null;
-  pinSalt?: string | null;
 }
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -103,24 +100,33 @@ export class LocalProfileService {
   }
 
   /**
+   * One-time startup cleanup to delete leftover PIN-related keys/hashes from existing installs.
+   */
+  async purgeLegacyPinData(): Promise<void> {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('capef_local_pin');
+        window.localStorage.removeItem('capef_pin_attempts');
+        window.localStorage.removeItem('capef_pin_lockout');
+      }
+      const allProfiles = await db.profiles.toArray();
+      for (const p of allProfiles) {
+        if (p.pinHash || p.pinSalt) {
+          await db.profiles.update(p.clerkUserId, { pinHash: null, pinSalt: null });
+        }
+      }
+    } catch (err) {
+      console.warn('[LocalProfileService] Error purging legacy PIN data:', err);
+    }
+  }
+
+  /**
    * Persists a sanitized local user profile after online verification.
    * Strictly excludes Clerk session tokens, passwords, and raw secrets.
    */
   async saveProfile(
-    profile: Omit<LocalUserProfile, 'pinHash' | 'pinSalt'>,
-    pin?: string | null
+    profile: LocalUserProfile
   ): Promise<LocalUserProfileRecord> {
-    const existing = await db.profiles.get(profile.clerkUserId);
-
-    let pinHash = existing?.pinHash ?? null;
-    let pinSalt = existing?.pinSalt ?? null;
-
-    if (pin && pin.trim().length >= 4) {
-      const { hashHex, saltHex } = await this.hashPin(pin.trim());
-      pinHash = hashHex;
-      pinSalt = saltHex;
-    }
-
     const record: LocalUserProfileRecord = {
       clerkUserId: profile.clerkUserId,
       serverId: profile.serverId,
@@ -130,8 +136,8 @@ export class LocalProfileService {
       regionId: profile.regionId ?? null,
       zones: profile.zones ?? [],
       lastOnlineVerification: profile.lastOnlineVerification || new Date().toISOString(),
-      pinHash,
-      pinSalt,
+      pinHash: null,
+      pinSalt: null,
     };
 
     await db.profiles.put(record);
@@ -207,7 +213,7 @@ export class LocalProfileService {
       return 'expired-readonly';
     }
 
-    return 'not-reverified-offline';
+    return 'offline-valid';
   }
 }
 

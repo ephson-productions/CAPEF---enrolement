@@ -101,8 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: rec.role,
           regionId: rec.regionId,
           lastOnlineVerification: rec.lastOnlineVerification,
-          pinHash: rec.pinHash,
-          pinSalt: rec.pinSalt,
         });
       }).catch((err) => {
         console.error('[AuthProvider] Error saving local profile:', err);
@@ -123,8 +121,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: rec.role,
             regionId: rec.regionId,
             lastOnlineVerification: rec.lastOnlineVerification,
-            pinHash: rec.pinHash,
-            pinSalt: rec.pinSalt,
           });
         }
       }).catch((err) => {

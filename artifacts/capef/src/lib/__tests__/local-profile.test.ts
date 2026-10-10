@@ -46,7 +46,7 @@ describe('LocalProfileService & Offline Identity Unit Tests', () => {
     const oldDate = new Date(Date.now() - (MAX_OFFLINE_DURATION_MS + 1000)).toISOString();
 
     expect(localProfileService.getVerificationStatus(true, recentDate)).toBe('verified-online');
-    expect(localProfileService.getVerificationStatus(false, recentDate)).toBe('not-reverified-offline');
+    expect(localProfileService.getVerificationStatus(false, recentDate)).toBe('offline-valid');
     expect(localProfileService.getVerificationStatus(false, oldDate)).toBe('expired-readonly');
   });
 
