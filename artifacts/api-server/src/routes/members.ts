@@ -1094,41 +1094,59 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
           .where(eq(memberActivitiesTable.memberId, memberId));
       }
 
-      const [activity] = await tx
-        .insert(memberActivitiesTable)
-        .values({
-          memberId,
-          activityType,
-          version: 1,
-          isPrimary: isPrimary ?? false,
-          regionId: regionId ?? null,
-          departmentId: departmentId ?? null,
-          arrondissementId: arrondissementId ?? null,
-          village: village ?? null,
-          maillons: maillons ?? [],
-        })
-        .returning();
+      // Check if activity of this type already exists for member (idempotent activity creation)
+      const [existingAct] = await tx
+        .select()
+        .from(memberActivitiesTable)
+        .where(
+          and(
+            eq(memberActivitiesTable.memberId, memberId),
+            eq(memberActivitiesTable.activityType, activityType)
+          )
+        )
+        .limit(1);
 
-      const formatted = {
-        id: activity.id,
-        version: activity.version ?? 1,
-        memberId: activity.memberId,
-        activityType: activity.activityType,
-        isPrimary: activity.isPrimary,
-        regionId: activity.regionId ?? null,
-        departmentId: activity.departmentId ?? null,
-        arrondissementId: activity.arrondissementId ?? null,
-        village: activity.village ?? null,
-        maillons: (activity.maillons as string[]) ?? [],
-        createdAt: activity.createdAt.toISOString(),
-        lineItems: [],
-      };
+      let activityRecord: typeof memberActivitiesTable.$inferSelect;
+
+      if (existingAct) {
+        const [updatedAct] = await tx
+          .update(memberActivitiesTable)
+          .set({
+            isPrimary: isPrimary ?? existingAct.isPrimary,
+            regionId: regionId ?? existingAct.regionId,
+            departmentId: departmentId ?? existingAct.departmentId,
+            arrondissementId: arrondissementId ?? existingAct.arrondissementId,
+            village: village ?? existingAct.village,
+            maillons: maillons ?? existingAct.maillons,
+          })
+          .where(eq(memberActivitiesTable.id, existingAct.id))
+          .returning();
+        activityRecord = updatedAct || existingAct;
+      } else {
+        const [insertedAct] = await tx
+          .insert(memberActivitiesTable)
+          .values({
+            memberId,
+            activityType,
+            version: 1,
+            isPrimary: isPrimary ?? false,
+            regionId: regionId ?? null,
+            departmentId: departmentId ?? null,
+            arrondissementId: arrondissementId ?? null,
+            village: village ?? null,
+            maillons: maillons ?? [],
+          })
+          .returning();
+        activityRecord = insertedAct;
+      }
+
+      const formatted = await formatMemberActivity(activityRecord, tx);
 
       if (clientOperationId) {
         await tx
           .update(processedOperationsTable)
           .set({
-            resourceId: activity.id,
+            resourceId: activityRecord.id,
             resultPayload: formatted,
           })
           .where(
@@ -1139,12 +1157,12 @@ router.post("/members/:id/activities", requireAppUser, async (req, res): Promise
           );
       }
 
-      return formatted;
+      return { formatted, isNew: !existingAct };
     });
 
     await updateMemberStatusIfNeeded(memberId);
 
-    res.status(201).json(result);
+    res.status(result.isNew ? 201 : 200).json(result.formatted);
   } catch (error: any) {
     if (await handleConcurrentOperationRace(clientOperationId, appUser.id, res)) {
       return;

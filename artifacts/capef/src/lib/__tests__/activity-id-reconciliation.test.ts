@@ -381,4 +381,73 @@ describe('Activity ID Reconciliation & Relational Integrity Tests', () => {
     expect(relinkedLine?.activityLocalId).toBe(act1LocalId);
     expect(relinkedLine?.activityServerId).toBe(57);
   });
+
+  it('Test 8 — Duplicate activity creation unblocks child line-item operation via IdReconciliationService fallback', async () => {
+    vi.spyOn(syncEngine, 'checkOnlineHealth').mockResolvedValue(true);
+
+    const memberLocalId = crypto.randomUUID();
+    const actLocalId = crypto.randomUUID();
+    const lineLocalId = crypto.randomUUID();
+
+    // Member already mapped
+    await db.entityMappings.put({
+      localId: memberLocalId,
+      entityType: 'member',
+      serverId: 10,
+      syncStatus: 'synced',
+      createdAt: new Date().toISOString(),
+    });
+
+    // Local activity record without direct entityMapping yet
+    await db.activities.put({
+      localId: actLocalId,
+      memberLocalId,
+      userId,
+      activityType: 'agriculteur',
+      isPrimary: true,
+      serverId: 99, // Already exists on server with serverId 99
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      syncStatus: 'synced',
+    });
+
+    // Put pending line item in Dexie
+    await db.lineItems.put({
+      localId: lineLocalId,
+      activityLocalId: actLocalId,
+      userId,
+      cropName: 'Maïs',
+      productionQuantity: 100,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      syncStatus: 'pending',
+    });
+
+    // Enqueue create_line_item referencing actLocalId (which does not have an explicit entityMapping)
+    await offlineRepository.enqueue(
+      'create_line_item',
+      {
+        memberRef: memberLocalId,
+        activityRef: actLocalId,
+        data: { cropName: 'Maïs', productionQuantity: 100, localId: lineLocalId },
+        _local: { memberLocalId, activityLocalId: actLocalId, localId: lineLocalId },
+      },
+      userId
+    );
+
+    (customFetch as any).mockResolvedValueOnce({ id: 301, cropName: 'Maïs' });
+
+    const result = await syncEngine.syncNow(userId);
+    expect(result.successCount).toBe(1);
+
+    expect(customFetch).toHaveBeenCalledWith(
+      '/api/members/10/activities/99/line-items',
+      expect.objectContaining({ method: 'POST' })
+    );
+
+    const lineRecord = await db.lineItems.where({ localId: lineLocalId }).first();
+    expect(lineRecord?.serverId).toBe(301);
+  });
 });
