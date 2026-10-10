@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 
 import { runStandaloneMigrateAndSeed } from "@workspace/db";
+import { migrateLegacyBase64Media } from "./lib/migrate-base64-media";
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
@@ -25,6 +26,15 @@ async function startServer() {
       logger.error({ err }, "Fatal error executing database migrations at server startup");
       process.exit(1);
     }
+
+    // Run non-blocking background migration for legacy base64 media to Supabase Storage
+    migrateLegacyBase64Media()
+      .then((res) => {
+        logger.info(res, "[AutoMigration] Base64 legacy media migration finished successfully");
+      })
+      .catch((err) => {
+        logger.error({ err }, "[AutoMigration] Error during base64 legacy media migration");
+      });
 
     app.listen(port, (err) => {
       if (err) {
