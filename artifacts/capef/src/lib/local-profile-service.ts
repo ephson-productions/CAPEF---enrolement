@@ -7,6 +7,8 @@ export type VerificationStatus =
   | 'offline-valid'
   | 'expired-readonly';
 
+import type { ZoneAssignment } from '@workspace/api-client-react';
+
 export interface LocalUserProfile {
   serverId: number;
   clerkUserId: string;
@@ -15,6 +17,7 @@ export interface LocalUserProfile {
   role: string;
   regionId?: number | null;
   zones?: string[];
+  assignedZones?: ZoneAssignment[];
   lastOnlineVerification: string;
 }
 
@@ -135,6 +138,7 @@ export class LocalProfileService {
       role: profile.role,
       regionId: profile.regionId ?? null,
       zones: profile.zones ?? [],
+      assignedZones: profile.assignedZones ?? [],
       lastOnlineVerification: profile.lastOnlineVerification || new Date().toISOString(),
       pinHash: null,
       pinSalt: null,

@@ -32,6 +32,7 @@ const UsersList = React.lazy(() => import('./pages/users/UsersList'));
 const AddAgent = React.lazy(() => import('./pages/users/AddAgent'));
 const UserDetail = React.lazy(() => import('./pages/users/UserDetail'));
 const Profile = React.lazy(() => import('./pages/Profile'));
+const AssignedZones = React.lazy(() => import('./pages/AssignedZones'));
 const NotFound = React.lazy(() => import('./pages/not-found'));
 const BadgeVerify = React.lazy(() => import('./pages/members/BadgeVerify'));
 
@@ -296,6 +297,8 @@ function ProtectedRoutes() {
         <Route path="/users/new" component={AddAgent} />
         <Route path="/users/:id" component={UserDetail} />
         <Route path="/users" component={UsersList} />
+        <Route path="/profile/assigned-zones" component={AssignedZones} />
+        <Route path="/assigned-zones" component={AssignedZones} />
         <Route path="/profile" component={Profile} />
         <Route component={NotFound} />
       </Switch>

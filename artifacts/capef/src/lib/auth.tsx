@@ -91,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: user.email,
         role: user.role,
         regionId: user.regionId ?? null,
+        assignedZones: user.assignedZones ?? [],
         lastOnlineVerification: new Date().toISOString(),
       }).then((rec) => {
         setLocalProfile({
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: rec.email,
           role: rec.role,
           regionId: rec.regionId,
+          assignedZones: rec.assignedZones ?? [],
           lastOnlineVerification: rec.lastOnlineVerification,
         });
       }).catch((err) => {
@@ -120,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: rec.email,
             role: rec.role,
             regionId: rec.regionId,
+            assignedZones: rec.assignedZones ?? [],
             lastOnlineVerification: rec.lastOnlineVerification,
           });
         }
@@ -159,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: localProfile.role as any,
       status: 'active',
       regionId: localProfile.regionId ?? null,
+      assignedZones: localProfile.assignedZones ?? [],
       createdAt: localProfile.lastOnlineVerification,
     } as AppUser) : (offlineCachedClaims ? ({
       id: 0,

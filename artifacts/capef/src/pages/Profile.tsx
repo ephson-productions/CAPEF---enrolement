@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useUpdateMyProfile, useUploadFile } from '@workspace/api-client-react';
-import { Calendar, Camera, CheckCircle2, Mail, MapPin, Shield, Globe } from 'lucide-react';
+import { Link } from 'wouter';
+import { Calendar, Camera, CheckCircle2, Mail, MapPin, Shield, Globe, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/lib/auth';
@@ -95,7 +96,20 @@ export default function Profile() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><Mail className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('users.form.email', 'Adresse email')}</p><p className="font-medium text-foreground">{user.email}</p></div></div>
             <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><Shield className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('profile.access_level', 'Niveau d’accès')}</p><p className="font-medium capitalize text-foreground">{getRoleName(user.role)}</p></div></div>
-            <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><MapPin className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('users.assigned_zones', 'Zones assignées')}</p><p className="font-medium text-foreground">{user.assignedZones?.length ? `${user.assignedZones.length} ${t('users.combinations', 'combinaison(s)')}` : t('profile.national_regions', 'Toutes les régions (National)')}</p></div></div>
+            <Link href="/profile/assigned-zones" className="group flex items-start gap-4 rounded-xl p-2.5 -m-2.5 hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border">
+              <div className="shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors flex items-center gap-1">
+                  {t('users.assigned_zones', 'Zones assignées')}
+                  <ChevronRight className="h-3.5 w-3.5 opacity-60 group-hover:translate-x-0.5 transition-transform" />
+                </p>
+                <p className="font-bold text-foreground">
+                  {user.assignedZones?.length ? `${user.assignedZones.length} ${t('users.combinations', 'combinaison(s)')}` : t('profile.national_regions', 'Toutes les régions (National)')}
+                </p>
+              </div>
+            </Link>
             <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><Calendar className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('profile.member_since', 'Membre depuis')}</p><p className="font-medium text-foreground">{format(new Date(user.createdAt), 'dd MMMM yyyy', { locale: dateLocale })}</p></div></div>
           </div>
 
