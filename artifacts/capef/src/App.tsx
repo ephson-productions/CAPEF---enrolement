@@ -322,7 +322,7 @@ function ProtectedRoutesGuard() {
     );
   }
 
-  // Resilient offline fallback: render protected routes directly if local cached identity exists for agent
+  // Resilient offline fallback: render protected routes if local claims exist for agent
   if (authUser) {
     return (
       <Switch>
