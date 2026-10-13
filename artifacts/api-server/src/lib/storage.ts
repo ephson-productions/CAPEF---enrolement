@@ -274,6 +274,7 @@ export async function resolveMemberMediaUrls(member: any): Promise<any> {
 
   if (resolved.moraleData && typeof resolved.moraleData === "object") {
     const morale = { ...resolved.moraleData };
+    if (morale.certificatUrl) morale.certificatUrl = await resolveSignedMediaUrl(morale.certificatUrl);
     if (morale.logoUrl) morale.logoUrl = await resolveSignedMediaUrl(morale.logoUrl);
     resolved.moraleData = morale;
   }
