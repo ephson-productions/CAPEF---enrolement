@@ -2394,7 +2394,20 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   </g>
 </svg>`;
 
-  const badgeFileName = `badge_m${id}_${Date.now()}.svg`;
+  const sanitizeForFileName = (str: string | null | undefined): string => {
+    if (!str) return "NON_DEFINI";
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove accents
+      .replace(/[^a-zA-Z0-9]/g, "_")  // Replace non-alphanumeric chars with underscore
+      .replace(/_+/g, "_")            // Collapse multiple underscores
+      .replace(/^_+|_+$/g, "")        // Trim leading/trailing underscores
+      .toUpperCase();
+  };
+
+  const safeMemberName = sanitizeForFileName(name);
+  const safeRegionName = sanitizeForFileName(region?.name);
+  const badgeFileName = `badge_${safeMemberName}_${safeRegionName}.svg`;
   let badgePath = badgeFileName;
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
