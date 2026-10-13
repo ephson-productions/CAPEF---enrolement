@@ -87,11 +87,61 @@ export function extractCleanStoragePath(pathOrUrl: string | null | undefined): s
 }
 
 /**
+ * Helper to sanitize strings for filesystem / storage object filenames.
+ * Strips accents, removes special characters, and joins with single underscores.
+ */
+export function sanitizeForFileName(input: string | null | undefined, fallback = "MEMBER"): string {
+  if (!input) return fallback;
+  const normalized = input
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+    .replace(/[^a-zA-Z0-9]+/g, "_")  // replace non-alphanumeric with underscore
+    .replace(/^_+|_+$/g, "")         // trim leading/trailing underscores
+    .toUpperCase();
+  return normalized || fallback;
+}
+
+/**
+ * Converts a media path or URL (Supabase storage relative path, signed URL, or external URL)
+ * into an inline base64 Data URL (e.g., `data:image/jpeg;base64,...`).
+ * Useful for embedding media inside SVG documents so they render reliably offline and across browsers.
+ */
+export async function fetchAsBase64DataUrl(pathOrUrl: string | null | undefined): Promise<string | null> {
+  if (!pathOrUrl) return null;
+  if (pathOrUrl.startsWith("data:")) return pathOrUrl;
+
+  try {
+    const signedOrOriginalUrl = await resolveSignedMediaUrl(pathOrUrl);
+    if (!signedOrOriginalUrl) return null;
+
+    const response = await fetch(signedOrOriginalUrl);
+    if (!response.ok) {
+      logger.warn({ status: response.status, pathOrUrl }, "Failed to fetch image for base64 conversion");
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64Str = buffer.toString("base64");
+
+    return `data:${contentType};base64,${base64Str}`;
+  } catch (err) {
+    logger.error({ err, pathOrUrl }, "Error fetching image as base64 data URL");
+    return null;
+  }
+}
+
+/**
  * Uploads a base64 data string to Supabase Storage bucket `member-documents`
  * and returns the relative file path. Throws an Error if storage is not configured or upload fails,
  * preventing silent fallback persistence of base64 strings in PostgreSQL.
  */
-export async function uploadBase64ToStorage(base64Data: string, prefix = "media"): Promise<string> {
+export async function uploadBase64ToStorage(
+  base64Data: string,
+  prefix = "media",
+  context?: { memberName?: string; regionName?: string }
+): Promise<string> {
   if (!base64Data) return base64Data;
 
   // If already a clean path or URL, extract clean path
@@ -118,7 +168,15 @@ export async function uploadBase64ToStorage(base64Data: string, prefix = "media"
   const buffer = Buffer.from(rawBase64, "base64");
 
   const ext = mimeType.split("/")[1] ?? "jpg";
-  const safeName = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
+
+  const safeMember = sanitizeForFileName(context?.memberName, "");
+  const safeRegion = sanitizeForFileName(context?.regionName, "");
+  const nameSuffix = [safeMember, safeRegion].filter(Boolean).join("_");
+
+  const safeName = nameSuffix
+    ? `${prefix}_${nameSuffix}_${Date.now()}.${ext}`
+    : `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
+
   const bucketName = "member-documents";
 
   const { error } = await supabase.storage
@@ -141,24 +199,39 @@ export async function uploadBase64ToStorage(base64Data: string, prefix = "media"
  * uploads them to Supabase Storage bucket `member-documents`, and replaces the base64
  * strings with clean relative storage paths.
  */
-export async function processMemberPayloadMedia(payload: any): Promise<any> {
+export async function processMemberPayloadMedia(
+  payload: any,
+  context?: { regionName?: string }
+): Promise<any> {
   if (!payload || typeof payload !== "object") return payload;
 
   const processed = { ...payload };
 
+  let memberName = "";
+  if (processed.individualOrOrg === "morale" || processed.moraleData) {
+    memberName = processed.moraleData?.nom ?? "";
+  } else if (processed.physiqueData) {
+    memberName = `${processed.physiqueData?.nom ?? ""} ${processed.physiqueData?.prenom ?? ""}`.trim();
+  }
+
+  const uploadContext = {
+    memberName,
+    regionName: context?.regionName ?? "",
+  };
+
   if (processed.physiqueData && typeof processed.physiqueData === "object") {
     const phys = { ...processed.physiqueData };
     if (phys.photoUrl) {
-      phys.photoUrl = await uploadBase64ToStorage(phys.photoUrl, "photo");
+      phys.photoUrl = await uploadBase64ToStorage(phys.photoUrl, "photo", uploadContext);
     }
     if (phys.cniRectoUrl) {
-      phys.cniRectoUrl = await uploadBase64ToStorage(phys.cniRectoUrl, "cni_recto");
+      phys.cniRectoUrl = await uploadBase64ToStorage(phys.cniRectoUrl, "cni_recto", uploadContext);
     }
     if (phys.cniVersoUrl) {
-      phys.cniVersoUrl = await uploadBase64ToStorage(phys.cniVersoUrl, "cni_verso");
+      phys.cniVersoUrl = await uploadBase64ToStorage(phys.cniVersoUrl, "cni_verso", uploadContext);
     }
     if (phys.signatureUrl) {
-      phys.signatureUrl = await uploadBase64ToStorage(phys.signatureUrl, "signature");
+      phys.signatureUrl = await uploadBase64ToStorage(phys.signatureUrl, "signature", uploadContext);
     }
     processed.physiqueData = phys;
   }
@@ -166,10 +239,10 @@ export async function processMemberPayloadMedia(payload: any): Promise<any> {
   if (processed.moraleData && typeof processed.moraleData === "object") {
     const morale = { ...processed.moraleData };
     if (morale.certificatUrl) {
-      morale.certificatUrl = await uploadBase64ToStorage(morale.certificatUrl, "certificat");
+      morale.certificatUrl = await uploadBase64ToStorage(morale.certificatUrl, "certificat", uploadContext);
     }
     if (morale.logoUrl) {
-      morale.logoUrl = await uploadBase64ToStorage(morale.logoUrl, "logo");
+      morale.logoUrl = await uploadBase64ToStorage(morale.logoUrl, "logo", uploadContext);
     }
     processed.moraleData = morale;
   }

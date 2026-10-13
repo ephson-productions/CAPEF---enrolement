@@ -15,7 +15,7 @@ import { CreateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
-import { resolveMemberMediaUrls, resolveSignedMediaUrl, processMemberPayloadMedia } from "../lib/storage";
+import { resolveMemberMediaUrls, resolveSignedMediaUrl, processMemberPayloadMedia, fetchAsBase64DataUrl, sanitizeForFileName } from "../lib/storage";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -503,9 +503,15 @@ async function validateGeographicCascade(regionId?: number | null, departmentId?
 router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
 
+  let regionName = "";
+  if (req.body.regionId) {
+    const [reg] = await db.select({ name: regionsTable.name }).from(regionsTable).where(eq(regionsTable.id, req.body.regionId)).limit(1);
+    regionName = reg?.name ?? "";
+  }
+
   let processedBody: any;
   try {
-    processedBody = await processMemberPayloadMedia(req.body);
+    processedBody = await processMemberPayloadMedia(req.body, { regionName });
   } catch (err: any) {
     console.error("🚨 MEDIA UPLOAD ERROR (POST /members):", err);
     res.status(503).json({
@@ -871,9 +877,16 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   const existing = await getMemberWithAccessCheck(appUser, id, res);
   if (!existing) return;
 
+  let regionName = "";
+  const targetRegionId = req.body.regionId ?? existing.regionId;
+  if (targetRegionId) {
+    const [reg] = await db.select({ name: regionsTable.name }).from(regionsTable).where(eq(regionsTable.id, targetRegionId)).limit(1);
+    regionName = reg?.name ?? "";
+  }
+
   let processedBody: any;
   try {
-    processedBody = await processMemberPayloadMedia(req.body);
+    processedBody = await processMemberPayloadMedia(req.body, { regionName });
   } catch (err: any) {
     console.error("🚨 MEDIA UPLOAD ERROR (PUT /members/:id):", err);
     res.status(503).json({
@@ -2206,11 +2219,14 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
 
   const dateEnrolementStr = formatDate(member.createdAt);
 
+  const photoBase64Url = await fetchAsBase64DataUrl(physique?.photoUrl);
+  const signatureBase64Url = await fetchAsBase64DataUrl(physique?.signatureUrl);
+
   let avatarSvgHD = "";
-  if (member.memberType === "physique" && physique?.photoUrl) {
+  if (member.memberType === "physique" && photoBase64Url) {
     avatarSvgHD = `
     <g clip-path="url(#photo-clip)">
-      <image href="${physique.photoUrl}" x="50" y="250" width="220" height="260" preserveAspectRatio="xMidYMid slice" />
+      <image href="${photoBase64Url}" x="50" y="250" width="220" height="260" preserveAspectRatio="xMidYMid slice" />
     </g>
     `;
   } else {
@@ -2227,8 +2243,8 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   }
 
   let signatureImageSvg = "";
-  if (physique?.signatureUrl) {
-    signatureImageSvg = `<image href="${physique.signatureUrl}" x="42" y="567" width="196" height="56" preserveAspectRatio="xMidYMid contain" />`;
+  if (signatureBase64Url) {
+    signatureImageSvg = `<image href="${signatureBase64Url}" x="42" y="567" width="196" height="56" preserveAspectRatio="xMidYMid contain" />`;
   }
 
   const badgeSvg = `<?xml version="1.0" encoding="UTF-8"?>

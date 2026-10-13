@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { requireAppUser } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { sanitizeForFileName } from "../lib/storage";
 
 const router: IRouter = Router();
 
@@ -22,10 +23,10 @@ function getSupabaseClient() {
 
 // POST /api/uploads — accept base64-encoded file, upload to Supabase Storage bucket, return URL
 router.post("/uploads", requireAppUser, async (req, res): Promise<void> => {
-  const { base64Data, mimeType, fileName } = req.body;
+  const { base64Data, mimeType, fileName, memberName, regionName, docType } = req.body;
 
-  if (!base64Data || !mimeType || !fileName) {
-    res.status(400).json({ error: "base64Data, mimeType et fileName sont requis" });
+  if (!base64Data || !mimeType || (!fileName && !docType)) {
+    res.status(400).json({ error: "base64Data, mimeType et fileName (ou docType) sont requis" });
     return;
   }
 
@@ -51,7 +52,15 @@ router.post("/uploads", requireAppUser, async (req, res): Promise<void> => {
   }
 
   const ext = mimeType.split("/")[1] ?? "jpg";
-  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
+
+  const prefix = sanitizeForFileName(docType, "doc").toLowerCase();
+  const safeMember = sanitizeForFileName(memberName, "");
+  const safeRegion = sanitizeForFileName(regionName, "");
+  const nameSuffix = [safeMember, safeRegion].filter(Boolean).join("_");
+
+  const safeName = nameSuffix
+    ? `${prefix}_${nameSuffix}_${Date.now()}.${ext}`
+    : `${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
 
   try {
     const supabase = getSupabaseClient();
