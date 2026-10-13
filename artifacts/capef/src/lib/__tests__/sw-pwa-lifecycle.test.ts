@@ -17,9 +17,8 @@ describe('Phase 10 — Service Worker & PWA Life Cycle Configuration Tests', () 
     expect(configContent).toContain('clientsClaim: true');
     expect(configContent).toContain('cleanupOutdatedCaches: true');
 
-    // 3. Verify StaleWhileRevalidate for reference data and NetworkFirst for general /api/ routes
-    expect(configContent).toContain("cacheName: 'capef-reference-data'");
-    expect(configContent).toContain("cacheName: 'capef-api-data'");
+    // 3. Verify NetworkOnly for general /api/ routes to prevent ServiceWorker API cache collisions
+    expect(configContent).toContain("handler: 'NetworkOnly'");
   });
 
   it('verifies dist/sw.js generated during build includes skipWaiting and clientsClaim', () => {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useGetDashboardStats, useListRegions } from '@workspace/api-client-react';
+import { useGetDashboardStats } from '@workspace/api-client-react';
+import { useOfflineFallbackRegions } from '@/lib/offline-hooks';
 import { Users, Building2, Trees, Droplets, Tractor, Hammer, ArrowRight, UserCheck } from 'lucide-react';
 import { Link } from 'wouter';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +24,7 @@ export default function Dashboard() {
     }
   });
 
-  const { data: regions } = useListRegions();
+  const { data: regions } = useOfflineFallbackRegions();
 
   if (isLoading || !stats) {
     return (
@@ -126,7 +127,7 @@ export default function Dashboard() {
             className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
           >
             <option value="">{t('members.filters.all_regions')}</option>
-            {regions?.map(r => (
+            {(regions as any[])?.map((r: any) => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>

@@ -159,24 +159,52 @@ export default function MemberDetail() {
     try {
       const result = await generateBadge.mutateAsync({ id: resolvedServerId });
       if (result.badgeUrl) {
-        const base64Data = result.badgeUrl.split(',')[1];
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        if (result.badgeUrl.startsWith('data:')) {
+          // Fallback for base64 Data URLs
+          const base64Data = result.badgeUrl.split(',')[1];
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'image/svg+xml' });
+          const objectUrl = URL.createObjectURL(blob);
+
+          window.open(objectUrl, '_blank');
+          setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+          }, 5000);
+        } else {
+          // Direct signed HTTP/HTTPS URL from Supabase Storage — trigger direct download/open
+          const sanitizeForFileName = (str: string | null | undefined): string => {
+            if (!str) return 'NON_DEFINI';
+            return str
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-zA-Z0-9]/g, '_')
+              .replace(/_+/g, '_')
+              .replace(/^_+|_+$/g, '')
+              .toUpperCase();
+          };
+
+          const safeName = sanitizeForFileName(localMember?.displayName);
+          const safeRegion = sanitizeForFileName(localMember?.regionName);
+          const expectedFileName = `badge_${safeName}_${safeRegion}.svg`;
+
+          const a = document.createElement('a');
+          a.href = result.badgeUrl;
+          a.download = expectedFileName;
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'image/svg+xml' });
-        const objectUrl = URL.createObjectURL(blob);
 
-        window.open(objectUrl, '_blank');
-        toast({ title: t('badge.generated_title', 'Badge généré'), description: t('badge.generated_desc', 'Le badge a été ouvert dans un nouvel onglet.') });
-
-        setTimeout(() => {
-          URL.revokeObjectURL(objectUrl);
-        }, 5000);
+        toast({ title: t('badge.generated_title', 'Badge généré'), description: t('badge.generated_desc', 'Le badge a été téléchargé avec succès.') });
       }
     } catch (err) {
+      console.error('[MemberDetail] Badge generation error:', err);
       toast({ variant: 'destructive', title: t('common.error', 'Erreur'), description: t('badge.failed_desc', 'Impossible de générer le badge.') });
     }
   };

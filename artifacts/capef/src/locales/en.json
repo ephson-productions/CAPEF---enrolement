@@ -861,6 +861,20 @@
     "save_to_confirm": "Click Save to confirm.",
     "update_failed": "Failed to update your profile.",
     "updated_desc": "Your documents and photo have been saved.",
-    "updated_title": "Profile Updated"
+    "updated_title": "Profile Updated",
+    "back_to_profile": "Back to Profile",
+    "assigned_zones_title": "My Assigned Zones",
+    "assigned_zones_subtitle": "Details of geographic intervention perimeters assigned to your account.",
+    "offline_saved_badge": "Data saved offline",
+    "total_combinations": "Total combinations",
+    "offline_first_use_title": "Connection required",
+    "offline_first_use_desc": "Please connect to the Internet once to load and save your assigned zones locally.",
+    "zones_list_header": "Zone combinations ({{count}})",
+    "zone_number": "Zone #{{num}}",
+    "all_regions": "All regions",
+    "national_scope_title": "Full National Access",
+    "no_specific_zones_title": "No specific zone assigned",
+    "admin_national_desc": "As a national administrator, your account is authorized across the entire territory of Cameroon.",
+    "no_zones_desc": "You have no restricted combinations. Your account covers your assigned administrative region or the national territory."
   }
 }

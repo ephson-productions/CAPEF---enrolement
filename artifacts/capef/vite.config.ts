@@ -49,25 +49,8 @@ export default defineConfig({
         globIgnores: ['**/stats.html'],
         runtimeCaching: [
           {
-            urlPattern: /^\/api\/(regions|departments|arrondissements)$/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'capef-reference-data',
-              expiration: {
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 jours
-              },
-            },
-          },
-          {
             urlPattern: /^\/api\/.*$/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'capef-api-data',
-              networkTimeoutSeconds: 5,
-              expiration: {
-                maxAgeSeconds: 60 * 60 * 24, // 24 heures
-              },
-            },
+            handler: 'NetworkOnly',
           },
           {
             urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*$/i,

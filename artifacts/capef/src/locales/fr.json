@@ -861,6 +861,20 @@
     "save_to_confirm": "Cliquez sur Enregistrer pour confirmer.",
     "update_failed": "Impossible de mettre à jour votre profil.",
     "updated_desc": "Vos documents et votre photo ont été enregistrés.",
-    "updated_title": "Profil mis à jour"
+    "updated_title": "Profil mis à jour",
+    "back_to_profile": "Retour au profil",
+    "assigned_zones_title": "Mes zones assignées",
+    "assigned_zones_subtitle": "Détail des périmètres géographiques d'intervention assignés à votre compte.",
+    "offline_saved_badge": "Données sauvegardées hors ligne",
+    "total_combinations": "Total combinaisons",
+    "offline_first_use_title": "Connexion requise",
+    "offline_first_use_desc": "Veuillez vous connecter une fois à Internet pour charger et enregistrer vos zones assignées en local.",
+    "zones_list_header": "Combinaisons de zones ({{count}})",
+    "zone_number": "Zone #{{num}}",
+    "all_regions": "Toutes les régions",
+    "national_scope_title": "Accès National Intégral",
+    "no_specific_zones_title": "Aucune zone spécifique assignée",
+    "admin_national_desc": "En tant qu'administrateur national, votre compte est habilité sur l'ensemble du territoire camerounais.",
+    "no_zones_desc": "Vous n'avez pas de combinaisons restreintes. Votre compte couvre votre région administrative assignée ou le territoire national."
   }
 }

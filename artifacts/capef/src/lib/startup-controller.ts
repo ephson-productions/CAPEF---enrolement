@@ -1,4 +1,5 @@
 import { db } from './repositories/CapefDexieDatabase';
+import { localProfileService } from './local-profile-service';
 
 export type StartupState =
   | 'initializing'
@@ -184,6 +185,11 @@ export class AppStartupController {
   async initializeStartup(): Promise<StartupState> {
     this.setState('initializing');
 
+    // Purge legacy PIN data from previous installs
+    localProfileService.purgeLegacyPinData().catch((err) => {
+      console.warn('[AppStartupController] Non-blocking PIN purge error:', err);
+    });
+
     const cacheValid = this.checkQueryCacheHealth();
     if (!cacheValid) {
       this.setState('cache-corrupt', 'Le cache local a été réinitialisé suite à une corruption.');
@@ -193,6 +199,15 @@ export class AppStartupController {
     if (!indexedDbOk && !localStorageOk) {
       this.setState('storage-unavailable', 'Le stockage local (IndexedDB / LocalStorage) est indisponible sur cet appareil.');
       return 'storage-unavailable';
+    }
+
+    // Best-effort request for persistent storage
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then((persisted) => {
+        console.log('[AppStartupController] Storage persist request result:', persisted);
+      }).catch((e) => {
+        console.warn('[AppStartupController] Storage persist request error:', e);
+      });
     }
 
     const isNetworkHealthy = await this.checkNetworkHealth(3000);

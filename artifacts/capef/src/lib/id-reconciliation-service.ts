@@ -50,6 +50,7 @@ export class IdReconciliationService {
     const localId = typeof ref === 'string' ? ref : ref.localId;
     if (!localId) return null;
 
+    // 1. Primary lookup in entityMappings
     const mapping = await db.entityMappings.where({ entityType, localId }).first();
     if (mapping && typeof mapping.serverId === 'number') {
       return mapping.serverId;
@@ -57,6 +58,34 @@ export class IdReconciliationService {
     if (mapping && typeof mapping.serverId === 'string') {
       const parsed = parseInt(mapping.serverId, 10);
       if (!isNaN(parsed)) return parsed;
+    }
+
+    // 2. Resilient fallback lookup directly in Dexie entity tables
+    if (entityType === 'member') {
+      const m = await db.members.where('localId').equals(localId).first();
+      if (m && typeof m.serverId === 'number') {
+        return m.serverId;
+      }
+    } else if (entityType === 'activity') {
+      const act = await db.activities.where('localId').equals(localId).first();
+      if (act && typeof act.serverId === 'number') {
+        return act.serverId;
+      }
+      if (act) {
+        const canonical = await db.activities
+          .where('memberLocalId')
+          .equals(act.memberLocalId)
+          .filter(a => a.activityType === act.activityType && typeof a.serverId === 'number')
+          .first();
+        if (canonical && typeof canonical.serverId === 'number') {
+          return canonical.serverId;
+        }
+      }
+    } else if (entityType === 'line_item') {
+      const li = await db.lineItems.where('localId').equals(localId).first();
+      if (li && typeof li.serverId === 'number') {
+        return li.serverId;
+      }
     }
 
     throw new UnresolvedDependencyError(entityType, localId);

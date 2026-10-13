@@ -95,7 +95,27 @@ export default function Profile() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><Mail className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('users.form.email', 'Adresse email')}</p><p className="font-medium text-foreground">{user.email}</p></div></div>
             <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><Shield className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('profile.access_level', 'Niveau d’accès')}</p><p className="font-medium capitalize text-foreground">{getRoleName(user.role)}</p></div></div>
-            <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><MapPin className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('users.assigned_zones', 'Zones assignées')}</p><p className="font-medium text-foreground">{user.assignedZones?.length ? `${user.assignedZones.length} ${t('users.combinations', 'combinaison(s)')}` : t('profile.national_regions', 'Toutes les régions (National)')}</p></div></div>
+            <div className="flex items-start gap-4">
+              <div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-muted-foreground">{t('users.assigned_zones', 'Zones assignées')}</p>
+                <div className="flex items-center justify-between gap-2 mt-0.5">
+                  <p className="font-medium text-foreground">
+                    {user.assignedZones?.length
+                      ? `${user.assignedZones.length} ${t('users.combinations', 'combinaison(s)')}`
+                      : t('profile.national_regions', 'Toutes les régions (National)')}
+                  </p>
+                  <a
+                    href="/profile/assigned-zones"
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    {t('common.view_details', 'Voir détails')} &rarr;
+                  </a>
+                </div>
+              </div>
+            </div>
             <div className="flex items-start gap-4"><div className="shrink-0 rounded-lg bg-muted p-2.5 text-muted-foreground"><Calendar className="h-5 w-5" /></div><div><p className="text-sm font-semibold text-muted-foreground">{t('profile.member_since', 'Membre depuis')}</p><p className="font-medium text-foreground">{format(new Date(user.createdAt), 'dd MMMM yyyy', { locale: dateLocale })}</p></div></div>
           </div>
 

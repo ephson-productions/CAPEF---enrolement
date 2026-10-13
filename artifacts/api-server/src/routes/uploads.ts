@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { requireAppUser } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { sanitizeForFileName } from "../lib/storage";
 
 const router: IRouter = Router();
 
@@ -22,10 +23,10 @@ function getSupabaseClient() {
 
 // POST /api/uploads — accept base64-encoded file, upload to Supabase Storage bucket, return URL
 router.post("/uploads", requireAppUser, async (req, res): Promise<void> => {
-  const { base64Data, mimeType, fileName } = req.body;
+  const { base64Data, mimeType, fileName, memberName, regionName, docType } = req.body;
 
-  if (!base64Data || !mimeType || !fileName) {
-    res.status(400).json({ error: "base64Data, mimeType et fileName sont requis" });
+  if (!base64Data || !mimeType || (!fileName && !docType)) {
+    res.status(400).json({ error: "base64Data, mimeType et fileName (ou docType) sont requis" });
     return;
   }
 
@@ -51,36 +52,52 @@ router.post("/uploads", requireAppUser, async (req, res): Promise<void> => {
   }
 
   const ext = mimeType.split("/")[1] ?? "jpg";
-  const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
+
+  const prefix = sanitizeForFileName(docType, "doc").toLowerCase();
+  const safeMember = sanitizeForFileName(memberName, "");
+  const safeRegion = sanitizeForFileName(regionName, "");
+  const nameSuffix = [safeMember, safeRegion].filter(Boolean).join("_");
+
+  const safeName = nameSuffix
+    ? `${prefix}_${nameSuffix}_${Date.now()}.${ext}`
+    : `${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
 
   try {
     const supabase = getSupabaseClient();
 
-    if (supabase) {
-      const bucketName = "member-documents";
-      const { data, error } = await supabase.storage
-        .from(bucketName)
-        .upload(safeName, buffer, {
-          contentType: mimeType,
-          upsert: true,
-        });
-
-      if (error) {
-        logger.error({ error }, "Failed to upload file to Supabase Storage");
-        throw error;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(safeName);
-
-      res.json({ url: publicUrlData.publicUrl, fileName: safeName });
+    if (!supabase) {
+      logger.error("Supabase Storage configuration missing (SUPABASE_URL or keys not set)");
+      res.status(503).json({
+        error: "Le service de stockage de fichiers est indisponible. Veuillez vérifier la configuration serveur.",
+        code: "STORAGE_NOT_CONFIGURED"
+      });
       return;
     }
 
-    // Fallback if Supabase credentials are not configured in local environment
-    const fallbackDataUrl = `data:${mimeType};base64,${cleanBase64}`;
-    res.json({ url: fallbackDataUrl, fileName: safeName });
+    const bucketName = "member-documents";
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(safeName, buffer, {
+        contentType: mimeType,
+        upsert: true,
+      });
+
+    if (error) {
+      logger.error({ error }, "Failed to upload file to Supabase Storage");
+      throw error;
+    }
+
+    // Generate a private short-lived signed URL (3600s = 1 hour) instead of a permanent public URL
+    const { data: signedUrlData, error: signedError } = await supabase.storage
+      .from(bucketName)
+      .createSignedUrl(safeName, 3600);
+
+    if (signedError || !signedUrlData) {
+      logger.error({ signedError }, "Failed to generate signed URL");
+      throw signedError || new Error("Failed to generate signed URL");
+    }
+
+    res.json({ url: signedUrlData.signedUrl, path: safeName, fileName: safeName });
   } catch (err: any) {
     logger.error({ err }, "Error processing file upload");
     res.status(500).json({ error: "Erreur lors de l'enregistrement du fichier" });

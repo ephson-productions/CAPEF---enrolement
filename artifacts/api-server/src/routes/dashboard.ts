@@ -75,24 +75,21 @@ router.get("/dashboard/stats", requireAppUser, async (req, res): Promise<void> =
 
     const byCategory = categoryRows.map((r) => ({ category: r.category, count: r.count }));
 
-    // By region (join with regions table)
-    const regionRows = await db
+    // By region (single pre-joined query with GROUP BY)
+    const byRegionRows = await db
       .select({
-        regionId: membersTable.regionId,
+        regionName: sql<string>`COALESCE(${regionsTable.name}, 'Inconnue')`,
         count: sql<number>`count(*)::int`,
       })
       .from(membersTable)
+      .leftJoin(regionsTable, eq(membersTable.regionId, regionsTable.id))
       .where(whereClause)
-      .groupBy(membersTable.regionId);
+      .groupBy(regionsTable.name);
 
-    const byRegion = await Promise.all(
-      regionRows
-        .filter((r) => r.regionId !== null)
-        .map(async (r) => {
-          const [region] = await db.select().from(regionsTable).where(eq(regionsTable.id, r.regionId!)).limit(1);
-          return { regionName: region?.name ?? "Inconnue", count: r.count };
-        })
-    );
+    const byRegion = byRegionRows.map((r) => ({
+      regionName: r.regionName,
+      count: r.count,
+    }));
 
     // By status (Phase 4 bucket counts)
     const statusRows = await db
@@ -140,29 +137,38 @@ router.get("/dashboard/recent", requireAppUser, async (req, res): Promise<void> 
     const appUser = (req as any).appUser;
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? "10"), 10)));
 
-    let query = db.select().from(membersTable);
+    let joinedQuery = db
+      .select({
+        id: membersTable.id,
+        memberNumber: membersTable.memberNumber,
+        memberType: membersTable.memberType,
+        category: membersTable.category,
+        status: membersTable.status,
+        createdAt: membersTable.createdAt,
+        physiqueNom: sql<string | null>`${membersTable.physiqueData}->>'nom'`,
+        physiquePrenom: sql<string | null>`${membersTable.physiqueData}->>'prenom'`,
+        moraleNom: sql<string | null>`${membersTable.moraleData}->>'nom'`,
+        regionName: regionsTable.name,
+        createdByName: usersTable.name,
+      })
+      .from(membersTable)
+      .leftJoin(regionsTable, eq(membersTable.regionId, regionsTable.id))
+      .leftJoin(usersTable, eq(membersTable.createdById, usersTable.id));
 
     if (appUser.role === "agent") {
-      query = query.where(eq(membersTable.createdById, appUser.id)) as any;
+      joinedQuery = joinedQuery.where(eq(membersTable.createdById, appUser.id)) as any;
     } else if (appUser.role === "supervisor" && appUser.regionId) {
-      query = query.where(eq(membersTable.regionId, appUser.regionId)) as any;
+      joinedQuery = joinedQuery.where(eq(membersTable.regionId, appUser.regionId)) as any;
     }
 
-    const rows = await query
+    const rows = await joinedQuery
       .orderBy(sql`${membersTable.createdAt} DESC`)
       .limit(limit);
 
-    const summaries = await Promise.all(rows.map(async (m) => {
-      const physique = m.physiqueData as any;
-      const morale = m.moraleData as any;
+    const summaries = rows.map((m) => {
       const displayName = m.memberType === "physique"
-        ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
-        : (morale?.nom ?? null);
-
-      const [region] = m.regionId
-        ? await db.select().from(regionsTable).where(eq(regionsTable.id, m.regionId)).limit(1)
-        : [null];
-      const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, m.createdById)).limit(1);
+        ? `${m.physiqueNom ?? ""} ${m.physiquePrenom ?? ""}`.trim()
+        : (m.moraleNom ?? null);
 
       return {
         id: m.id,
@@ -170,13 +176,12 @@ router.get("/dashboard/recent", requireAppUser, async (req, res): Promise<void> 
         memberType: m.memberType,
         category: m.category,
         displayName: displayName || null,
-        regionName: region?.name ?? null,
-        createdByName: creator?.name ?? null,
-        badgeUrl: m.badgeUrl ?? null,
+        regionName: m.regionName ?? null,
+        createdByName: m.createdByName ?? null,
         status: m.status,
         createdAt: m.createdAt.toISOString(),
       };
-    }));
+    });
 
     res.json(summaries);
   } catch (error: any) {
