@@ -842,6 +842,54 @@ export interface UploadInput {
   fileName: string;
 }
 
+export type PublicBadgeVerificationResponseMemberType = typeof PublicBadgeVerificationResponseMemberType[keyof typeof PublicBadgeVerificationResponseMemberType];
+
+
+export const PublicBadgeVerificationResponseMemberType = {
+  physique: 'physique',
+  morale: 'morale',
+} as const;
+
+export type PublicBadgeVerificationResponseCategory = typeof PublicBadgeVerificationResponseCategory[keyof typeof PublicBadgeVerificationResponseCategory];
+
+
+export const PublicBadgeVerificationResponseCategory = {
+  agriculteur: 'agriculteur',
+  pecheur: 'pecheur',
+  eleveur: 'eleveur',
+  forestier: 'forestier',
+  artisan: 'artisan',
+} as const;
+
+export type PublicBadgeVerificationResponseStatus = typeof PublicBadgeVerificationResponseStatus[keyof typeof PublicBadgeVerificationResponseStatus];
+
+
+export const PublicBadgeVerificationResponseStatus = {
+  incomplet: 'incomplet',
+  en_attente: 'en_attente',
+  valide: 'valide',
+  desactive: 'desactive',
+  bloque: 'bloque',
+} as const;
+
+export interface PublicBadgeVerificationResponse {
+  memberNumber: string;
+  displayName: string;
+  memberType: PublicBadgeVerificationResponseMemberType;
+  category: PublicBadgeVerificationResponseCategory;
+  status: PublicBadgeVerificationResponseStatus;
+  regionName?: string | null;
+  departmentName?: string | null;
+  arrondissementName?: string | null;
+  village?: string | null;
+  photoUrl?: string | null;
+  photoCertificatUrl?: string | null;
+  issuedAt?: string | null;
+  isValid: boolean;
+  badgeUrl?: string | null;
+  activities?: MemberActivity[];
+}
+
 export interface UploadResult {
   url: string;
   fileName: string;

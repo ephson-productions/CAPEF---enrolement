@@ -316,7 +316,6 @@ function ProtectedRoutesGuard() {
     }
     return (
       <Switch>
-        <Route path="/badge-verify/:token" component={BadgeVerify} />
         <Route component={ProtectedRoutes} />
       </Switch>
     );
@@ -326,7 +325,6 @@ function ProtectedRoutesGuard() {
   if (authUser) {
     return (
       <Switch>
-        <Route path="/badge-verify/:token" component={BadgeVerify} />
         <Route component={ProtectedRoutes} />
       </Switch>
     );
@@ -410,6 +408,8 @@ function ClerkProviderWithRoutes() {
                     <Route path="/" component={HomeRedirect} />
                     <Route path="/sign-in/*?" component={SignInPage} />
                     <Route path="/sign-up/*?" component={SignUpPage} />
+                    {/* Public QR Code badge verification accessible without authentication */}
+                    <Route path="/badge-verify/:token" component={BadgeVerify} />
 
                     {/* Protected shell wrapper handles other routes with resilient guard */}
                     <Route component={ProtectedRoutesGuard} />

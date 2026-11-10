@@ -16,7 +16,7 @@ export default function BadgeVerify() {
   const { data: member, isLoading, error } = useQuery({
     queryKey: ['badge-member', token],
     queryFn: async () => {
-      return customFetch<any>(`/api/members/badge/${token}`);
+      return customFetch<any>(`/api/public/members/badge/${token}`);
     },
     enabled: !!token,
     retry: false,
@@ -103,10 +103,20 @@ export default function BadgeVerify() {
         {/* Verification Status Card */}
         <div className="bg-card rounded-2xl border border-border shadow-md p-6 text-center space-y-3">
           <div className="text-center">{getStatusBadge(member.status)}</div>
+          {member.photoUrl && (
+            <div className="mx-auto w-24 h-24 rounded-full overflow-hidden border-2 border-primary/20 shadow">
+              <img src={member.photoUrl} alt={member.displayName} className="w-full h-full object-cover" />
+            </div>
+          )}
           <h2 className="text-lg font-extrabold text-foreground">{member.displayName}</h2>
           <p className="text-xs text-muted-foreground font-mono bg-muted py-1.5 px-3 rounded inline-block">
             ID: {member.memberNumber}
           </p>
+          {member.issuedAt && (
+            <p className="text-[11px] text-muted-foreground">
+              {t('badge.issued_at', "Date d'enrôlement :")} {new Date(member.issuedAt).toLocaleDateString('fr-FR')}
+            </p>
+          )}
         </div>
 
         {/* Member Profile Details */}
@@ -146,12 +156,6 @@ export default function BadgeVerify() {
               <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
                 <dt className="text-muted-foreground font-medium">{t('members.detail.village', 'Village / Quartier')}</dt>
                 <dd className="col-span-2 font-medium">{member.village || '-'}</dd>
-              </div>
-              <div className="grid grid-cols-3 gap-2 pb-1">
-                <dt className="text-muted-foreground font-medium">{t('members.detail.phone_primary', 'Téléphone')}</dt>
-                <dd className="col-span-2 font-medium">
-                  {isPhysique ? (info as any)?.telephone1 : (info as any)?.telephone1 || '-'}
-                </dd>
               </div>
             </dl>
           </div>
