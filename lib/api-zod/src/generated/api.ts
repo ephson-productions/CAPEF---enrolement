@@ -41,6 +41,16 @@ export const GetMeResponse = zod.object({
 
 
 /**
+ * @summary Download printable CR80 PDF badge directly
+ */
+export const GetMemberBadgePdfParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMemberBadgePdfResponse = zod.unknown()
+
+
+/**
  * @summary JIT-provision the Clerk user into the app DB on first login
  */
 export const ProvisionUserBody = zod.object({

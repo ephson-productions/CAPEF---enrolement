@@ -57,6 +57,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /members/{id}/badge.pdf:
+    get:
+      operationId: getMemberBadgePdf
+      tags: [members]
+      summary: Download printable CR80 PDF badge directly
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Binary PDF badge document
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/provision:
     post:
       operationId: provisionUser

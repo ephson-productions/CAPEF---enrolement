@@ -190,12 +190,14 @@ export default function MemberDetail() {
 
           const safeName = sanitizeForFileName(localMember?.displayName);
           const safeRegion = sanitizeForFileName(localMember?.regionName);
-          const expectedFileName = `badge_${safeName}_${safeRegion}.svg`;
+          const isPdf = result.badgeUrl.toLowerCase().includes('.pdf');
+          const expectedFileName = `badge_${safeName}_${safeRegion}.${isPdf ? 'pdf' : 'svg'}`;
 
           const a = document.createElement('a');
           a.href = result.badgeUrl;
           a.download = expectedFileName;
           a.target = '_blank';
+          a.rel = 'noopener noreferrer';
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
