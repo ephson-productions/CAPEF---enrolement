@@ -16,7 +16,6 @@ import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
 import { resolveMemberMediaUrls, resolveSignedMediaUrl, processMemberPayloadMedia, fetchAsBase64DataUrl, sanitizeForFileName } from "../lib/storage";
-import { generateMemberBadgePdf } from "../lib/badge-pdf";
 import crypto from "crypto";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -2424,47 +2423,8 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
 
   const safeMemberName = sanitizeForFileName(name);
   const safeRegionName = sanitizeForFileName(region?.name);
-  const badgeFileName = `badge_${safeMemberName}_${safeRegionName}.pdf`;
+  const badgeFileName = `badge_${safeMemberName}_${safeRegionName}.svg`;
   let badgePath = badgeFileName;
-
-  // Generate binary buffers for ISO/IEC 7810 ID-1 CR80 PDF badge
-  const qrPngBuffer = await QRCode.toBuffer(verificationUrl, { type: "png", margin: 1, width: 220 });
-
-  let logoBuffer: Buffer | null = null;
-  if (base64Logo) {
-    logoBuffer = Buffer.from(base64Logo, "base64");
-  }
-
-  let photoBuffer: Buffer | null = null;
-  if (photoBase64Url && photoBase64Url.startsWith("data:")) {
-    const rawPhotoBase64 = photoBase64Url.replace(/^data:[^;]+;base64,/, "");
-    photoBuffer = Buffer.from(rawPhotoBase64, "base64");
-  }
-
-  let signatureBuffer: Buffer | null = null;
-  if (signatureBase64Url && signatureBase64Url.startsWith("data:")) {
-    const rawSigBase64 = signatureBase64Url.replace(/^data:[^;]+;base64,/, "");
-    signatureBuffer = Buffer.from(rawSigBase64, "base64");
-  }
-
-  const pdfBuffer = await generateMemberBadgePdf(
-    {
-      memberNumber: member.memberNumber,
-      displayName: name,
-      memberType: member.memberType,
-      category: member.category,
-      regionName: region?.name ?? null,
-      departmentName: dept?.name ?? null,
-      arrondissementName: arr?.name ?? null,
-      phone,
-      issuedAt: member.createdAt.toISOString(),
-      token,
-    },
-    qrPngBuffer,
-    logoBuffer,
-    photoBuffer,
-    signatureBuffer
-  );
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -2485,18 +2445,18 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { error: uploadErr } = await supabase.storage.from("member-documents").upload(badgeFileName, pdfBuffer, {
-      contentType: "application/pdf",
+    const { error: uploadErr } = await supabase.storage.from("member-documents").upload(badgeFileName, Buffer.from(badgeSvg, "utf-8"), {
+      contentType: "image/svg+xml",
       upsert: true,
     });
 
     if (uploadErr) {
-      console.error("Failed to upload badge PDF to Supabase Storage:", uploadErr);
+      console.error("Failed to upload badge SVG to Supabase Storage:", uploadErr);
       res.status(500).json({ error: "Échec de l'enregistrement du badge dans le stockage de fichiers." });
       return;
     }
   } catch (err) {
-    console.error("Failed to upload badge PDF to Supabase Storage:", err);
+    console.error("Failed to upload badge SVG to Supabase Storage:", err);
     res.status(500).json({ error: "Erreur lors de la génération et sauvegarde du badge." });
     return;
   }
@@ -2506,112 +2466,6 @@ router.post("/members/:id/badge", requireAppUser, async (req, res): Promise<void
   const resolvedBadgeUrl = await resolveSignedMediaUrl(badgePath);
 
   res.json({ badgeUrl: resolvedBadgeUrl, memberNumber: member.memberNumber });
-});
-
-// GET /api/members/:id/badge.pdf — Direct binary PDF download
-router.get("/members/:id/badge.pdf", requireAppUser, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "ID membre invalide" });
-    return;
-  }
-  const appUser = (req as any).appUser;
-
-  const member = await getMemberWithAccessCheck(appUser, id, res);
-  if (!member) return;
-
-  let token = member.badgeToken;
-  if (!token) {
-    token = crypto.randomUUID();
-    await db.update(membersTable).set({ badgeToken: token }).where(eq(membersTable.id, id));
-  }
-
-  const physique = member.physiqueData as any;
-  const morale = member.moraleData as any;
-  const name = member.memberType === "physique"
-    ? `${physique?.nom ?? ""} ${physique?.prenom ?? ""}`.trim()
-    : (morale?.nom ?? "");
-
-  const [region] = member.regionId
-    ? await db.select().from(regionsTable).where(eq(regionsTable.id, member.regionId)).limit(1)
-    : [null];
-  const [dept] = member.departmentId
-    ? await db.select().from(departmentsTable).where(eq(departmentsTable.id, member.departmentId)).limit(1)
-    : [null];
-  const [arr] = member.arrondissementId
-    ? await db.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, member.arrondissementId)).limit(1)
-    : [null];
-
-  const phone = member.memberType === "physique"
-    ? (physique?.telephone1 ?? "-")
-    : (morale?.telephone1 ?? "-");
-
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-  const verificationUrl = `${frontendUrl}/badge-verify/${token}`;
-
-  const qrPngBuffer = await QRCode.toBuffer(verificationUrl, { type: "png", margin: 1, width: 220 });
-
-  let logoBuffer: Buffer | null = null;
-  try {
-    const pathsToTry = [
-      path.resolve(__dirname, "../../../capef/public/assets/LOGO_CAPEF.png"),
-      path.resolve(process.cwd(), "artifacts/capef/public/assets/LOGO_CAPEF.png"),
-      path.resolve(process.cwd(), "../capef/public/assets/LOGO_CAPEF.png"),
-      path.resolve(__dirname, "../../../../artifacts/capef/public/assets/LOGO_CAPEF.png"),
-    ];
-    for (const p of pathsToTry) {
-      if (fs.existsSync(p)) {
-        logoBuffer = fs.readFileSync(p);
-        break;
-      }
-    }
-  } catch (err) {
-    console.error("Failed to read logo image:", err);
-  }
-
-  const photoBase64Url = await fetchAsBase64DataUrl(physique?.photoUrl);
-  const signatureBase64Url = await fetchAsBase64DataUrl(physique?.signatureUrl);
-
-  let photoBuffer: Buffer | null = null;
-  if (photoBase64Url && photoBase64Url.startsWith("data:")) {
-    const rawPhotoBase64 = photoBase64Url.replace(/^data:[^;]+;base64,/, "");
-    photoBuffer = Buffer.from(rawPhotoBase64, "base64");
-  }
-
-  let signatureBuffer: Buffer | null = null;
-  if (signatureBase64Url && signatureBase64Url.startsWith("data:")) {
-    const rawSigBase64 = signatureBase64Url.replace(/^data:[^;]+;base64,/, "");
-    signatureBuffer = Buffer.from(rawSigBase64, "base64");
-  }
-
-  const pdfBuffer = await generateMemberBadgePdf(
-    {
-      memberNumber: member.memberNumber,
-      displayName: name,
-      memberType: member.memberType,
-      category: member.category,
-      regionName: region?.name ?? null,
-      departmentName: dept?.name ?? null,
-      arrondissementName: arr?.name ?? null,
-      phone,
-      issuedAt: member.createdAt.toISOString(),
-      token,
-    },
-    qrPngBuffer,
-    logoBuffer,
-    photoBuffer,
-    signatureBuffer
-  );
-
-  const safeMemberName = sanitizeForFileName(name);
-  const safeRegionName = sanitizeForFileName(region?.name);
-  const filename = `badge_${safeMemberName}_${safeRegionName}.pdf`;
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.setHeader("Content-Length", pdfBuffer.length);
-  res.end(pdfBuffer);
 });
 
 // POST /api/members/sync — bulk offline sync
