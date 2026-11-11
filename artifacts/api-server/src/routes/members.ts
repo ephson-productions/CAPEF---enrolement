@@ -2550,9 +2550,69 @@ const publicRateLimiter = (req: any, res: any, next: any) => {
   next();
 };
 
-// GET /api/members/badge/:badgeToken - Require authentication (requireAppUser)
-router.get("/members/badge/:badgeToken", requireAppUser, async (req, res): Promise<void> => {
-  const rawToken = req.params.badgeToken;
+async function formatPublicBadgeVerification(member: typeof membersTable.$inferSelect, executor: any = db) {
+  const [region] = member.regionId
+    ? await executor.select().from(regionsTable).where(eq(regionsTable.id, member.regionId)).limit(1)
+    : [null];
+  const [dept] = member.departmentId
+    ? await executor.select().from(departmentsTable).where(eq(departmentsTable.id, member.departmentId)).limit(1)
+    : [null];
+  const [arr] = member.arrondissementId
+    ? await executor.select().from(arrondissementsTable).where(eq(arrondissementsTable.id, member.arrondissementId)).limit(1)
+    : [null];
+
+  const physique = (member.physiqueData as any) ?? {};
+  const morale = (member.moraleData as any) ?? {};
+
+  const displayName = member.memberType === "physique"
+    ? `${physique.nom ?? ""} ${physique.prenom ?? ""}`.trim() || member.memberNumber
+    : (morale.nom ?? member.memberNumber);
+
+  let photoUrl: string | null = null;
+  if (member.memberType === "physique" && physique.photoUrl) {
+    photoUrl = await resolveSignedMediaUrl(physique.photoUrl);
+  }
+
+  let photoCertificatUrl: string | null = null;
+  if (member.memberType === "morale" && morale.certificatUrl) {
+    photoCertificatUrl = await resolveSignedMediaUrl(morale.certificatUrl);
+  }
+
+  let resolvedBadgeUrl: string | null = null;
+  if (member.badgeUrl) {
+    resolvedBadgeUrl = await resolveSignedMediaUrl(member.badgeUrl);
+  }
+
+  const rawActivities = await executor
+    .select()
+    .from(memberActivitiesTable)
+    .where(eq(memberActivitiesTable.memberId, member.id));
+
+  const activities = await Promise.all(
+    rawActivities.map((act: any) => formatMemberActivity(act, executor))
+  );
+
+  return {
+    memberNumber: member.memberNumber,
+    displayName,
+    memberType: member.memberType as "physique" | "morale",
+    category: member.category as any,
+    status: member.status as any,
+    regionName: region?.name ?? null,
+    departmentName: dept?.name ?? null,
+    arrondissementName: arr?.name ?? null,
+    village: member.village ?? null,
+    photoUrl,
+    photoCertificatUrl,
+    issuedAt: member.createdAt.toISOString(),
+    isValid: member.status === "valide",
+    badgeUrl: resolvedBadgeUrl,
+    activities,
+  };
+}
+
+async function handleBadgeVerification(req: any, res: any): Promise<void> {
+  const rawToken = req.params.badge_token || req.params.badgeToken;
   const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
   if (!token) {
     res.status(404).json({ error: "Token requis" });
@@ -2570,7 +2630,14 @@ router.get("/members/badge/:badgeToken", requireAppUser, async (req, res): Promi
     return;
   }
 
-  res.json(await formatMember(member, true));
-});
+  const publicData = await formatPublicBadgeVerification(member);
+  res.json(publicData);
+}
+
+// GET /api/public/members/badge/:badge_token - Unauthenticated public verification with rate limiting
+router.get("/public/members/badge/:badge_token", publicRateLimiter, handleBadgeVerification);
+
+// GET /api/members/badge/:badgeToken - Backward-compatible public alias with rate limiting
+router.get("/members/badge/:badgeToken", publicRateLimiter, handleBadgeVerification);
 
 export default router;

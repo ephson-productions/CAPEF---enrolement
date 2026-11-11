@@ -19,7 +19,8 @@ import {
   ShieldAlert,
   Moon,
   Sun,
-  Activity
+  Activity,
+  MapPin
 } from 'lucide-react';
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     { name: t('navigation.dashboard'), href: '/dashboard', icon: LayoutDashboard },
     { name: t('navigation.members'), href: '/members', icon: Users },
     { name: t('navigation.new_enrollment'), href: '/members/new', icon: UserPlus },
+    { name: t('navigation.assigned_zones', 'Zones assignées'), href: '/profile/assigned-zones', icon: MapPin },
     ...(isAdmin ? [{ name: t('navigation.users'), href: '/users', icon: ShieldAlert }] : []),
   ];
 
@@ -67,7 +69,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
           {navigation.map((item) => {
-            const isActive = location === item.href || location.startsWith(`${item.href}/`);
+            const isActive =
+              location === item.href ||
+              location.startsWith(`${item.href}/`) ||
+              (item.href === '/profile/assigned-zones' && (location === '/assigned-zones' || location.startsWith('/assigned-zones/')));
             return (
               <Link
                 key={item.href}

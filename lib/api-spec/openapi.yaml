@@ -452,8 +452,7 @@ paths:
       operationId: getPublicMemberByBadgeToken
       tags: [members]
       summary: Get a single member by public badge token
-      security:
-        - bearerAuth: []
+      security: []
       parameters:
         - in: path
           name: badge_token
@@ -462,11 +461,37 @@ paths:
             type: string
       responses:
         "200":
-          description: Member detail
+          description: Public member badge verification details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Member"
+                $ref: "#/components/schemas/PublicBadgeVerificationResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /members/badge/{badge_token}:
+    get:
+      operationId: getMemberByBadgeToken
+      tags: [members]
+      summary: Verify member by badge token (legacy alias)
+      security: []
+      parameters:
+        - in: path
+          name: badge_token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public member badge verification details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicBadgeVerificationResponse"
         "404":
           description: Not found
           content:
@@ -1833,6 +1858,63 @@ components:
           type: string
         fileName:
           type: string
+
+    # ─── Public Badge Verification ──────────────────────────────────────────
+
+    PublicBadgeVerificationResponse:
+      type: object
+      required:
+        - memberNumber
+        - displayName
+        - memberType
+        - category
+        - status
+        - isValid
+      properties:
+        memberNumber:
+          type: string
+        displayName:
+          type: string
+        memberType:
+          type: string
+          enum: [physique, morale]
+        category:
+          type: string
+          enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        status:
+          type: string
+          enum: [incomplet, en_attente, valide, desactive, bloque]
+        regionName:
+          type: string
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        arrondissementName:
+          type: string
+          nullable: true
+        village:
+          type: string
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
+        photoCertificatUrl:
+          type: string
+          nullable: true
+        issuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isValid:
+          type: boolean
+        badgeUrl:
+          type: string
+          nullable: true
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberActivity"
 
     UploadResult:
       type: object
