@@ -70,6 +70,11 @@ describe("Security & Authorization Gate (authorization.test.ts)", () => {
     expect(res.body.cniRectoUrl).toBeUndefined();
   });
 
+  it("Anonymous -> badge verification API returns 404 for an unknown token", async () => {
+    const res = await request(app).get("/api/public/members/badge/invalid_badge_token");
+    expect(res.status).toBe(404);
+  });
+
   it("Agent A -> Member B activity mutation returns 403 Forbidden", async () => {
     const res = await request(app)
       .post(`/api/members/${memberB.id}/activities`)
