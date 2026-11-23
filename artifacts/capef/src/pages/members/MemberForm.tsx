@@ -9,6 +9,7 @@ import {
 } from '@/lib/offline-hooks';
 import type { Member } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import type { LocalMemberWithDetails } from '@/lib/repositories/MemberRepository';
 import {
   User as UserIcon, Building2, MapPin, Tractor, Droplets, Trees, Hammer, CheckCircle2, ChevronRight, ChevronLeft, Save, Upload, PenTool
 } from 'lucide-react';
@@ -57,6 +58,7 @@ export const formSchema = z.object({
     telephone2: z.string().optional().nullable(),
     email: z.string().optional().nullable(),
     boitePostale: z.string().optional().nullable(),
+    lieuResidence: z.string().optional().nullable(),
     telephonePersonneAContacter: z.string().optional().nullable(),
     niveauEtudes: z.string().optional().nullable(),
     photoUrl: z.string().optional().nullable(),
@@ -140,7 +142,7 @@ export const formSchema = z.object({
 
 export type MemberFormValues = z.infer<typeof formSchema>;
 
-function toDefaultValues(member?: Member): MemberFormValues {
+export function toDefaultValues(member?: Member | LocalMemberWithDetails): MemberFormValues {
   if (!member) {
     return {
       memberType: 'physique',
@@ -158,6 +160,7 @@ function toDefaultValues(member?: Member): MemberFormValues {
         telephone2: '',
         email: '',
         boitePostale: '',
+        lieuResidence: '',
         telephonePersonneAContacter: '',
         niveauEtudes: 'Autodidacte',
         photoUrl: null,
@@ -248,6 +251,7 @@ function toDefaultValues(member?: Member): MemberFormValues {
       telephone2: phys.telephone2 ?? '',
       email: phys.email ?? '',
       boitePostale: phys.boitePostale ?? '',
+      lieuResidence: phys.lieuResidence ?? '',
       telephonePersonneAContacter: phys.telephonePersonneAContacter ?? '',
       niveauEtudes: phys.niveauEtudes ?? 'Autodidacte',
       photoUrl: phys.photoUrl ?? null,
@@ -975,13 +979,14 @@ function SignatureCapture({ value, onChange }: SignatureCaptureProps) {
 }
 
 type MemberFormProps = {
-  member?: Member;
+  member?: Member | LocalMemberWithDetails;
+  isEditing?: boolean;
   isSubmitting: boolean;
   onSubmit: (values: MemberFormValues) => void | Promise<void>;
   submitLabel?: string;
 };
 
-export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel }: MemberFormProps) {
+export default function MemberForm({ member, isEditing = false, isSubmitting, onSubmit, submitLabel }: MemberFormProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -989,9 +994,10 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
   const methods = useForm<MemberFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: toDefaultValues(member),
+    shouldUnregister: false,
   });
 
-  const { watch, setValue, handleSubmit, formState: { errors }, reset } = methods;
+  const { watch, setValue, handleSubmit, formState: { errors } } = methods;
 
   const onInvalid = (formErrors: any) => {
     console.error("Form validation failed:", formErrors);
@@ -1026,12 +1032,6 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
       variant: "destructive",
     });
   };
-
-  useEffect(() => {
-    if (member) {
-      reset(toDefaultValues(member));
-    }
-  }, [member, reset]);
 
   const memberType = watch('memberType');
   const category = watch('category');
@@ -1080,13 +1080,30 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
           { num: 4, title: t('members.form.step_4', '4. Activités & Productions') },
         ].map((s, idx) => (
           <React.Fragment key={s.num}>
-            <div className={`flex items-center gap-2 shrink-0 ${step >= s.num ? 'text-primary' : 'text-muted-foreground'}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm border-2
-                ${step > s.num ? 'bg-primary border-primary text-primary-foreground' : step === s.num ? 'border-primary text-primary' : 'border-muted-foreground text-muted-foreground'}`}>
-                {step > s.num ? <CheckCircle2 className="h-5 w-5" /> : s.num}
-              </div>
-              <span className="font-medium hidden sm:inline">{s.title}</span>
-            </div>
+            {(() => {
+              const indicator = (
+                <span className={`flex items-center gap-2 shrink-0 ${step >= s.num ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <span className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm border-2
+                    ${step > s.num ? 'bg-primary border-primary text-primary-foreground' : step === s.num ? 'border-primary text-primary' : 'border-muted-foreground text-muted-foreground'}`}>
+                    {step > s.num ? <CheckCircle2 className="h-5 w-5" /> : s.num}
+                  </span>
+                  <span className="font-medium hidden sm:inline">{s.title}</span>
+                </span>
+              );
+              return isEditing ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(s.num)}
+                  aria-current={step === s.num ? 'step' : undefined}
+                  aria-label={s.title}
+                  className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {indicator}
+                </button>
+              ) : (
+                <div>{indicator}</div>
+              );
+            })()}
             {idx < 3 && <div className={`h-1 w-12 mx-2 rounded-full ${step > s.num ? 'bg-primary' : 'bg-muted'}`} />}
           </React.Fragment>
         ))}
@@ -1102,8 +1119,8 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 <div>
                   <h3 className="text-lg font-bold mb-4">{t('members.form.member_type', 'Type de membre')}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <label className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'physique' ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm' : 'border-border hover:border-primary/50'}`}>
-                      <input type="radio" value="physique" {...methods.register('memberType')} className="sr-only" />
+                    <label className={`group touch-manipulation ${isEditing ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'physique' ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm' : 'border-border hover:border-primary/50'}`}>
+                      <input type="radio" value="physique" disabled={isEditing} {...methods.register('memberType')} className="sr-only" />
                       <div className={`h-12 w-12 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-focus-within:-translate-y-1 group-active:translate-y-0 ${memberType === 'physique' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
                         <UserIcon className="h-6 w-6" />
                       </div>
@@ -1112,8 +1129,8 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                         <div className="text-sm text-muted-foreground">{t('members.form.physique_desc', 'Individu, exploitant indépendant')}</div>
                       </div>
                     </label>
-                    <label className={`group touch-manipulation cursor-pointer rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'morale' ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm' : 'border-border hover:border-primary/50'}`}>
-                      <input type="radio" value="morale" {...methods.register('memberType')} className="sr-only" />
+                    <label className={`group touch-manipulation ${isEditing ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} rounded-lg border-2 p-4 flex items-center gap-4 transition-[background-color,border-color,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 focus-within:-translate-y-0.5 hover:shadow-sm focus-within:shadow-sm active:translate-y-0 active:shadow-none ${memberType === 'morale' ? 'border-primary bg-primary/5 -translate-y-0.5 shadow-sm' : 'border-border hover:border-primary/50'}`}>
+                      <input type="radio" value="morale" disabled={isEditing} {...methods.register('memberType')} className="sr-only" />
                       <div className={`h-12 w-12 rounded-full flex items-center justify-center transition-transform duration-500 ease-out group-hover:-translate-y-1 group-focus-within:-translate-y-1 group-active:translate-y-0 ${memberType === 'morale' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
                         <Building2 className="h-6 w-6" />
                       </div>
@@ -1222,6 +1239,14 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                     <input type="email" {...methods.register('physiqueData.email')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-sm font-semibold">{t('members.form.residence_place', 'Lieu de résidence')}</label>
+                    <input type="text" {...methods.register('physiqueData.lieuResidence')} className="w-full px-3 py-2 border border-input rounded-md" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold">{t('members.form.post_box', 'Boîte postale (optionnelle)')}</label>
+                    <input type="text" {...methods.register('physiqueData.boitePostale')} className="w-full px-3 py-2 border border-input rounded-md" />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.form.contact_phone_optional', 'Téléphone personne à contacter (optionnel)')}</label>
                     <input type="tel" {...methods.register('physiqueData.telephonePersonneAContacter')} className="w-full px-3 py-2 border border-input rounded-md" />
                   </div>
@@ -1290,30 +1315,84 @@ export default function MemberForm({ member, isSubmitting, onSubmit, submitLabel
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.region', 'Région')}</label>
-                    <select {...methods.register('regionId')} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm">
-                      <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {regions.data?.map((r: any) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                    </select>
+                    <Controller
+                      name="regionId"
+                      control={methods.control}
+                      render={({ field }) => (
+                        <select
+                          ref={field.ref}
+                          name={field.name}
+                          value={field.value ?? ''}
+                          onBlur={field.onBlur}
+                          onChange={(event) => {
+                            const nextRegionId = event.target.value ? Number(event.target.value) : null;
+                            if (nextRegionId !== (field.value ?? null)) {
+                              setValue('departmentId', null, { shouldDirty: true });
+                              setValue('arrondissementId', null, { shouldDirty: true });
+                            }
+                            field.onChange(nextRegionId);
+                          }}
+                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm"
+                        >
+                          <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
+                          {regions.data?.map((r: any) => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.department', 'Département')}</label>
-                    <select {...methods.register('departmentId')} disabled={!selectedRegion} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted">
-                      <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {departments.data?.map((d: any) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
+                    <Controller
+                      name="departmentId"
+                      control={methods.control}
+                      render={({ field }) => (
+                        <select
+                          ref={field.ref}
+                          name={field.name}
+                          value={field.value ?? ''}
+                          onBlur={field.onBlur}
+                          onChange={(event) => {
+                            const nextDepartmentId = event.target.value ? Number(event.target.value) : null;
+                            if (nextDepartmentId !== (field.value ?? null)) {
+                              setValue('arrondissementId', null, { shouldDirty: true });
+                            }
+                            field.onChange(nextDepartmentId);
+                          }}
+                          disabled={!selectedRegion}
+                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted"
+                        >
+                          <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
+                          {departments.data?.map((d: any) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.filters.arrondissement', 'Arrondissement')}</label>
-                    <select {...methods.register('arrondissementId')} disabled={!selectedDept} className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted">
-                      <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
-                      {arrondissements.data?.map((a: any) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
+                    <Controller
+                      name="arrondissementId"
+                      control={methods.control}
+                      render={({ field }) => (
+                        <select
+                          ref={field.ref}
+                          name={field.name}
+                          value={field.value ?? ''}
+                          onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : null)}
+                          onBlur={field.onBlur}
+                          disabled={!selectedDept}
+                          className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm disabled:bg-muted"
+                        >
+                          <option value="">{t('common.select_placeholder', 'Sélectionnez...')}</option>
+                          {arrondissements.data?.map((a: any) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">{t('members.detail.village', 'Village / Quartier')}</label>

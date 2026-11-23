@@ -1295,6 +1295,52 @@ components:
         signatureUrl:
           type: ["string", "null"]
 
+    MemberUpdatePhysiqueData:
+      type: object
+      properties:
+        civilite:
+          type: ["string", "null"]
+          enum: ["M.", "Mme.", "Mlle.", null]
+        nom:
+          type: string
+        prenom:
+          type: string
+        sexe:
+          type: ["string", "null"]
+          enum: ["M", "F", null]
+        situationMatrimoniale:
+          type: ["string", "null"]
+          enum: ["Célibataire", "Marié(e)", "Divorcé(e)", "Veuf/Veuve", null]
+        dateNaissance:
+          type: ["string", "null"]
+        lieuNaissance:
+          type: ["string", "null"]
+        numeroCni:
+          type: ["string", "null"]
+        telephone1:
+          type: ["string", "null"]
+        telephone2:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        boitePostale:
+          type: ["string", "null"]
+        telephonePersonneAContacter:
+          type: ["string", "null"]
+        lieuResidence:
+          type: ["string", "null"]
+        niveauEtudes:
+          type: ["string", "null"]
+          enum: ["Autodidacte", "Primaire", "Complémentaire", "Secondaire", "Universitaire", "Doctorat", "Autres", null]
+        photoUrl:
+          type: ["string", "null"]
+        cniRectoUrl:
+          type: ["string", "null"]
+        cniVersoUrl:
+          type: ["string", "null"]
+        signatureUrl:
+          type: ["string", "null"]
+
     Representative:
       type: object
       required: [nom, prenom, ordre]
@@ -1336,6 +1382,57 @@ components:
     MoraleData:
       type: object
       required: [nom]
+      properties:
+        typeOrganisation:
+          type: ["string", "null"]
+          enum:
+            - "OP"
+            - "GIC"
+            - "Association"
+            - "Coopérative avec conseil d'administration"
+            - "Coopérative à régime simplifié"
+            - "Exploitation"
+            - "UGIC"
+            - "FUGIC"
+            - "COOP92"
+            - "COOP OHADA"
+            - "Autre"
+            - null
+        nom:
+          type: string
+        numeroImmatriculation:
+          type: ["string", "null"]
+        dateImmatriculation:
+          type: ["string", "null"]
+        certificatUrl:
+          type: ["string", "null"]
+        telephone1:
+          type: ["string", "null"]
+        telephone2:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        boitePostale:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        nombreMembres:
+          type: ["integer", "null"]
+          minimum: 0
+        nombreFemmes:
+          type: ["integer", "null"]
+          minimum: 0
+        chiffreAffaires:
+          type: ["string", "null"]
+          enum: ["< 5m", "5-10m", "10m-20m", "20m-50m", "> 50m", null]
+          description: "Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'."
+        representants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Representative"
+
+    MemberUpdateMoraleData:
+      type: object
       properties:
         typeOrganisation:
           type: ["string", "null"]
@@ -1723,6 +1820,9 @@ components:
     MemberUpdate:
       type: object
       properties:
+        clientOperationId:
+          type: string
+          description: Client-generated idempotency key for offline retries
         version:
           type: integer
           description: Expected current version for Optimistic Concurrency Control (OCC) check
@@ -1746,11 +1846,11 @@ components:
           type: ["number", "null"]
         physiqueData:
           oneOf:
-            - $ref: "#/components/schemas/PhysiqueData"
+            - $ref: "#/components/schemas/MemberUpdatePhysiqueData"
             - type: "null"
         moraleData:
           oneOf:
-            - $ref: "#/components/schemas/MoraleData"
+            - $ref: "#/components/schemas/MemberUpdateMoraleData"
             - type: "null"
         categoryData:
           type: ["object", "null"]

@@ -33,7 +33,10 @@ describe("Phase 9 — Optimistic Concurrency Control (OCC) Gate (occ-conflict.te
         physiqueData: {
           nom: "FOKOU",
           prenom: "Initial Name",
+          telephone1: "699000111",
+          boitePostale: "BP 10",
         },
+        categoryData: { superficie: 2, cultures: "Cacao" },
       });
 
     expect(createRes.status).toBe(201);
@@ -88,5 +91,63 @@ describe("Phase 9 — Optimistic Concurrency Control (OCC) Gate (occ-conflict.te
     expect(dbMember.version).toBe(2);
     expect(dbMember.village).toBe("Village Updated First");
     expect((dbMember.physiqueData as any).prenom).toBe("Update 1 First Agent");
+  });
+
+  it("validates partial physical and category updates without deleting omitted values", async () => {
+    const updateRes = await request(app)
+      .put(`/api/members/${createdMemberId}`)
+      .set("Authorization", `Bearer ${agent.clerkUserId}`)
+      .send({
+        physiqueData: { lieuResidence: "Yaoundé" },
+        categoryData: { superficie: 8 },
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.physiqueData).toMatchObject({
+      nom: "FOKOU",
+      prenom: "Initial Name",
+      telephone1: "699000111",
+      boitePostale: "BP 10",
+      lieuResidence: "Yaoundé",
+    });
+    expect(updateRes.body.categoryData).toMatchObject({
+      superficie: 8,
+      cultures: "Cacao",
+    });
+  });
+
+  it("merges partial morale updates and rejects invalid update bodies", async () => {
+    const createRes = await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${agent.clerkUserId}`)
+      .send({
+        memberType: "morale",
+        category: "agriculteur",
+        moraleData: {
+          nom: "GIC Exemple",
+          telephone1: "677000111",
+          representants: [{ ordre: 1, nom: "MANGA", prenom: "Aline" }],
+        },
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const updateRes = await request(app)
+      .put(`/api/members/${createRes.body.id}`)
+      .set("Authorization", `Bearer ${agent.clerkUserId}`)
+      .send({ moraleData: { telephone1: "677000222" } });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.moraleData).toMatchObject({
+      nom: "GIC Exemple",
+      telephone1: "677000222",
+      representants: [{ ordre: 1, nom: "MANGA", prenom: "Aline" }],
+    });
+
+    const invalidUpdate = await request(app)
+      .put(`/api/members/${createRes.body.id}`)
+      .set("Authorization", `Bearer ${agent.clerkUserId}`)
+      .send({ gpsLat: "not-a-number" });
+    expect(invalidUpdate.status).toBe(400);
   });
 });

@@ -210,6 +210,7 @@
       "post_box": "Boîte postale (optionnelle)",
       "profession_hint": "Métier/commerce personnel du représentant",
       "region_address": "Région (Adresse)",
+      "residence_place": "Lieu de résidence",
       "rep1_required_note": "Au moins un représentant (Représentant 1) est obligatoire.",
       "specific_activity_desc": "Saisissez les informations spécifiques à l'activité.",
       "total_farmed_area": "Superficie totale exploitée (ha)",

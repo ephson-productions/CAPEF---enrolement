@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
+  getGetMemberQueryKey,
   useGetMember,
   useGenerateBadge,
   useValidateMember,
@@ -54,7 +55,11 @@ export default function MemberDetail() {
 
   // Network query fallback
   const { data: serverMember, isFetching: isServerLoading, error: serverError, refetch: refetchServerMember } = useGetMember(numericId, {
-    query: { enabled: isOnline && isNumericServerId && isAuthLoaded && !!isSignedIn, queryKey: ['member', numericId], retry: 2 }
+    query: {
+      enabled: isOnline && isNumericServerId && isAuthLoaded && !!isSignedIn,
+      queryKey: getGetMemberQueryKey(numericId),
+      retry: 2,
+    }
   });
 
   const loadLocalMember = async () => {

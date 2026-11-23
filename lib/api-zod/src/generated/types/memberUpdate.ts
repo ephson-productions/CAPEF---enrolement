@@ -8,10 +8,12 @@
 import type { MemberUpdateCategory } from './memberUpdateCategory';
 import type { MemberUpdateCategoryData } from './memberUpdateCategoryData';
 import type { MemberUpdateIndividualOrOrg } from './memberUpdateIndividualOrOrg';
-import type { MoraleData } from './moraleData';
-import type { PhysiqueData } from './physiqueData';
+import type { MemberUpdateMoraleData } from './memberUpdateMoraleData';
+import type { MemberUpdatePhysiqueData } from './memberUpdatePhysiqueData';
 
 export interface MemberUpdate {
+  /** Client-generated idempotency key for offline retries */
+  clientOperationId?: string;
   /** Expected current version for Optimistic Concurrency Control (OCC) check */
   version?: number;
   category?: MemberUpdateCategory;
@@ -28,8 +30,8 @@ export interface MemberUpdate {
   gpsLat?: number | null;
   /** @nullable */
   gpsLng?: number | null;
-  physiqueData?: PhysiqueData | null;
-  moraleData?: MoraleData | null;
+  physiqueData?: MemberUpdatePhysiqueData | null;
+  moraleData?: MemberUpdateMoraleData | null;
   /** @nullable */
   categoryData?: MemberUpdateCategoryData;
   /** @nullable */

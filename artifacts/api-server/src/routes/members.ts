@@ -11,7 +11,7 @@ import {
   activityLineItemsTable,
   processedOperationsTable
 } from "@workspace/db";
-import { CreateMemberBody } from "@workspace/api-zod";
+import { CreateMemberBody, UpdateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
 import { representedByWomanCondition } from "../lib/memberFilters";
@@ -131,6 +131,18 @@ function coerceNumeric(val: any): number | null {
   if (val === "" || val === undefined || val === null) return null;
   const num = Number(val);
   return Number.isNaN(num) ? null : num;
+}
+
+function mergeMemberJson(existing: unknown, incoming: unknown): unknown {
+  if (incoming === null) return null;
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) return incoming;
+
+  const existingObject =
+    existing && typeof existing === "object" && !Array.isArray(existing)
+      ? existing as Record<string, unknown>
+      : {};
+
+  return { ...existingObject, ...(incoming as Record<string, unknown>) };
 }
 
 function escapeXml(str: string | null | undefined): string {
@@ -860,7 +872,7 @@ router.get("/members/:id", requireAppUser, async (req, res): Promise<void> => {
 });
 
 // PUT /api/members/:id — Update a member with Atomic OCC Concurrency & Idempotency
-router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
+router.put("/members/:id", requireAppUser, validateBody(UpdateMemberBody), async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
@@ -916,8 +928,12 @@ router.put("/members/:id", requireAppUser, async (req, res): Promise<void> => {
   };
 
   const fields = ["category", "individualOrOrg", "village", "physiqueData", "moraleData", "categoryData", "badgeUrl"];
+  const nestedObjectFields = new Set(["physiqueData", "moraleData", "categoryData"]);
   for (const f of fields) {
-    if (processedBody[f] !== undefined) updates[f] = processedBody[f];
+    if (processedBody[f] === undefined) continue;
+    updates[f] = nestedObjectFields.has(f)
+      ? mergeMemberJson((existing as any)[f], processedBody[f])
+      : processedBody[f];
   }
 
   const numericFields = ["regionId", "departmentId", "arrondissementId", "gpsLat", "gpsLng"];

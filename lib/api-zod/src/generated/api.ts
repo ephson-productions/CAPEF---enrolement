@@ -746,6 +746,7 @@ export const updateMemberBodyMoraleDataOneNombreFemmesMin = 0;
 
 
 export const UpdateMemberBody = zod.object({
+  "clientOperationId": zod.string().optional().describe('Client-generated idempotency key for offline retries'),
   "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),
   "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
@@ -757,8 +758,8 @@ export const UpdateMemberBody = zod.object({
   "gpsLng": zod.number().nullish(),
   "physiqueData": zod.union([zod.object({
   "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
-  "nom": zod.string(),
-  "prenom": zod.string(),
+  "nom": zod.string().optional(),
+  "prenom": zod.string().optional(),
   "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
   "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
   "dateNaissance": zod.string().nullish(),
@@ -768,7 +769,7 @@ export const UpdateMemberBody = zod.object({
   "telephone2": zod.string().nullish(),
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
-  "telephonePersonneAContacter": zod.string().nullish().describe('Numéro de téléphone d\'une personne à contacter en cas de besoin\/urgence, différente du membre lui-même.'),
+  "telephonePersonneAContacter": zod.string().nullish(),
   "lieuResidence": zod.string().nullish(),
   "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
   "photoUrl": zod.string().nullish(),
@@ -778,7 +779,7 @@ export const UpdateMemberBody = zod.object({
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
   "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
-  "nom": zod.string(),
+  "nom": zod.string().optional(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
   "certificatUrl": zod.string().nullish(),
