@@ -83,7 +83,6 @@ export * from './provisionUserInput';
 export * from './publicBadgeVerificationResponse';
 export * from './publicBadgeVerificationResponseCategory';
 export * from './publicBadgeVerificationResponseMemberType';
-export * from './publicBadgeVerificationResponseStatus';
 export * from './region';
 export * from './regionCount';
 export * from './representative';

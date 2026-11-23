@@ -34,7 +34,7 @@ const UserDetail = React.lazy(() => import('./pages/users/UserDetail'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const AssignedZones = React.lazy(() => import('./pages/AssignedZones'));
 const NotFound = React.lazy(() => import('./pages/not-found'));
-const BadgeVerify = React.lazy(() => import('./pages/members/BadgeVerify'));
+const BadgeVerify = React.lazy(() => import('./pages/members/PublicBadgeVerify'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -408,9 +408,6 @@ function ClerkProviderWithRoutes() {
                     <Route path="/" component={HomeRedirect} />
                     <Route path="/sign-in/*?" component={SignInPage} />
                     <Route path="/sign-up/*?" component={SignUpPage} />
-                    {/* Public QR Code badge verification accessible without authentication */}
-                    <Route path="/badge-verify/:token" component={BadgeVerify} />
-
                     {/* Protected shell wrapper handles other routes with resilient guard */}
                     <Route component={ProtectedRoutesGuard} />
                   </Switch>
@@ -430,7 +427,17 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" storageKey="capef-theme">
         <WouterRouter base={basePath}>
-          <ClerkProviderWithRoutes />
+          <Switch>
+            <Route
+              path="/badge-verify/:token"
+              component={() => (
+                <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center">Chargement...</div>}>
+                  <BadgeVerify />
+                </React.Suspense>
+              )}
+            />
+            <Route component={ClerkProviderWithRoutes} />
+          </Switch>
         </WouterRouter>
       </ThemeProvider>
     </ErrorBoundary>

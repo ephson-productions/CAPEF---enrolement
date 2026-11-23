@@ -560,68 +560,14 @@ export const GetPublicMemberByBadgeTokenParams = zod.object({
   "badge_token": zod.coerce.string()
 })
 
-export const getPublicMemberByBadgeTokenResponseActivitiesItemVersionDefault = 1;
-export const getPublicMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault = 1;
-
 export const GetPublicMemberByBadgeTokenResponse = zod.object({
   "memberNumber": zod.string(),
   "displayName": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
-  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
-  "regionName": zod.string().nullish(),
-  "departmentName": zod.string().nullish(),
-  "arrondissementName": zod.string().nullish(),
-  "village": zod.string().nullish(),
+  "regionName": zod.string().nullable(),
   "photoUrl": zod.string().nullish(),
-  "photoCertificatUrl": zod.string().nullish(),
-  "issuedAt": zod.coerce.date().nullish(),
-  "isValid": zod.boolean(),
-  "badgeUrl": zod.string().nullish(),
-  "activities": zod.array(zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getPublicMemberByBadgeTokenResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
-  "memberId": zod.number(),
-  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
-  "isPrimary": zod.boolean(),
-  "regionId": zod.number().nullish(),
-  "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish(),
-  "village": zod.string().nullish(),
-  "maillons": zod.array(zod.string()).optional(),
-  "createdAt": zod.string().optional(),
-  "lineItems": zod.array(zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getPublicMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
-  "activityId": zod.number(),
-  "parcelleGroupId": zod.string().nullish(),
-  "cropCategory": zod.string().nullish(),
-  "cropName": zod.string().nullish(),
-  "cultureType": zod.string().nullish(),
-  "superficieHa": zod.number().nullish(),
-  "productionQuantity": zod.number().nullish(),
-  "productionUnit": zod.string().nullish(),
-  "productionFcfa": zod.number().nullish(),
-  "isPrincipalCrop": zod.boolean().nullish(),
-  "parentLineItemId": zod.number().nullish(),
-  "species": zod.string().nullish(),
-  "cheptelSize": zod.number().nullish(),
-  "foodType": zod.string().nullish(),
-  "products": zod.array(zod.object({
-  "name": zod.string().optional(),
-  "quantity": zod.number().optional(),
-  "unit": zod.string().optional(),
-  "fcfa": zod.number().optional()
-})).nullish(),
-  "speciesPêche": zod.string().nullish(),
-  "subCategory": zod.string().nullish(),
-  "essence": zod.string().nullish(),
-  "plantationType": zod.string().nullish(),
-  "artisanatProducts": zod.string().nullish(),
-  "rawMaterials": zod.string().nullish(),
-  "createdAt": zod.string().optional()
-})).optional()
-})).optional()
+  "isValid": zod.boolean()
 })
 
 
@@ -632,68 +578,14 @@ export const GetMemberByBadgeTokenParams = zod.object({
   "badge_token": zod.coerce.string()
 })
 
-export const getMemberByBadgeTokenResponseActivitiesItemVersionDefault = 1;
-export const getMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault = 1;
-
 export const GetMemberByBadgeTokenResponse = zod.object({
   "memberNumber": zod.string(),
   "displayName": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
-  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
-  "regionName": zod.string().nullish(),
-  "departmentName": zod.string().nullish(),
-  "arrondissementName": zod.string().nullish(),
-  "village": zod.string().nullish(),
+  "regionName": zod.string().nullable(),
   "photoUrl": zod.string().nullish(),
-  "photoCertificatUrl": zod.string().nullish(),
-  "issuedAt": zod.coerce.date().nullish(),
-  "isValid": zod.boolean(),
-  "badgeUrl": zod.string().nullish(),
-  "activities": zod.array(zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getMemberByBadgeTokenResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
-  "memberId": zod.number(),
-  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
-  "isPrimary": zod.boolean(),
-  "regionId": zod.number().nullish(),
-  "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish(),
-  "village": zod.string().nullish(),
-  "maillons": zod.array(zod.string()).optional(),
-  "createdAt": zod.string().optional(),
-  "lineItems": zod.array(zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
-  "activityId": zod.number(),
-  "parcelleGroupId": zod.string().nullish(),
-  "cropCategory": zod.string().nullish(),
-  "cropName": zod.string().nullish(),
-  "cultureType": zod.string().nullish(),
-  "superficieHa": zod.number().nullish(),
-  "productionQuantity": zod.number().nullish(),
-  "productionUnit": zod.string().nullish(),
-  "productionFcfa": zod.number().nullish(),
-  "isPrincipalCrop": zod.boolean().nullish(),
-  "parentLineItemId": zod.number().nullish(),
-  "species": zod.string().nullish(),
-  "cheptelSize": zod.number().nullish(),
-  "foodType": zod.string().nullish(),
-  "products": zod.array(zod.object({
-  "name": zod.string().optional(),
-  "quantity": zod.number().optional(),
-  "unit": zod.string().optional(),
-  "fcfa": zod.number().optional()
-})).nullish(),
-  "speciesPêche": zod.string().nullish(),
-  "subCategory": zod.string().nullish(),
-  "essence": zod.string().nullish(),
-  "plantationType": zod.string().nullish(),
-  "artisanatProducts": zod.string().nullish(),
-  "rawMaterials": zod.string().nullish(),
-  "createdAt": zod.string().optional()
-})).optional()
-})).optional()
+  "isValid": zod.boolean()
 })
 
 

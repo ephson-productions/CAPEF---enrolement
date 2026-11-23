@@ -65,7 +65,8 @@ describe("Security & Authorization Gate (authorization.test.ts)", () => {
     const res = await request(app).get(`/api/public/members/badge/${memberB.badgeToken}`);
     expect(res.status).toBe(200);
     expect(res.body.memberNumber).toBe(memberB.memberNumber);
-    expect(res.body.activities).toBeDefined();
+    expect(res.body.isValid).toBe(false);
+    expect(res.body.activities).toBeUndefined();
     expect(res.body.numeroCni).toBeUndefined();
     expect(res.body.cniRectoUrl).toBeUndefined();
   });
@@ -100,6 +101,6 @@ describe("Security & Authorization Gate (authorization.test.ts)", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.memberNumber).toBe(memberB.memberNumber);
-    expect(res.body.activities).toBeDefined();
+    expect(res.body.activities).toBeUndefined();
   });
 });

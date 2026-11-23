@@ -5,25 +5,15 @@
  * CAPEF Digital Enrollment API
  * OpenAPI spec version: 0.1.0
  */
-import type { MemberActivity } from './memberActivity';
 import type { PublicBadgeVerificationResponseCategory } from './publicBadgeVerificationResponseCategory';
 import type { PublicBadgeVerificationResponseMemberType } from './publicBadgeVerificationResponseMemberType';
-import type { PublicBadgeVerificationResponseStatus } from './publicBadgeVerificationResponseStatus';
 
 export interface PublicBadgeVerificationResponse {
   memberNumber: string;
   displayName: string;
   memberType: PublicBadgeVerificationResponseMemberType;
   category: PublicBadgeVerificationResponseCategory;
-  status: PublicBadgeVerificationResponseStatus;
-  regionName?: string | null;
-  departmentName?: string | null;
-  arrondissementName?: string | null;
-  village?: string | null;
+  regionName: string | null;
   photoUrl?: string | null;
-  photoCertificatUrl?: string | null;
-  issuedAt?: Date | null;
   isValid: boolean;
-  badgeUrl?: string | null;
-  activities?: MemberActivity[];
 }

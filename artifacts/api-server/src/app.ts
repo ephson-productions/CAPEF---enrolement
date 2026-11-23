@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import publicBadgeVerificationRouter from "./routes/publicBadgeVerification";
 import { errorHandler } from "./middlewares/errorHandler";
 import { logger } from "./lib/logger";
 
@@ -35,6 +36,23 @@ app.use(
     },
   }),
 );
+
+const publicBadgeCors = (req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Accept, Content-Type");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+};
+
+// This intentionally public, minimal endpoint must run before Clerk and the authenticated API router.
+app.use("/api/public/members/badge", publicBadgeCors, publicBadgeVerificationRouter);
+app.use("/api/members/badge", publicBadgeCors, publicBadgeVerificationRouter);
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 

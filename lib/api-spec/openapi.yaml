@@ -1868,8 +1868,9 @@ components:
         - displayName
         - memberType
         - category
-        - status
+        - regionName
         - isValid
+      additionalProperties: false
       properties:
         memberNumber:
           type: string
@@ -1881,40 +1882,14 @@ components:
         category:
           type: string
           enum: [agriculteur, pecheur, eleveur, forestier, artisan]
-        status:
-          type: string
-          enum: [incomplet, en_attente, valide, desactive, bloque]
         regionName:
-          type: string
-          nullable: true
-        departmentName:
-          type: string
-          nullable: true
-        arrondissementName:
-          type: string
-          nullable: true
-        village:
           type: string
           nullable: true
         photoUrl:
           type: string
           nullable: true
-        photoCertificatUrl:
-          type: string
-          nullable: true
-        issuedAt:
-          type: string
-          format: date-time
-          nullable: true
         isValid:
           type: boolean
-        badgeUrl:
-          type: string
-          nullable: true
-        activities:
-          type: array
-          items:
-            $ref: "#/components/schemas/MemberActivity"
 
     UploadResult:
       type: object

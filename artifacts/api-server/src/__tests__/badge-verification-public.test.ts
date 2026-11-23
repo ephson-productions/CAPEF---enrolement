@@ -29,6 +29,7 @@ describe("Public Badge Verification Security & Data Sanitization (REM-SEC-001)",
         memberNumber: "CAPEF-AGR-099999",
         memberType: "physique",
         category: "agriculteur",
+        regionId: 1,
         version: 1,
         individualOrOrg: "individuel",
         village: "Mbankolo",
@@ -68,11 +69,19 @@ describe("Public Badge Verification Security & Data Sanitization (REM-SEC-001)",
     expect(res.body.memberNumber).toBe("CAPEF-AGR-099999");
     expect(res.body.displayName).toBe("FOTSO Alain");
     expect(res.body.category).toBe("agriculteur");
-    expect(res.body.status).toBe("valide");
+    expect(res.body.memberType).toBe("physique");
+    expect(res.body.regionName).toBe("Centre");
     expect(res.body.isValid).toBe(true);
     expect(res.body.photoUrl).toBe("https://example.com/photos/fotso.jpg");
-    expect(res.body.activities).toBeDefined();
-    expect(res.body.activities.length).toBe(1);
+    expect(Object.keys(res.body).sort()).toEqual([
+      "category",
+      "displayName",
+      "isValid",
+      "memberNumber",
+      "memberType",
+      "photoUrl",
+      "regionName",
+    ]);
   });
 
   it("2. Backward-compatible alias /api/members/badge/:token is also accessible anonymously", async () => {
@@ -98,12 +107,35 @@ describe("Public Badge Verification Security & Data Sanitization (REM-SEC-001)",
     expect(res.body.gpsLng).toBeUndefined();
     expect(res.body.physiqueData).toBeUndefined();
     expect(res.body.moraleData).toBeUndefined();
+    const serializedResponse = JSON.stringify(res.body);
+    for (const privateValue of [
+      "1122334455",
+      "media/cni_recto_secret.jpg",
+      "media/cni_verso_secret.jpg",
+      "media/signature_secret.png",
+      "+237699001122",
+      "3.8667",
+      "11.5167",
+      "Mbankolo",
+    ]) {
+      expect(serializedResponse).not.toContain(privateValue);
+    }
   });
 
   it("4. Non-existent or invalid badge token returns HTTP 404 Not Found", async () => {
     const res = await request(app).get("/api/public/members/badge/invalid_token_999999");
 
     expect(res.status).toBe(404);
-    expect(res.body.error).toContain("introuvable");
+    expect(res.body).toEqual({ error: "Not found" });
+  });
+
+  it("5. Public verification is cross-origin readable and is never cached", async () => {
+    const res = await request(app)
+      .get(`/api/public/members/badge/${testBadgeToken}`)
+      .set("Origin", "https://first-visit.example");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+    expect(res.headers["cache-control"]).toContain("no-store");
   });
 });

@@ -861,33 +861,14 @@ export const PublicBadgeVerificationResponseCategory = {
   artisan: 'artisan',
 } as const;
 
-export type PublicBadgeVerificationResponseStatus = typeof PublicBadgeVerificationResponseStatus[keyof typeof PublicBadgeVerificationResponseStatus];
-
-
-export const PublicBadgeVerificationResponseStatus = {
-  incomplet: 'incomplet',
-  en_attente: 'en_attente',
-  valide: 'valide',
-  desactive: 'desactive',
-  bloque: 'bloque',
-} as const;
-
 export interface PublicBadgeVerificationResponse {
   memberNumber: string;
   displayName: string;
   memberType: PublicBadgeVerificationResponseMemberType;
   category: PublicBadgeVerificationResponseCategory;
-  status: PublicBadgeVerificationResponseStatus;
-  regionName?: string | null;
-  departmentName?: string | null;
-  arrondissementName?: string | null;
-  village?: string | null;
+  regionName: string | null;
   photoUrl?: string | null;
-  photoCertificatUrl?: string | null;
-  issuedAt?: string | null;
   isValid: boolean;
-  badgeUrl?: string | null;
-  activities?: MemberActivity[];
 }
 
 export interface UploadResult {

@@ -697,6 +697,8 @@
     }
   },
   "badge": {
+    "status_valid": "Registration is valid",
+    "status_invalid": "Registration is not valid",
     "title": "Official Member Badge",
     "verify_title": "Official CAPEF Member Card Verification",
     "official_header_fr": "REPUBLIQUE DU CAMEROUN - CHAMBRE D'AGRICULTURE, DE LA PECHE, DE L'ELEVAGE ET DES FORETS",
