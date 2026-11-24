@@ -1739,7 +1739,7 @@ components:
 
     MemberSummary:
       type: object
-      required: [id, memberNumber, memberType, category, createdAt, status]
+      required: [id, memberNumber, memberType, category, createdById, createdAt, status]
       properties:
         id:
           type: integer
@@ -1751,6 +1751,8 @@ components:
         category:
           type: string
           enum: [agriculteur, pecheur, eleveur, forestier, artisan]
+        createdById:
+          type: integer
         displayName:
           type: ["string", "null"]
         regionName:

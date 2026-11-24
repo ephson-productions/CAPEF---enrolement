@@ -8,6 +8,12 @@ export interface MemberFilterOptions {
   search?: string;
   representantGenre?: string;
   agentId?: number;
+  regionId?: number;
+  departmentId?: number;
+  userRole?: string;
+  currentUserId?: number | null;
+  scopeRegionId?: number | null;
+  allowedAgentIds?: number[];
   page?: number;
   limit?: number;
 }
@@ -28,12 +34,44 @@ export class MemberRepository {
   }
 
   async getMembers(userId: string, options: MemberFilterOptions = {}) {
-    const { category, memberType, status, search, representantGenre, agentId, page = 1, limit = 20 } = options;
+    const {
+      category,
+      memberType,
+      status,
+      search,
+      representantGenre,
+      agentId,
+      regionId,
+      departmentId,
+      userRole,
+      currentUserId,
+      scopeRegionId,
+      allowedAgentIds,
+      page = 1,
+      limit = 20,
+    } = options;
 
     let collection = db.members
       .where('userId')
       .equals(userId)
       .filter(m => !m.deletedLocally);
+
+    const isAgent = userRole === 'agent';
+    const isSupervisor = userRole === 'supervisor' || userRole === 'superviseur';
+    if (isAgent) {
+      collection = collection.filter(m => {
+        if (m.createdById !== null && m.createdById !== undefined) {
+          return currentUserId !== null && currentUserId !== undefined && Number(m.createdById) === Number(currentUserId);
+        }
+        return !m.serverId && m.userId === userId;
+      });
+    } else if (isSupervisor) {
+      if (scopeRegionId === null || scopeRegionId === undefined) {
+        collection = collection.filter(() => false);
+      } else {
+        collection = collection.filter(m => Number(m.regionId) === Number(scopeRegionId));
+      }
+    }
 
     if (category) {
       collection = collection.filter(m => m.category === category);
@@ -44,15 +82,39 @@ export class MemberRepository {
     if (status) {
       collection = collection.filter(m => m.status === status);
     }
-    if (agentId) {
-      collection = collection.filter(m => Number(m.createdById || m.userId) === agentId);
+    if (regionId !== undefined) {
+      collection = collection.filter(m => Number(m.regionId) === Number(regionId));
+    }
+    if (departmentId !== undefined) {
+      collection = collection.filter(m => Number(m.departmentId) === Number(departmentId));
+    }
+    if (agentId && !isAgent) {
+      const isUnauthorizedSupervisorFilter =
+        isSupervisor && (!allowedAgentIds || !allowedAgentIds.includes(agentId));
+      if (isUnauthorizedSupervisorFilter) {
+        collection = collection.filter(() => false);
+      } else {
+        collection = collection.filter(m => Number(m.createdById) === agentId);
+      }
     }
     if (representantGenre) {
       collection = collection.filter(m => {
         if (m.memberType !== 'morale') return false;
-        const repGenre = m.moraleData?.representantSexe || m.moraleData?.genreRepresentant;
-        if (representantGenre === 'femme') return repGenre === 'F' || repGenre === 'femme';
-        if (representantGenre === 'homme') return repGenre === 'M' || repGenre === 'homme';
+        const representatives = Array.isArray(m.moraleData?.representants)
+          ? m.moraleData.representants
+          : [];
+        if (representantGenre === 'femme') {
+          return representatives.some((representative: any) => {
+            const civilite = String(representative?.civilite ?? '').trim().toLowerCase();
+            return civilite.startsWith('mme') || civilite.startsWith('mlle');
+          });
+        }
+        if (representantGenre === 'homme') {
+          return representatives.some((representative: any) => {
+            const civilite = String(representative?.civilite ?? '').trim().toLowerCase();
+            return ['m.', 'm', 'monsieur', 'mr', 'mr.'].includes(civilite);
+          });
+        }
         return true;
       });
     }
@@ -71,6 +133,7 @@ export class MemberRepository {
     allFiltered.reverse();
 
     const total = allFiltered.length;
+    const pendingLocalCount = allFiltered.filter(member => !member.serverId && member.syncStatus !== 'synced').length;
     const startIndex = (page - 1) * limit;
     const paginated = allFiltered.slice(startIndex, startIndex + limit);
 
@@ -99,6 +162,7 @@ export class MemberRepository {
     return {
       data,
       total,
+      pendingLocalCount,
       page,
       limit,
     };

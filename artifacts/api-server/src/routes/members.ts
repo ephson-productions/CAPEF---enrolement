@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, sql, ne, not } from "drizzle-orm";
+import { eq, and, ilike, sql, ne } from "drizzle-orm";
 import {
   db,
   membersTable,
@@ -14,7 +14,7 @@ import {
 import { CreateMemberBody, UpdateMemberBody } from "@workspace/api-zod";
 import { requireAppUser } from "../lib/auth";
 import { validateBody } from "../middlewares/validateBody";
-import { representedByWomanCondition } from "../lib/memberFilters";
+import { representedByManCondition, representedByWomanCondition } from "../lib/memberFilters";
 import { resolveMemberMediaUrls, resolveSignedMediaUrl, processMemberPayloadMedia, fetchAsBase64DataUrl, sanitizeForFileName } from "../lib/storage";
 import crypto from "crypto";
 import QRCode from "qrcode";
@@ -131,6 +131,64 @@ function coerceNumeric(val: any): number | null {
   if (val === "" || val === undefined || val === null) return null;
   const num = Number(val);
   return Number.isNaN(num) ? null : num;
+}
+
+function parseOptionalPositiveQueryInt(value: unknown): number | undefined | null {
+  if (value === undefined) return undefined;
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw === "string" && raw.trim() === "") return null;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function addMemberScopeConditions(
+  conditions: any[],
+  appUser: any,
+  requestedRegionId?: number,
+  requestedAgentId?: number,
+): Promise<{ status: number; error: string } | null> {
+  const isAdmin = appUser.role === "admin";
+  const isAgent = appUser.role === "agent";
+  const isSupervisor = appUser.role === "supervisor" || appUser.role === "superviseur";
+
+  if (!isAdmin && !isAgent && !isSupervisor) {
+    return { status: 403, error: "Accès refusé" };
+  }
+
+  if (isAgent) {
+    conditions.push(eq(membersTable.createdById, appUser.id));
+  } else if (isSupervisor) {
+    if (Number.isSafeInteger(appUser.regionId) && appUser.regionId > 0) {
+      conditions.push(eq(membersTable.regionId, appUser.regionId));
+    } else {
+      conditions.push(sql`false`);
+    }
+  }
+
+  if (requestedRegionId !== undefined) {
+    conditions.push(eq(membersTable.regionId, requestedRegionId));
+  }
+
+  if (requestedAgentId !== undefined && !isAgent) {
+    if (isSupervisor) {
+      const [selectedAgent] = await db
+        .select({ id: usersTable.id, role: usersTable.role, regionId: usersTable.regionId })
+        .from(usersTable)
+        .where(eq(usersTable.id, requestedAgentId))
+        .limit(1);
+      if (
+        !selectedAgent ||
+        selectedAgent.role !== "agent" ||
+        selectedAgent.regionId === null ||
+        selectedAgent.regionId !== appUser.regionId
+      ) {
+        return { status: 403, error: "Agent hors de votre région" };
+      }
+    }
+    conditions.push(eq(membersTable.createdById, requestedAgentId));
+  }
+
+  return null;
 }
 
 function mergeMemberJson(existing: unknown, incoming: unknown): unknown {
@@ -380,55 +438,62 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
   const { category, memberType, regionId, departmentId, search, page = "1", limit = "20", createdById, status, representantGenre } = req.query;
 
-  const pageNum = Math.max(1, parseInt(String(page), 10));
-  const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10)));
-  const offset = (pageNum - 1) * limitNum;
-
-  if (representantGenre && memberType === "physique") {
-    res.json({
-      data: [],
-      total: 0,
-      page: pageNum,
-      limit: limitNum,
-    });
+  const requestedRegionId = parseOptionalPositiveQueryInt(regionId);
+  const requestedDepartmentId = parseOptionalPositiveQueryInt(departmentId);
+  const requestedAgentId = parseOptionalPositiveQueryInt(createdById);
+  if (
+    (regionId !== undefined && requestedRegionId === null) ||
+    (departmentId !== undefined && requestedDepartmentId === null) ||
+    (createdById !== undefined && requestedAgentId === null)
+  ) {
+    res.status(400).json({ error: "Filtre géographique ou agent invalide" });
+    return;
+  }
+  if (representantGenre && representantGenre !== "femme" && representantGenre !== "homme") {
+    res.status(400).json({ error: "Type de représentation invalide" });
     return;
   }
 
-  const conditions: any[] = [];
+  const parsedPage = Number(page);
+  const parsedLimit = Number(limit);
+  const pageNum = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const limitNum = Number.isSafeInteger(parsedLimit) && parsedLimit > 0 ? Math.min(100, parsedLimit) : 20;
+  const offset = (pageNum - 1) * limitNum;
 
-  if (appUser.role === "agent") {
-    conditions.push(eq(membersTable.createdById, appUser.id));
-  } else if (appUser.role === "supervisor" && appUser.regionId) {
-    conditions.push(eq(membersTable.regionId, appUser.regionId));
+  const conditions: any[] = [];
+  const scopeError = await addMemberScopeConditions(
+    conditions,
+    appUser,
+    requestedRegionId ?? undefined,
+    requestedAgentId ?? undefined,
+  );
+  if (scopeError) {
+    res.status(scopeError.status).json({ error: scopeError.error });
+    return;
   }
 
   if (category) conditions.push(eq(membersTable.category, String(category)));
   if (memberType) conditions.push(eq(membersTable.memberType, String(memberType)));
-  if (regionId && appUser.role !== "supervisor") conditions.push(eq(membersTable.regionId, Number(regionId)));
-  if (departmentId) conditions.push(eq(membersTable.departmentId, Number(departmentId)));
-  if (createdById && appUser.role === "admin") conditions.push(eq(membersTable.createdById, Number(createdById)));
+  if (requestedDepartmentId !== undefined && requestedDepartmentId !== null) {
+    conditions.push(eq(membersTable.departmentId, requestedDepartmentId));
+  }
   if (status) conditions.push(eq(membersTable.status, String(status)));
 
   if (representantGenre) {
     conditions.push(eq(membersTable.memberType, "morale"));
-    if (representantGenre === "femme") {
-      conditions.push(representedByWomanCondition);
-    } else if (representantGenre === "homme") {
-      conditions.push(not(representedByWomanCondition));
-    }
+    conditions.push(representantGenre === "femme" ? representedByWomanCondition : representedByManCondition);
   }
 
-  if (search) {
-    const s = `%${String(search)}%`;
+  if (search && String(search).trim()) {
+    const s = `%${String(search).trim()}%`;
     conditions.push(
       sql`(${membersTable.memberNumber} ILIKE ${s} OR ${membersTable.physiqueData}->>'nom' ILIKE ${s} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${s} OR ${membersTable.moraleData}->>'nom' ILIKE ${s})`
     );
   }
 
+  const whereCondition = conditions.length ? and(...conditions) : undefined;
   let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(membersTable);
-  if (conditions.length) {
-    countQuery = countQuery.where(and(...conditions)) as any;
-  }
+  if (whereCondition) countQuery = countQuery.where(whereCondition) as any;
 
   let joinedQuery = db
     .select({
@@ -437,6 +502,7 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
       memberType: membersTable.memberType,
       category: membersTable.category,
       version: membersTable.version,
+      createdById: membersTable.createdById,
       status: membersTable.status,
       createdAt: membersTable.createdAt,
       physiqueNom: sql<string | null>`${membersTable.physiqueData}->>'nom'`,
@@ -453,9 +519,7 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
     .leftJoin(arrondissementsTable, eq(membersTable.arrondissementId, arrondissementsTable.id))
     .leftJoin(usersTable, eq(membersTable.createdById, usersTable.id));
 
-  if (conditions.length) {
-    joinedQuery = joinedQuery.where(and(...conditions)) as any;
-  }
+  if (whereCondition) joinedQuery = joinedQuery.where(whereCondition) as any;
 
   const [totalResult] = await countQuery;
   const total = totalResult?.count ?? 0;
@@ -475,6 +539,7 @@ router.get("/members", requireAppUser, async (req, res): Promise<void> => {
       memberNumber: row.memberNumber,
       memberType: row.memberType,
       category: row.category,
+      createdById: row.createdById,
       version: row.version ?? 1,
       displayName,
       regionName: row.regionName ?? null,
@@ -668,7 +733,51 @@ router.post("/members", requireAppUser, validateBody(CreateMemberBody), async (r
 // GET /api/members/export
 router.get("/members/export", requireAppUser, async (req, res): Promise<void> => {
   const appUser = (req as any).appUser;
-  const { category, memberType, regionId, status, representantGenre } = req.query;
+  const { category, memberType, regionId, departmentId, createdById, search, status, representantGenre } = req.query;
+  const requestedRegionId = parseOptionalPositiveQueryInt(regionId);
+  const requestedDepartmentId = parseOptionalPositiveQueryInt(departmentId);
+  const requestedAgentId = parseOptionalPositiveQueryInt(createdById);
+  if (
+    (regionId !== undefined && requestedRegionId === null) ||
+    (departmentId !== undefined && requestedDepartmentId === null) ||
+    (createdById !== undefined && requestedAgentId === null)
+  ) {
+    res.status(400).json({ error: "Filtre géographique ou agent invalide" });
+    return;
+  }
+  if (representantGenre && representantGenre !== "femme" && representantGenre !== "homme") {
+    res.status(400).json({ error: "Type de représentation invalide" });
+    return;
+  }
+
+  const conditions: any[] = [];
+  const scopeError = await addMemberScopeConditions(
+    conditions,
+    appUser,
+    requestedRegionId ?? undefined,
+    requestedAgentId ?? undefined,
+  );
+  if (scopeError) {
+    res.status(scopeError.status).json({ error: scopeError.error });
+    return;
+  }
+
+  if (category) conditions.push(eq(membersTable.category, String(category)));
+  if (memberType) conditions.push(eq(membersTable.memberType, String(memberType)));
+  if (requestedDepartmentId !== undefined && requestedDepartmentId !== null) {
+    conditions.push(eq(membersTable.departmentId, requestedDepartmentId));
+  }
+  if (status) conditions.push(eq(membersTable.status, String(status)));
+  if (representantGenre) {
+    conditions.push(eq(membersTable.memberType, "morale"));
+    conditions.push(representantGenre === "femme" ? representedByWomanCondition : representedByManCondition);
+  }
+  if (search && String(search).trim()) {
+    const pattern = `%${String(search).trim()}%`;
+    conditions.push(
+      sql`(${membersTable.memberNumber} ILIKE ${pattern} OR ${membersTable.physiqueData}->>'nom' ILIKE ${pattern} OR ${membersTable.physiqueData}->>'prenom' ILIKE ${pattern} OR ${membersTable.moraleData}->>'nom' ILIKE ${pattern})`
+    );
+  }
 
   const dateStr = new Date().toISOString().split("T")[0];
   const filename = `capef-membres-${dateStr}.xlsx`;
@@ -705,28 +814,6 @@ router.get("/members/export", requireAppUser, async (req, res): Promise<void> =>
     { header: "cotisation_restant", key: "cotisation_restant", width: 15 },
     { header: "adhesion_yunus_restant", key: "adhesion_yunus_restant", width: 15 },
   ];
-
-  if (representantGenre && memberType === "physique") {
-    await workbook.commit();
-    return;
-  }
-
-  const conditions: any[] = [];
-  if (appUser.role === "agent") conditions.push(eq(membersTable.createdById, appUser.id));
-  else if (appUser.role === "supervisor" && appUser.regionId) conditions.push(eq(membersTable.regionId, appUser.regionId));
-  if (category) conditions.push(eq(membersTable.category, String(category)));
-  if (memberType) conditions.push(eq(membersTable.memberType, String(memberType)));
-  if (regionId && appUser.role !== "supervisor") conditions.push(eq(membersTable.regionId, Number(regionId)));
-  if (status) conditions.push(eq(membersTable.status, String(status)));
-
-  if (representantGenre) {
-    conditions.push(eq(membersTable.memberType, "morale"));
-    if (representantGenre === "femme") {
-      conditions.push(representedByWomanCondition);
-    } else if (representantGenre === "homme") {
-      conditions.push(not(representedByWomanCondition));
-    }
-  }
 
   const categoryTranslation: Record<string, string> = {
     agriculteur: "agriculture",

@@ -836,6 +836,7 @@ export interface MemberSummary {
   memberNumber: string;
   memberType: MemberSummaryMemberType;
   category: MemberSummaryCategory;
+  createdById: number;
   /** @nullable */
   displayName?: string | null;
   /** @nullable */
