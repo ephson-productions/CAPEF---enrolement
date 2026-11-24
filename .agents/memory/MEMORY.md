@@ -1,1 +1,2 @@
 - [Codegen et workflows](codegen-and-workflow-recovery.md) — après un changement OpenAPI, régénérer les sorties avant de redémarrer les artefacts et réconcilier les dépendances du workspace.
+- [Filtres JSONB dans les tests](pg-mem-jsonb-filters.md) — pg-mem ne fournit pas `jsonb_array_elements`; préférer `@>` pour les valeurs contrôlées ou tester sur PostgreSQL.

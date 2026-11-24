@@ -63,6 +63,7 @@
     "dashboard": "Dashboard",
     "members": "Member Registry",
     "new_enrollment": "New Enrollment",
+    "assigned_zones": "Assigned Zones",
     "users": "Users",
     "profile": "Profile",
     "settings": "Settings",
@@ -209,6 +210,7 @@
       "post_box": "P.O. Box (optional)",
       "profession_hint": "Personal occupation / trade of representative",
       "region_address": "Region (Address)",
+      "residence_place": "Place of residence",
       "rep1_required_note": "At least one representative (Representative 1) is required.",
       "specific_activity_desc": "Enter activity specific details.",
       "total_farmed_area": "Total Farmed Area (ha)",
@@ -696,6 +698,8 @@
     }
   },
   "badge": {
+    "status_valid": "Registration is valid",
+    "status_invalid": "Registration is not valid",
     "title": "Official Member Badge",
     "verify_title": "Official CAPEF Member Card Verification",
     "official_header_fr": "REPUBLIQUE DU CAMEROUN - CHAMBRE D'AGRICULTURE, DE LA PECHE, DE L'ELEVAGE ET DES FORETS",

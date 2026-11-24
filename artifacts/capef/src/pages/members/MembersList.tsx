@@ -28,16 +28,19 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+const EMPTY_AGENT_LIST: Array<{ id: number; name: string; role: string }> = [];
+
 export default function MembersList() {
   const { t } = useTranslation();
   const dateLocale = useDateLocale();
   const [, setLocation] = useLocation();
   const { effectiveUserId, isOnline } = useOfflineQueue();
-  const { user } = useAuthContext();
+  const { user, isLoading: isAuthLoading } = useAuthContext();
 
   const userRole = (user?.role as string) || '';
   const isAdmin = userRole === 'admin';
   const isSupervisor = userRole === 'supervisor' || userRole === 'superviseur';
+  const canFilterByAgent = isAdmin || isSupervisor;
 
   // Parse query params from URL as single source of truth
   const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -56,16 +59,20 @@ export default function MembersList() {
   const [agentId, setAgentId] = useState<string>(initialAgentId);
   const [searchQuery, setSearchQuery] = useState<string>(initialSearch);
   const [page, setPage] = useState<number>(isNaN(initialPage) || initialPage < 1 ? 1 : initialPage);
+  const selectedAgentId =
+    canFilterByAgent && /^[1-9]\d*$/.test(agentId) ? Number(agentId) : undefined;
+  const agentListScopeKey = `${userRole}:${user?.regionId ?? 'none'}`;
 
   // Synchronize React state to URL search parameters
   useEffect(() => {
+    if (!userRole) return;
     const params = new URLSearchParams();
     if (page > 1) params.set('page', String(page));
     if (filterCategory !== 'all') params.set('category', filterCategory);
     if (filterType !== 'all') params.set('memberType', filterType);
     if (filterStatus !== 'all') params.set('status', filterStatus);
     if (representantGenre !== 'all') params.set('representantGenre', representantGenre);
-    if (agentId !== 'all') params.set('agentId', agentId);
+    if (selectedAgentId !== undefined) params.set('agentId', String(selectedAgentId));
     if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
     const queryString = params.toString();
@@ -74,9 +81,12 @@ export default function MembersList() {
       window.history.replaceState(null, '', newUrl);
       sessionStorage.setItem('capef:members-registry-from', newUrl);
     }
-  }, [page, filterCategory, filterType, filterStatus, representantGenre, agentId, searchQuery]);
+  }, [page, filterCategory, filterType, filterStatus, representantGenre, selectedAgentId, searchQuery, userRole]);
 
   const [users, setUsers] = useState<Array<{ id: number; name: string; role: string }>>([]);
+  const [loadedAgentListScope, setLoadedAgentListScope] = useState('');
+  const agentsForCurrentScope =
+    loadedAgentListScope === agentListScopeKey ? users : EMPTY_AGENT_LIST;
   const [loading, setLoading] = useState<boolean>(true);
   const [revalidating, setRevalidating] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
@@ -87,36 +97,62 @@ export default function MembersList() {
     limit: number;
   }>({ data: [], total: 0, page: 1, limit: 10 });
 
-  // Load agents list for admin/supervisor filter
+  // Load only agent accounts for the member filter. Supervisors are region-scoped by the API.
   useEffect(() => {
-    if ((isAdmin || isSupervisor) && isOnline) {
-      customFetch('/api/users')
-        .then((res: any) => {
-          if (Array.isArray(res)) {
-            setUsers(res);
-          } else if (Array.isArray(res?.data)) {
-            setUsers(res.data);
-          }
-        })
-        .catch(() => {
-          // Non-blocking error if offline or permission denied
-        });
+    if (!canFilterByAgent) {
+      setUsers([]);
+      setLoadedAgentListScope('');
+      return;
     }
-  }, [isAdmin, isSupervisor, isOnline]);
+    if (!isOnline) return;
+
+    let cancelled = false;
+    setUsers([]);
+    setLoadedAgentListScope('');
+    customFetch('/api/users?role=agent')
+      .then((res: any) => {
+        const agents = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        if (!cancelled) {
+          setUsers(agents.filter((candidate: any) => candidate?.role === 'agent'));
+          setLoadedAgentListScope(agentListScopeKey);
+        }
+      })
+      .catch(() => {
+        // Keep the last region-scoped list while temporarily offline.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agentListScopeKey, canFilterByAgent, isOnline, userRole, user?.regionId]);
 
   // Stale-While-Revalidate Member Listing
   useEffect(() => {
     let isCancelled = false;
 
     const loadMembersStaleWhileRevalidate = async () => {
+      if (!userRole) {
+        setMembersData({ data: [], total: 0, page, limit: 10 });
+        setLoading(isAuthLoading);
+        setRevalidating(false);
+        return;
+      }
+
       setLoading(true);
       const opts: MemberFilterOptions = {
         category: filterCategory !== 'all' ? filterCategory : undefined,
         memberType: filterType !== 'all' ? filterType : undefined,
         status: filterStatus !== 'all' ? filterStatus : undefined,
-        search: searchQuery.trim() ? searchQuery : undefined,
+        search: searchQuery.trim() || undefined,
         representantGenre: representantGenre !== 'all' ? representantGenre : undefined,
-        agentId: agentId !== 'all' ? Number(agentId) : undefined,
+        agentId: selectedAgentId,
+        userRole,
+        currentUserId: user?.id ?? null,
+        scopeRegionId: user?.regionId ?? null,
+        allowedAgentIds:
+          isSupervisor && loadedAgentListScope === agentListScopeKey
+            ? agentsForCurrentScope.map((candidate) => candidate.id)
+            : [],
         page,
         limit: 10,
       };
@@ -149,7 +185,7 @@ export default function MembersList() {
           if (opts.status) params.set('status', opts.status);
           if (opts.search) params.set('search', opts.search);
           if (opts.representantGenre) params.set('representantGenre', opts.representantGenre);
-          if (opts.agentId) params.set('createdById', String(opts.agentId));
+          if (opts.agentId !== undefined) params.set('createdById', String(opts.agentId));
 
           const apiRes = (await customFetch(`/api/members?${params.toString()}`)) as any;
           const serverMembers = Array.isArray(apiRes) ? apiRes : apiRes?.data || [];
@@ -158,7 +194,11 @@ export default function MembersList() {
             await memberRepository.upsertServerMembers(effectiveUserId, serverMembers);
             const updatedRes = await memberRepository.getMembers(effectiveUserId, opts);
             if (!isCancelled) {
-              setMembersData(updatedRes);
+              const apiTotal = Number(apiRes?.total);
+              setMembersData({
+                ...updatedRes,
+                total: Number.isFinite(apiTotal) ? apiTotal + updatedRes.pendingLocalCount : updatedRes.total,
+              });
             }
           }
         }
@@ -187,6 +227,16 @@ export default function MembersList() {
     searchQuery,
     page,
     isOnline,
+    userRole,
+    isAuthLoading,
+    selectedAgentId,
+    user?.id,
+    user?.regionId,
+    isSupervisor,
+    users,
+    agentsForCurrentScope,
+    loadedAgentListScope,
+    agentListScopeKey,
   ]);
 
   const handleExportCSV = async () => {
@@ -196,6 +246,8 @@ export default function MembersList() {
       if (filterCategory !== 'all') params.set('category', filterCategory);
       if (filterType !== 'all') params.set('memberType', filterType);
       if (filterStatus !== 'all') params.set('status', filterStatus);
+      if (representantGenre !== 'all') params.set('representantGenre', representantGenre);
+      if (selectedAgentId !== undefined) params.set('createdById', String(selectedAgentId));
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
       const res = await fetch(`/api/members/export?${params.toString()}`);
@@ -404,7 +456,7 @@ export default function MembersList() {
                 className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-none text-sm"
               >
                 <option value="all">{t('members.filters.all_agents', 'Tous les agents')}</option>
-                {users.map((u) => (
+                {agentsForCurrentScope.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.role})
                   </option>

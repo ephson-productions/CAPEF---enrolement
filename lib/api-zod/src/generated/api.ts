@@ -315,6 +315,7 @@ export const ListMembersResponse = zod.object({
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "createdById": zod.number(),
   "displayName": zod.string().nullish(),
   "regionName": zod.string().nullish(),
   "createdByName": zod.string().nullish(),
@@ -560,135 +561,32 @@ export const GetPublicMemberByBadgeTokenParams = zod.object({
   "badge_token": zod.coerce.string()
 })
 
-export const getPublicMemberByBadgeTokenResponseVersionDefault = 1;
-export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreMembresMin = 0;
-
-export const getPublicMemberByBadgeTokenResponseMoraleDataOneNombreFemmesMin = 0;
-
-export const getPublicMemberByBadgeTokenResponseActivitiesItemVersionDefault = 1;
-export const getPublicMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault = 1;
-
 export const GetPublicMemberByBadgeTokenResponse = zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getPublicMemberByBadgeTokenResponseVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
   "memberNumber": zod.string(),
+  "displayName": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
-  "displayName": zod.string().nullish(),
-  "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
-  "regionId": zod.number().nullish(),
-  "regionName": zod.string().nullish(),
-  "departmentId": zod.number().nullish(),
-  "departmentName": zod.string().nullish(),
-  "arrondissementId": zod.number().nullish(),
-  "arrondissementName": zod.string().nullish(),
-  "village": zod.string().nullish(),
-  "gpsLat": zod.number().nullish(),
-  "gpsLng": zod.number().nullish(),
-  "createdById": zod.number(),
-  "createdByName": zod.string().nullish(),
-  "physiqueData": zod.union([zod.object({
-  "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
-  "nom": zod.string(),
-  "prenom": zod.string(),
-  "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
-  "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
-  "dateNaissance": zod.string().nullish(),
-  "lieuNaissance": zod.string().nullish(),
-  "numeroCni": zod.string().nullish(),
-  "telephone1": zod.string().nullish(),
-  "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish(),
-  "boitePostale": zod.string().nullish(),
-  "telephonePersonneAContacter": zod.string().nullish().describe('Numéro de téléphone d\'une personne à contacter en cas de besoin\/urgence, différente du membre lui-même.'),
-  "lieuResidence": zod.string().nullish(),
-  "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
+  "regionName": zod.string().nullable(),
   "photoUrl": zod.string().nullish(),
-  "cniRectoUrl": zod.string().nullish(),
-  "cniVersoUrl": zod.string().nullish(),
-  "signatureUrl": zod.string().nullish()
-}),zod.null()]).optional(),
-  "moraleData": zod.union([zod.object({
-  "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
-  "nom": zod.string(),
-  "numeroImmatriculation": zod.string().nullish(),
-  "dateImmatriculation": zod.string().nullish(),
-  "certificatUrl": zod.string().nullish(),
-  "telephone1": zod.string().nullish(),
-  "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish(),
-  "boitePostale": zod.string().nullish(),
-  "website": zod.string().nullish(),
-  "nombreMembres": zod.number().min(getPublicMemberByBadgeTokenResponseMoraleDataOneNombreMembresMin).nullish(),
-  "nombreFemmes": zod.number().min(getPublicMemberByBadgeTokenResponseMoraleDataOneNombreFemmesMin).nullish(),
-  "chiffreAffaires": zod.union([zod.literal('< 5m'),zod.literal('5-10m'),zod.literal('10m-20m'),zod.literal('20m-50m'),zod.literal('> 50m'),zod.literal(null)]).nullish().describe('Chiffre d\'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = \'Exploitation\'.'),
-  "representants": zod.array(zod.object({
-  "ordre": zod.number(),
-  "civilite": zod.string().nullish(),
-  "nom": zod.string(),
-  "prenom": zod.string(),
-  "profession": zod.string().nullish().describe('Profession\/métier personnel du représentant (ex: agronome, comptable, enseignant).'),
-  "fonction": zod.string().nullish().describe('Fonction occupée par le représentant au sein de l\'organisation (ex: Président, Trésorier, Secrétaire Général).'),
-  "telephone1": zod.string().nullish(),
-  "telephone2": zod.string().nullish(),
-  "email": zod.string().nullish(),
-  "regionId": zod.number().nullish(),
-  "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish(),
-  "village": zod.string().nullish(),
-  "boitePostale": zod.string().nullish(),
-  "adresseDetaillee": zod.string().nullish().describe('Complément d\'adresse libre (quartier, lieu-dit, etc.).')
-})).optional()
-}),zod.null()]).optional(),
-  "categoryData": zod.record(zod.string(), zod.unknown()).nullish(),
-  "badgeUrl": zod.string().nullish(),
-  "status": zod.enum(['incomplet', 'en_attente', 'valide', 'desactive', 'bloque']),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string().optional(),
-  "activities": zod.array(zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getPublicMemberByBadgeTokenResponseActivitiesItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
-  "memberId": zod.number(),
-  "activityType": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
-  "isPrimary": zod.boolean(),
-  "regionId": zod.number().nullish(),
-  "departmentId": zod.number().nullish(),
-  "arrondissementId": zod.number().nullish(),
-  "village": zod.string().nullish(),
-  "maillons": zod.array(zod.string()).optional(),
-  "createdAt": zod.string().optional(),
-  "lineItems": zod.array(zod.object({
-  "id": zod.number(),
-  "version": zod.number().default(getPublicMemberByBadgeTokenResponseActivitiesItemLineItemsItemVersionDefault).describe('Optimistic Concurrency Control (OCC) version counter'),
-  "activityId": zod.number(),
-  "parcelleGroupId": zod.string().nullish(),
-  "cropCategory": zod.string().nullish(),
-  "cropName": zod.string().nullish(),
-  "cultureType": zod.string().nullish(),
-  "superficieHa": zod.number().nullish(),
-  "productionQuantity": zod.number().nullish(),
-  "productionUnit": zod.string().nullish(),
-  "productionFcfa": zod.number().nullish(),
-  "isPrincipalCrop": zod.boolean().nullish(),
-  "parentLineItemId": zod.number().nullish(),
-  "species": zod.string().nullish(),
-  "cheptelSize": zod.number().nullish(),
-  "foodType": zod.string().nullish(),
-  "products": zod.array(zod.object({
-  "name": zod.string().optional(),
-  "quantity": zod.number().optional(),
-  "unit": zod.string().optional(),
-  "fcfa": zod.number().optional()
-})).nullish(),
-  "speciesPêche": zod.string().nullish(),
-  "subCategory": zod.string().nullish(),
-  "essence": zod.string().nullish(),
-  "plantationType": zod.string().nullish(),
-  "artisanatProducts": zod.string().nullish(),
-  "rawMaterials": zod.string().nullish(),
-  "createdAt": zod.string().optional()
-})).optional()
-})).optional()
+  "isValid": zod.boolean()
+})
+
+
+/**
+ * @summary Verify member by badge token (legacy alias)
+ */
+export const GetMemberByBadgeTokenParams = zod.object({
+  "badge_token": zod.coerce.string()
+})
+
+export const GetMemberByBadgeTokenResponse = zod.object({
+  "memberNumber": zod.string(),
+  "displayName": zod.string(),
+  "memberType": zod.enum(['physique', 'morale']),
+  "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "regionName": zod.string().nullable(),
+  "photoUrl": zod.string().nullish(),
+  "isValid": zod.boolean()
 })
 
 
@@ -849,6 +747,7 @@ export const updateMemberBodyMoraleDataOneNombreFemmesMin = 0;
 
 
 export const UpdateMemberBody = zod.object({
+  "clientOperationId": zod.string().optional().describe('Client-generated idempotency key for offline retries'),
   "version": zod.number().optional().describe('Expected current version for Optimistic Concurrency Control (OCC) check'),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']).optional(),
   "individualOrOrg": zod.enum(['individuel', 'organisation']).optional(),
@@ -860,8 +759,8 @@ export const UpdateMemberBody = zod.object({
   "gpsLng": zod.number().nullish(),
   "physiqueData": zod.union([zod.object({
   "civilite": zod.union([zod.literal('M.'),zod.literal('Mme.'),zod.literal('Mlle.'),zod.literal(null)]).nullish(),
-  "nom": zod.string(),
-  "prenom": zod.string(),
+  "nom": zod.string().optional(),
+  "prenom": zod.string().optional(),
   "sexe": zod.union([zod.literal('M'),zod.literal('F'),zod.literal(null)]).nullish(),
   "situationMatrimoniale": zod.union([zod.literal('Célibataire'),zod.literal('Marié(e)'),zod.literal('Divorcé(e)'),zod.literal('Veuf/Veuve'),zod.literal(null)]).nullish(),
   "dateNaissance": zod.string().nullish(),
@@ -871,7 +770,7 @@ export const UpdateMemberBody = zod.object({
   "telephone2": zod.string().nullish(),
   "email": zod.string().nullish(),
   "boitePostale": zod.string().nullish(),
-  "telephonePersonneAContacter": zod.string().nullish().describe('Numéro de téléphone d\'une personne à contacter en cas de besoin\/urgence, différente du membre lui-même.'),
+  "telephonePersonneAContacter": zod.string().nullish(),
   "lieuResidence": zod.string().nullish(),
   "niveauEtudes": zod.union([zod.literal('Autodidacte'),zod.literal('Primaire'),zod.literal('Complémentaire'),zod.literal('Secondaire'),zod.literal('Universitaire'),zod.literal('Doctorat'),zod.literal('Autres'),zod.literal(null)]).nullish(),
   "photoUrl": zod.string().nullish(),
@@ -881,7 +780,7 @@ export const UpdateMemberBody = zod.object({
 }),zod.null()]).optional(),
   "moraleData": zod.union([zod.object({
   "typeOrganisation": zod.union([zod.literal('OP'),zod.literal('GIC'),zod.literal('Association'),zod.literal('Coopérative avec conseil d\'administration'),zod.literal('Coopérative à régime simplifié'),zod.literal('Exploitation'),zod.literal('UGIC'),zod.literal('FUGIC'),zod.literal('COOP92'),zod.literal('COOP OHADA'),zod.literal('Autre'),zod.literal(null)]).nullish(),
-  "nom": zod.string(),
+  "nom": zod.string().optional(),
   "numeroImmatriculation": zod.string().nullish(),
   "dateImmatriculation": zod.string().nullish(),
   "certificatUrl": zod.string().nullish(),
@@ -2158,6 +2057,7 @@ export const GetRecentActivityResponseItem = zod.object({
   "memberNumber": zod.string(),
   "memberType": zod.enum(['physique', 'morale']),
   "category": zod.enum(['agriculteur', 'pecheur', 'eleveur', 'forestier', 'artisan']),
+  "createdById": zod.number(),
   "displayName": zod.string().nullish(),
   "regionName": zod.string().nullish(),
   "createdByName": zod.string().nullish(),

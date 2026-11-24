@@ -45,11 +45,12 @@ export default defineConfig({
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/(?:^|\/)api(?:\/|$)/i],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         globIgnores: ['**/stats.html'],
         runtimeCaching: [
           {
-            urlPattern: /^\/api\/.*$/i,
+            urlPattern: /(?:^|\/)api(?:\/|$)/i,
             handler: 'NetworkOnly',
           },
           {

@@ -274,6 +274,97 @@ export interface PhysiqueData {
   signatureUrl?: string | null;
 }
 
+/**
+ * @nullable
+ */
+export type MemberUpdatePhysiqueDataCivilite = typeof MemberUpdatePhysiqueDataCivilite[keyof typeof MemberUpdatePhysiqueDataCivilite] | null;
+
+
+export const MemberUpdatePhysiqueDataCivilite = {
+  M: 'M.',
+  Mme: 'Mme.',
+  Mlle: 'Mlle.',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MemberUpdatePhysiqueDataSexe = typeof MemberUpdatePhysiqueDataSexe[keyof typeof MemberUpdatePhysiqueDataSexe] | null;
+
+
+export const MemberUpdatePhysiqueDataSexe = {
+  M: 'M',
+  F: 'F',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MemberUpdatePhysiqueDataSituationMatrimoniale = typeof MemberUpdatePhysiqueDataSituationMatrimoniale[keyof typeof MemberUpdatePhysiqueDataSituationMatrimoniale] | null;
+
+
+export const MemberUpdatePhysiqueDataSituationMatrimoniale = {
+  Célibataire: 'Célibataire',
+  'Marié(e)': 'Marié(e)',
+  'Divorcé(e)': 'Divorcé(e)',
+  'Veuf/Veuve': 'Veuf/Veuve',
+} as const;
+
+/**
+ * @nullable
+ */
+export type MemberUpdatePhysiqueDataNiveauEtudes = typeof MemberUpdatePhysiqueDataNiveauEtudes[keyof typeof MemberUpdatePhysiqueDataNiveauEtudes] | null;
+
+
+export const MemberUpdatePhysiqueDataNiveauEtudes = {
+  Autodidacte: 'Autodidacte',
+  Primaire: 'Primaire',
+  Complémentaire: 'Complémentaire',
+  Secondaire: 'Secondaire',
+  Universitaire: 'Universitaire',
+  Doctorat: 'Doctorat',
+  Autres: 'Autres',
+} as const;
+
+export interface MemberUpdatePhysiqueData {
+  /** @nullable */
+  civilite?: MemberUpdatePhysiqueDataCivilite;
+  nom?: string;
+  prenom?: string;
+  /** @nullable */
+  sexe?: MemberUpdatePhysiqueDataSexe;
+  /** @nullable */
+  situationMatrimoniale?: MemberUpdatePhysiqueDataSituationMatrimoniale;
+  /** @nullable */
+  dateNaissance?: string | null;
+  /** @nullable */
+  lieuNaissance?: string | null;
+  /** @nullable */
+  numeroCni?: string | null;
+  /** @nullable */
+  telephone1?: string | null;
+  /** @nullable */
+  telephone2?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  boitePostale?: string | null;
+  /** @nullable */
+  telephonePersonneAContacter?: string | null;
+  /** @nullable */
+  lieuResidence?: string | null;
+  /** @nullable */
+  niveauEtudes?: MemberUpdatePhysiqueDataNiveauEtudes;
+  /** @nullable */
+  photoUrl?: string | null;
+  /** @nullable */
+  cniRectoUrl?: string | null;
+  /** @nullable */
+  cniVersoUrl?: string | null;
+  /** @nullable */
+  signatureUrl?: string | null;
+}
+
 export interface Representative {
   ordre: number;
   /** @nullable */
@@ -383,6 +474,79 @@ export interface MoraleData {
      * @nullable
      */
   chiffreAffaires?: MoraleDataChiffreAffaires;
+  representants?: Representative[];
+}
+
+/**
+ * @nullable
+ */
+export type MemberUpdateMoraleDataTypeOrganisation = typeof MemberUpdateMoraleDataTypeOrganisation[keyof typeof MemberUpdateMoraleDataTypeOrganisation] | null;
+
+
+export const MemberUpdateMoraleDataTypeOrganisation = {
+  OP: 'OP',
+  GIC: 'GIC',
+  Association: 'Association',
+  'Coopérative_avec_conseil_d\'administration': 'Coopérative avec conseil d\'administration',
+  Coopérative_à_régime_simplifié: 'Coopérative à régime simplifié',
+  Exploitation: 'Exploitation',
+  UGIC: 'UGIC',
+  FUGIC: 'FUGIC',
+  COOP92: 'COOP92',
+  COOP_OHADA: 'COOP OHADA',
+  Autre: 'Autre',
+} as const;
+
+/**
+ * Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'.
+ * @nullable
+ */
+export type MemberUpdateMoraleDataChiffreAffaires = typeof MemberUpdateMoraleDataChiffreAffaires[keyof typeof MemberUpdateMoraleDataChiffreAffaires] | null;
+
+
+export const MemberUpdateMoraleDataChiffreAffaires = {
+  '<_5m': '< 5m',
+  '5-10m': '5-10m',
+  '10m-20m': '10m-20m',
+  '20m-50m': '20m-50m',
+  '>_50m': '> 50m',
+} as const;
+
+export interface MemberUpdateMoraleData {
+  /** @nullable */
+  typeOrganisation?: MemberUpdateMoraleDataTypeOrganisation;
+  nom?: string;
+  /** @nullable */
+  numeroImmatriculation?: string | null;
+  /** @nullable */
+  dateImmatriculation?: string | null;
+  /** @nullable */
+  certificatUrl?: string | null;
+  /** @nullable */
+  telephone1?: string | null;
+  /** @nullable */
+  telephone2?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  boitePostale?: string | null;
+  /** @nullable */
+  website?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  nombreMembres?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  nombreFemmes?: number | null;
+  /**
+     * Chiffre d'affaires annuel en FCFA. Applicable uniquement si typeOrganisation = 'Exploitation'.
+     * @nullable
+     */
+  chiffreAffaires?: MemberUpdateMoraleDataChiffreAffaires;
   representants?: Representative[];
 }
 
@@ -672,6 +836,7 @@ export interface MemberSummary {
   memberNumber: string;
   memberType: MemberSummaryMemberType;
   category: MemberSummaryCategory;
+  createdById: number;
   /** @nullable */
   displayName?: string | null;
   /** @nullable */
@@ -770,6 +935,8 @@ export const MemberUpdateIndividualOrOrg = {
 export type MemberUpdateCategoryData = { [key: string]: unknown } | null;
 
 export interface MemberUpdate {
+  /** Client-generated idempotency key for offline retries */
+  clientOperationId?: string;
   /** Expected current version for Optimistic Concurrency Control (OCC) check */
   version?: number;
   category?: MemberUpdateCategory;
@@ -786,8 +953,8 @@ export interface MemberUpdate {
   gpsLat?: number | null;
   /** @nullable */
   gpsLng?: number | null;
-  physiqueData?: PhysiqueData | null;
-  moraleData?: MoraleData | null;
+  physiqueData?: MemberUpdatePhysiqueData | null;
+  moraleData?: MemberUpdateMoraleData | null;
   /** @nullable */
   categoryData?: MemberUpdateCategoryData;
   /** @nullable */
@@ -840,6 +1007,35 @@ export interface UploadInput {
   base64Data: string;
   mimeType: string;
   fileName: string;
+}
+
+export type PublicBadgeVerificationResponseMemberType = typeof PublicBadgeVerificationResponseMemberType[keyof typeof PublicBadgeVerificationResponseMemberType];
+
+
+export const PublicBadgeVerificationResponseMemberType = {
+  physique: 'physique',
+  morale: 'morale',
+} as const;
+
+export type PublicBadgeVerificationResponseCategory = typeof PublicBadgeVerificationResponseCategory[keyof typeof PublicBadgeVerificationResponseCategory];
+
+
+export const PublicBadgeVerificationResponseCategory = {
+  agriculteur: 'agriculteur',
+  pecheur: 'pecheur',
+  eleveur: 'eleveur',
+  forestier: 'forestier',
+  artisan: 'artisan',
+} as const;
+
+export interface PublicBadgeVerificationResponse {
+  memberNumber: string;
+  displayName: string;
+  memberType: PublicBadgeVerificationResponseMemberType;
+  category: PublicBadgeVerificationResponseCategory;
+  regionName: string | null;
+  photoUrl?: string | null;
+  isValid: boolean;
 }
 
 export interface UploadResult {

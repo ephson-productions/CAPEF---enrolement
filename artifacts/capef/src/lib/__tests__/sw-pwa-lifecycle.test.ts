@@ -19,6 +19,8 @@ describe('Phase 10 — Service Worker & PWA Life Cycle Configuration Tests', () 
 
     // 3. Verify NetworkOnly for general /api/ routes to prevent ServiceWorker API cache collisions
     expect(configContent).toContain("handler: 'NetworkOnly'");
+    expect(configContent).toContain('navigateFallbackDenylist: [/(?:^|\\/)api(?:\\/|$)/i]');
+    expect(configContent).toContain('urlPattern: /(?:^|\\/)api(?:\\/|$)/i');
   });
 
   it('verifies dist/sw.js generated during build includes skipWaiting and clientsClaim', () => {

@@ -29,10 +29,23 @@ function normalizeZones(value: unknown) {
 
 // GET /api/users
 router.get("/users", requireAppUser, requireRole("admin", "supervisor"), async (req, res): Promise<void> => {
+  const appUser = (req as any).appUser;
   const { role, regionId, status } = req.query;
-  const conditions = [];
-  if (role) conditions.push(eq(usersTable.role, String(role)));
-  if (regionId) conditions.push(eq(usersTable.regionId, Number(regionId)));
+  const conditions: any[] = [];
+
+  if (appUser.role === "supervisor") {
+    if (!Number.isSafeInteger(appUser.regionId) || appUser.regionId <= 0) {
+      res.json([]);
+      return;
+    }
+    // Supervisors can use this endpoint only for the member-list agent filter.
+    // Never trust caller-supplied role or region values for this scope.
+    conditions.push(eq(usersTable.role, "agent"));
+    conditions.push(eq(usersTable.regionId, appUser.regionId));
+  } else {
+    if (role) conditions.push(eq(usersTable.role, String(role)));
+    if (regionId) conditions.push(eq(usersTable.regionId, Number(regionId)));
+  }
   if (status) conditions.push(eq(usersTable.status, String(status)));
 
   const users = conditions.length

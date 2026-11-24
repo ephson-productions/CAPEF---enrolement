@@ -49,6 +49,7 @@ import type {
   MyProfileUpdate,
   OccConflictResponse,
   ProvisionUserInput,
+  PublicBadgeVerificationResponse,
   Region,
   SyncInput,
   SyncResult,
@@ -1249,9 +1250,9 @@ export const getGetPublicMemberByBadgeTokenUrl = (badgeToken: string,) => {
 /**
  * @summary Get a single member by public badge token
  */
-export const getPublicMemberByBadgeToken = async (badgeToken: string, options?: RequestInit): Promise<Member> => {
+export const getPublicMemberByBadgeToken = async (badgeToken: string, options?: RequestInit): Promise<PublicBadgeVerificationResponse> => {
 
-  return customFetch<Member>(getGetPublicMemberByBadgeTokenUrl(badgeToken),
+  return customFetch<PublicBadgeVerificationResponse>(getGetPublicMemberByBadgeTokenUrl(badgeToken),
   {
     ...options,
     method: 'GET'
@@ -1303,6 +1304,83 @@ export function useGetPublicMemberByBadgeToken<TData = Awaited<ReturnType<typeof
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPublicMemberByBadgeTokenQueryOptions(badgeToken,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMemberByBadgeTokenUrl = (badgeToken: string,) => {
+
+
+
+
+  return `/api/members/badge/${badgeToken}`
+}
+
+/**
+ * @summary Verify member by badge token (legacy alias)
+ */
+export const getMemberByBadgeToken = async (badgeToken: string, options?: RequestInit): Promise<PublicBadgeVerificationResponse> => {
+
+  return customFetch<PublicBadgeVerificationResponse>(getGetMemberByBadgeTokenUrl(badgeToken),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMemberByBadgeTokenQueryKey = (badgeToken: string,) => {
+    return [
+    `/api/members/badge/${badgeToken}`
+    ] as const;
+    }
+
+
+export const getGetMemberByBadgeTokenQueryOptions = <TData = Awaited<ReturnType<typeof getMemberByBadgeToken>>, TError = ErrorType<ErrorResponse>>(badgeToken: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMemberByBadgeToken>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMemberByBadgeTokenQueryKey(badgeToken);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMemberByBadgeToken>>> = ({ signal }) => getMemberByBadgeToken(badgeToken, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: badgeToken !== null && badgeToken !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMemberByBadgeToken>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMemberByBadgeTokenQueryResult = NonNullable<Awaited<ReturnType<typeof getMemberByBadgeToken>>>
+export type GetMemberByBadgeTokenQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Verify member by badge token (legacy alias)
+ */
+
+export function useGetMemberByBadgeToken<TData = Awaited<ReturnType<typeof getMemberByBadgeToken>>, TError = ErrorType<ErrorResponse>>(
+ badgeToken: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMemberByBadgeToken>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMemberByBadgeTokenQueryOptions(badgeToken,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

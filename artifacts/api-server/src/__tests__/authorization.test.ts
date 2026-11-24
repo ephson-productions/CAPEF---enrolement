@@ -61,9 +61,19 @@ describe("Security & Authorization Gate (authorization.test.ts)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("Anonymous -> badge verification API returns 401 Unauthorized", async () => {
-    const res = await request(app).get(`/api/members/badge/${memberB.badgeToken}`);
-    expect(res.status).toBe(401);
+  it("Anonymous -> badge verification API returns 200 OK with sanitized public data", async () => {
+    const res = await request(app).get(`/api/public/members/badge/${memberB.badgeToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.memberNumber).toBe(memberB.memberNumber);
+    expect(res.body.isValid).toBe(false);
+    expect(res.body.activities).toBeUndefined();
+    expect(res.body.numeroCni).toBeUndefined();
+    expect(res.body.cniRectoUrl).toBeUndefined();
+  });
+
+  it("Anonymous -> badge verification API returns 404 for an unknown token", async () => {
+    const res = await request(app).get("/api/public/members/badge/invalid_badge_token");
+    expect(res.status).toBe(404);
   });
 
   it("Agent A -> Member B activity mutation returns 403 Forbidden", async () => {
@@ -84,14 +94,13 @@ describe("Security & Authorization Gate (authorization.test.ts)", () => {
     expect(res.status).toBe(403);
   });
 
-  it("Agent A -> Member B badge verification returns 200 OK + full member profile", async () => {
+  it("Agent A -> Member B badge verification returns 200 OK + public verification data", async () => {
     const res = await request(app)
-      .get(`/api/members/badge/${memberB.badgeToken}`)
+      .get(`/api/public/members/badge/${memberB.badgeToken}`)
       .set("Authorization", `Bearer ${agentA.clerkUserId}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.id).toBe(memberB.id);
     expect(res.body.memberNumber).toBe(memberB.memberNumber);
-    expect(res.body.activities).toBeDefined();
+    expect(res.body.activities).toBeUndefined();
   });
 });
